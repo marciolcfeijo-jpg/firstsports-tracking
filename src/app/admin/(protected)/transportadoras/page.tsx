@@ -6,9 +6,9 @@ import { AlfaAdapter } from "../../../../../integrations/carriers/alfa";
 export default async function Carriers() {
   const user = await requirePageAdmin();
   const carriers = await db.carrier.findMany();
-  const config: Record<string, string | undefined> = {
-    BRASPRESS: new BraspressAdapter().validateConfiguration().reason,
-    ALFA: new AlfaAdapter().validateConfiguration().reason,
+  const config: Record<string, { valid: boolean; reason?: string }> = {
+    BRASPRESS: new BraspressAdapter().validateConfiguration(),
+    ALFA: new AlfaAdapter().validateConfiguration(),
   };
   return (
     <>
@@ -31,7 +31,13 @@ export default async function Carriers() {
               {c.enabled ? "Consultas habilitadas" : "Consultas desabilitadas"}
             </span>
             <p className="small spaced">
-              Diagnóstico: {config[c.code] || "Adaptador indisponível"}
+              Diagnóstico:{" "}
+              {config[c.code]?.valid
+                ? "Credenciais presentes no servidor. A autenticação será verificada ao atualizar uma remessa."
+                : config[c.code]?.reason === "CREDENTIALS_MISSING"
+                  ? "Credenciais de integração não configuradas neste ambiente."
+                  : config[c.code]?.reason ||
+                    "Não há conector disponível para esta transportadora."}
             </p>
             {user.role === "ADMIN" && (
               <CarrierToggle id={c.id} enabled={c.enabled} />
