@@ -73,6 +73,7 @@ export async function persistTracking(
 export async function syncShipment(
   id: string,
   adapterOverride?: CarrierTrackingAdapter,
+  invoiceNumber?: string,
 ) {
   const claimed = await db.shipment.updateMany({
     where: {
@@ -113,7 +114,13 @@ export async function syncShipment(
     const config = adapter.validateConfiguration();
     if (!config.valid)
       throw new CarrierError(config.reason || "CONFIGURATION_ERROR", false);
-    const invoice = shipment.invoices[0];
+    const candidates =
+      invoiceNumber === undefined
+        ? shipment.invoices
+        : shipment.invoices.filter((i) => i.number === invoiceNumber);
+    if (invoiceNumber !== undefined && candidates.length > 1)
+      throw new CarrierError("AMBIGUOUS_INVOICE", false);
+    const invoice = candidates[0];
     if (!invoice) throw new CarrierError("INVOICE_MISSING", false);
     const result = await adapter.trackShipment({
       invoiceNumber: invoice.number,

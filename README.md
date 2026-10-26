@@ -67,6 +67,7 @@ Playwright usa `/usr/bin/chromium` neste ambiente. Para outra instalação, defi
 
 ## Guias
 
+- [Ativar consulta por NF e Braspress](docs/ativacao-braspress.md)
 - [API interna](docs/api.md)
 - [Importação Excel/CSV](docs/importacao.md)
 - [Braspress](docs/braspress.md) e [Alfa](docs/alfa.md)

@@ -7,8 +7,8 @@ export default function Help() {
         <h1>Vamos acompanhar sua entrega</h1>
         {[
           [
-            "Onde encontro o número do pedido?",
-            "Consulte a confirmação de compra enviada pela First Sports ou utilize o número da nota fiscal. Informe também o CPF/CNPJ do destinatário cadastrado no pedido.",
+            "Onde encontro o número da nota fiscal?",
+            "Use o número da nota fiscal recebida da First Sports e o CPF/CNPJ do destinatário. O portal valida o vínculo cadastrado antes de consultar a transportadora.",
           ],
           [
             "Preciso escolher a transportadora?",
@@ -16,7 +16,7 @@ export default function Help() {
           ],
           [
             "Minha consulta não foi validada",
-            "Confira o pedido e o documento do destinatário. Caso os dados continuem sem validação, entre em contato com o atendimento pelos canais disponíveis no site institucional e solicite um link seguro.",
+            "Confira a nota fiscal e o documento do destinatário. Caso os dados continuem sem validação, entre em contato com o atendimento pelos canais disponíveis no site institucional e solicite um link seguro.",
           ],
           [
             "O rastreamento ainda não foi atualizado",

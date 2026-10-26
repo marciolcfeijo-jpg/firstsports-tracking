@@ -3,20 +3,15 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { validDocument } from "@/lib/validation";
+import { trackingLookupSchema } from "@/lib/validation";
 import { Search, LockKeyhole, ArrowRight, PackageSearch } from "lucide-react";
 import Link from "next/link";
-const schema = z.object({
-  number: z
-    .string()
-    .trim()
-    .min(1, "Informe o pedido ou a nota fiscal")
-    .max(120),
-  document: z.string().refine(validDocument, "Informe um CPF ou CNPJ válido"),
-});
+const schema = trackingLookupSchema;
 export function LookupForm() {
   const [error, setError] = useState("");
-  const [links, setLinks] = useState<{ url: string }[]>([]);
+  const [links, setLinks] = useState<
+    { url: string; carrier: string; invoiceNumber: string }[]
+  >([]);
   const {
     register,
     handleSubmit,
@@ -51,10 +46,12 @@ export function LookupForm() {
       </p>
       <form onSubmit={handleSubmit(submit)} noValidate>
         <label className="field">
-          Número do pedido ou nota fiscal
+          Número da nota fiscal
           <input
             {...register("number")}
-            placeholder="Ex.: número recebido na compra"
+            placeholder="Ex.: 33541"
+            inputMode="numeric"
+            maxLength={12}
             autoComplete="off"
             aria-invalid={!!errors.number}
           />
@@ -95,7 +92,10 @@ export function LookupForm() {
           <strong>{links.length} remessa(s) encontrada(s)</strong>
           {links.map((l, i) => (
             <Link key={l.url} href={l.url}>
-              Acompanhar remessa {i + 1} →
+              Acompanhar remessa {i + 1} →<br />
+              <span className="small muted">
+                NF {l.invoiceNumber} · {l.carrier}
+              </span>
             </Link>
           ))}
         </div>

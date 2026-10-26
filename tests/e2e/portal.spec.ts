@@ -17,7 +17,7 @@ test("public responsive flow, help and server access control", async ({
   await expect(page.getByRole("heading", { name: /Onde está/ })).toBeVisible();
   await page.getByRole("button", { name: "RASTREAR ENTREGA" }).click();
   await expect(
-    page.getByText("Informe o pedido ou a nota fiscal"),
+    page.getByText("Informe o número da nota fiscal (até 12 dígitos)"),
   ).toBeVisible();
   await page.getByRole("link", { name: "Precisa de ajuda?" }).click();
   await expect(
@@ -96,8 +96,8 @@ test("admin login, manual persistence, multiple invoices, secure lookup and revo
   );
   await page.goto("/");
   await page
-    .getByLabel("Número do pedido ou nota fiscal", { exact: true })
-    .fill(order);
+    .getByLabel("Número da nota fiscal", { exact: true })
+    .fill(test.info().project.name === "mobile" ? "992" : "991");
   await page
     .getByLabel("CPF ou CNPJ do destinatário", { exact: true })
     .fill(shipmentFixture.cpf_cnpj_destinatario);

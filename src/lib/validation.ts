@@ -103,3 +103,14 @@ export const fiscalKey = (
     String(Number(s.serie_nf)),
     String(Number(s.numero_nf)),
   ].join(":");
+
+export const trackingLookupSchema = z.object({
+  number: z
+    .string()
+    .trim()
+    .regex(/^\d{1,12}$/, "Informe o número da nota fiscal (até 12 dígitos)"),
+  document: z
+    .string()
+    .max(25)
+    .refine(validDocument, "Informe um CPF ou CNPJ válido"),
+});

@@ -6,7 +6,7 @@ Mutações de navegador exigem `Origin` igual à origem de `APP_URL`, além do c
 
 | Método e caminho                         | Entrada / retorno                                                                                            | Permissão                               |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
-| POST `/api/tracking/lookup`              | `{number,document}`; `{links:[{url}]}` após validar pedido/NF e CPF/CNPJ completo                            | Pública, quotas globais e por documento |
+| POST `/api/tracking/lookup`              | `{number,document}`; `{links:[{url}]}` após validar NF e CPF/CNPJ completo                                   | Pública, quotas globais e por documento |
 | GET `/api/tracking/link/:token`          | Remessa com NF, transportadora, datas e eventos; sem cliente, documento/endereço/valores                     | Token válido, não expirado nem revogado |
 | POST `/api/admin/session`                | `{email,password}`; cookies de sessão                                                                        | Login Supabase + vínculo ativo          |
 | DELETE `/api/admin/session`              | Encerra sessão                                                                                               | Origem válida                           |
@@ -51,3 +51,5 @@ Exemplo de cadastro (dados fictícios exclusivamente para testes):
 ```
 
 Os links representam uma remessa. Uma consulta de pedido retorna links separados para todas as suas remessas autorizadas; não há agregação que marque todo o pedido entregue prematuramente.
+
+A consulta pública usa exclusivamente o número da NF (campo `number`, texto numérico de até 12 dígitos), preservando o contrato JSON. Após validar o destinatário, tenta até três atualizações elegíveis; erros da transportadora mantêm o histórico disponível. Resposta: `{links:[{url,carrier,invoiceNumber}]}`.

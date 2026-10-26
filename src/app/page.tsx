@@ -38,11 +38,8 @@ export default function Home() {
             <div className="steps">
               <article className="step">
                 <small>01 · IDENTIFIQUE</small>
-                <h3>Informe seu pedido</h3>
-                <p>
-                  Use o número do pedido ou da nota fiscal e o documento do
-                  destinatário.
-                </p>
+                <h3>Informe sua nota fiscal</h3>
+                <p>Use o número da nota fiscal e o CPF/CNPJ do destinatário.</p>
               </article>
               <article className="step">
                 <small>02 · ACOMPANHE</small>

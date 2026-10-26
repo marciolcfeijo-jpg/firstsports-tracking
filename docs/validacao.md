@@ -46,3 +46,11 @@ O ambiente local permanece sem remessas de clientes; fixtures existem apenas nos
 ## Configuração reutilizável do ambiente
 
 Foram salvos `install_script`, `start_skill`, requisitos dos dois parâmetros públicos do Supabase e os destinos de rede `api.braspress.com`, `api.alfatransportes.com.br` e `binaries.prisma.sh`. A gravação do rascunho foi confirmada. Ela não equivale à publicação do ambiente nem ao deploy do portal. Revise e salve as configurações do ambiente e publique pelo produto quando apropriado.
+
+## Atualização — 26/10/2026: consulta por NF
+
+A consulta pública passou a usar exclusivamente NF + CPF/CNPJ do destinatário. Ela valida o vínculo local antes de qualquer chamada à transportadora, respeita agendamento/backoff e tenta até três atualizações elegíveis. Remessas com várias notas usam a NF solicitada no conector; conflitos de série são recusados explicitamente. As respostas mostram a transportadora e preservam o histórico em falhas.
+
+Verificações: TypeScript e lint passaram; 54 testes unitários/de integração passaram; 6 testes E2E desktop/mobile passaram no fluxo por NF; build de produção passou. As APIs externas continuam sem homologação real. Durante a validação, a restrição de rede do sandbox bloqueou o PostgreSQL local; a suíte foi reexecutada com o acesso local autorizado e passou. Nenhuma assertion foi removida.
+
+A configuração do banco na Vercel, DOCUMENT_HMAC_KEY e as credenciais Braspress ainda precisam ser cadastradas pelo responsável. Apenas as variáveis públicas do Supabase não suprem esses requisitos. O guia docs/ativacao-braspress.md contém os passos, sem credenciais reais.
