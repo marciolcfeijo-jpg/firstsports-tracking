@@ -1,3 +1,4 @@
+import { TrackingHistory } from "@/components/tracking-history";
 import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { notFound } from "next/navigation";
@@ -130,20 +131,8 @@ export default async function Detail({
           </section>
         </div>
         <aside className="card h-fit">
-          <h3>Eventos registrados</h3>
-          <ol className="timeline">
-            {s.events.map((e) => (
-              <li key={e.id}>
-                <strong>{statusLabels[e.status]}</strong>
-                <p>{e.description}</p>
-                <time>
-                  {e.dateOnly
-                    ? dateOnly(e.occurredAt) + " · horário não informado"
-                    : dateTime(e.occurredAt)}
-                </time>
-              </li>
-            ))}
-          </ol>
+          <h3>Histórico completo da entrega</h3>
+          <TrackingHistory events={s.events} />
         </aside>
       </div>
     </>

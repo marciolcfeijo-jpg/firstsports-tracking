@@ -1,3 +1,4 @@
+import { TrackingHistory } from "./tracking-history";
 import { type publicShipment } from "@/lib/shipments";
 import { statusLabels, dateTime, dateOnly } from "@/lib/status";
 import {
@@ -102,49 +103,7 @@ export function TrackingResult({ shipment: s }: { shipment: Shipment }) {
           </section>
           <section className="card spaced">
             <h2 className="!text-xl">Histórico da entrega</h2>
-            <p className="small">
-              Movimentações efetivamente registradas, da mais recente à mais
-              antiga.
-            </p>
-            {!s.events.length ? (
-              <p>Nenhuma movimentação disponível.</p>
-            ) : (
-              <ol className="timeline">
-                {s.events.slice(0, 4).map((e) => (
-                  <li key={e.id}>
-                    <strong>{statusLabels[e.status]}</strong>
-                    <p>{e.description}</p>
-                    {e.location && <p>{e.location}</p>}
-                    <time dateTime={new Date(e.occurredAt).toISOString()}>
-                      {e.dateOnly
-                        ? dateOnly(e.occurredAt) + " · horário não informado"
-                        : dateTime(e.occurredAt)}
-                    </time>
-                  </li>
-                ))}
-              </ol>
-            )}
-            {s.events.length > 4 && (
-              <details>
-                <summary className="text-[var(--brand-purple-dark)] cursor-pointer">
-                  Ver histórico completo ({s.events.length - 4} eventos
-                  anteriores)
-                </summary>
-                <ol className="timeline">
-                  {s.events.slice(4).map((e) => (
-                    <li key={e.id}>
-                      <strong>{statusLabels[e.status]}</strong>
-                      <p>{e.description}</p>
-                      <time>
-                        {e.dateOnly
-                          ? dateOnly(e.occurredAt) + " · horário não informado"
-                          : dateTime(e.occurredAt)}
-                      </time>
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            )}
+            <TrackingHistory events={s.events} />
           </section>
         </div>
         <aside>
