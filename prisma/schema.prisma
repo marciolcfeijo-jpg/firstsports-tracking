@@ -1,0 +1,201 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ShipmentStatus {
+  INVOICED
+  AWAITING_PICKUP
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  EXCEPTION
+  RETURNING
+  RETURNED
+  CANCELLED
+  UNKNOWN
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+model AdminUser {
+  id        String   @id // Supabase Auth user UUID
+  email     String   @unique
+  role      Role     @default(VIEWER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id           String   @id @default(cuid())
+  name         String
+  documentHash String   @unique
+  email        String?
+  city         String
+  state        String
+  orders       Order[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Order {
+  id         String     @id @default(cuid())
+  number     String
+  customerId String
+  customer   Customer   @relation(fields: [customerId], references: [id])
+  shipments  Shipment[]
+  createdAt  DateTime   @default(now())
+
+  @@unique([number, customerId])
+  @@index([number])
+}
+
+model Carrier {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  name           String
+  syncLeaseUntil DateTime?
+  syncLeaseToken String?
+  enabled        Boolean    @default(false)
+  shipments      Shipment[]
+}
+
+model Shipment {
+  id                 String            @id @default(cuid())
+  orderId            String
+  order              Order             @relation(fields: [orderId], references: [id])
+  carrierId          String
+  carrier            Carrier           @relation(fields: [carrierId], references: [id])
+  destinationCity    String            @default("")
+  destinationState   String            @default("")
+  senderDocument     String
+  payerDocument      String?
+  cte                String?
+  issuedAt           DateTime
+  estimatedDelivery  DateTime?
+  deliveredAt        DateTime?
+  proofOfDeliveryUrl String?
+  status             ShipmentStatus    @default(INVOICED)
+  lastSyncedAt       DateTime?
+  nextSyncAt         DateTime          @default(now())
+  syncFailures       Int               @default(0)
+  leaseUntil         DateTime?
+  lastSyncError      String?
+  version            Int               @default(0)
+  invoices           ShipmentInvoice[]
+  events             TrackingEvent[]
+  links              TrackingLink[]
+  syncLogs           SyncLog[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([status, nextSyncAt])
+  @@index([orderId])
+}
+
+model ShipmentInvoice {
+  id             String   @id @default(cuid())
+  shipmentId     String
+  shipment       Shipment @relation(fields: [shipmentId], references: [id])
+  issuerDocument String
+  series         String
+  number         String
+  accessKey      String?  @unique
+
+  @@unique([issuerDocument, series, number])
+  @@index([shipmentId])
+  @@index([number])
+}
+
+model TrackingEvent {
+  id           String         @id @default(cuid())
+  shipmentId   String
+  shipment     Shipment       @relation(fields: [shipmentId], references: [id])
+  dateOnly     Boolean        @default(false)
+  fingerprint  String
+  externalCode String?
+  occurredAt   DateTime
+  description  String
+  location     String?
+  status       ShipmentStatus
+  createdAt    DateTime       @default(now())
+
+  @@unique([shipmentId, fingerprint])
+  @@index([shipmentId, occurredAt])
+}
+
+model TrackingLink {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  shipmentId String
+  shipment   Shipment  @relation(fields: [shipmentId], references: [id])
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([shipmentId])
+}
+
+model ImportBatch {
+  id          String      @id @default(cuid())
+  filename    String
+  status      String      @default("PREVIEW")
+  leaseUntil  DateTime?
+  createdBy   String
+  rows        ImportRow[]
+  createdAt   DateTime    @default(now())
+  completedAt DateTime?
+}
+
+model ImportRow {
+  id         String      @id @default(cuid())
+  batchId    String
+  batch      ImportBatch @relation(fields: [batchId], references: [id])
+  line       Int
+  data       Json
+  errors     Json
+  result     String      @default("PENDING")
+  shipmentId String?
+
+  @@unique([batchId, line])
+}
+
+model SyncLog {
+  id         String   @id @default(cuid())
+  shipmentId String
+  shipment   Shipment @relation(fields: [shipmentId], references: [id])
+  success    Boolean
+  code       String?
+  // No raw payloads: carrier responses may contain personal data.
+  durationMs Int
+  createdAt  DateTime @default(now())
+
+  @@index([shipmentId, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  action    String
+  entityId  String
+  createdAt DateTime @default(now())
+
+  @@index([entityId, createdAt])
+}
+
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}

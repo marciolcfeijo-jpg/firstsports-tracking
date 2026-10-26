@@ -1,0 +1,38 @@
+-- No public Data API access. The migration owner (server) bypasses RLS; restricted runtime roles need explicit policies.
+ALTER TABLE "AdminUser" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "AdminUser" FROM PUBLIC;
+ALTER TABLE "Customer" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "Customer" FROM PUBLIC;
+ALTER TABLE "Order" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "Order" FROM PUBLIC;
+ALTER TABLE "Carrier" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "Carrier" FROM PUBLIC;
+ALTER TABLE "Shipment" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "Shipment" FROM PUBLIC;
+ALTER TABLE "ShipmentInvoice" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "ShipmentInvoice" FROM PUBLIC;
+ALTER TABLE "TrackingEvent" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "TrackingEvent" FROM PUBLIC;
+ALTER TABLE "TrackingLink" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "TrackingLink" FROM PUBLIC;
+ALTER TABLE "ImportBatch" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "ImportBatch" FROM PUBLIC;
+ALTER TABLE "ImportRow" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "ImportRow" FROM PUBLIC;
+ALTER TABLE "SyncLog" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "SyncLog" FROM PUBLIC;
+ALTER TABLE "AuditLog" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "AuditLog" FROM PUBLIC;
+ALTER TABLE "RateLimit" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "RateLimit" FROM PUBLIC;
+DO $$
+DECLARE table_name text; role_name text;
+BEGIN
+  FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = role_name) THEN
+      FOREACH table_name IN ARRAY ARRAY['AdminUser', 'Customer', 'Order', 'Carrier', 'Shipment', 'ShipmentInvoice', 'TrackingEvent', 'TrackingLink', 'ImportBatch', 'ImportRow', 'SyncLog', 'AuditLog', 'RateLimit'] LOOP
+        EXECUTE format('REVOKE ALL ON TABLE %I FROM %I', table_name, role_name);
+      END LOOP;
+    END IF;
+  END LOOP;
+END $$;
