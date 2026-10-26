@@ -60,3 +60,11 @@ A configuração do banco na Vercel, DOCUMENT_HMAC_KEY e as credenciais Braspres
 Adicionado `build:vercel` e configuração versionada da Vercel. Verificado com um PostgreSQL local isolado e inicialmente vazio: quatro migrations aplicadas, duas transportadoras desabilitadas cadastradas, zero remessas e zero administradores criados; build Next.js concluído. A reaplicação das migrations terminou sem pendências. TypeScript, lint e revisão de whitespace passaram.
 
 Esse teste não utilizou o Supabase do responsável. A conexão e as migrations nesse banco serão verificadas pelos Build Logs do próximo deploy de Production. O script não imprime os valores de DATABASE_URL ou DOCUMENT_HMAC_KEY.
+
+## Atualização — diagnóstico de sincronização e habilitação de transportadora
+
+Documentação Braspress relida em 26/10/2026: confirmado GET /v3/tracking/byNf/{cnpjTomador}/{notaFiscal}/json com HTTP Basic e janela histórica de 90 dias. INTEGRATION_DISABLED é um bloqueio interno anterior à chamada HTTP, não um retorno do provedor.
+
+Corrigido o refresh do resumo após falha da atualização manual; a tela distingue estado atual da transportadora e última falha registrada, com data da tentativa. Habilitar uma transportadora reagenda remessas abertas bloqueadas especificamente por INTEGRATION_DISABLED, preservando logs, erros de autenticação e remessas encerradas.
+
+Validação: TypeScript e lint passaram; 55 testes de domínio/banco passaram; 8 E2E desktop/mobile passaram, incluindo o cenário de erro antigo substituído pela falha atual depois da habilitação. O build local foi tentado, mas o compilador Turbopack foi bloqueado ao abrir uma porta de comunicação local (EPERM); não houve confirmação de build de produção nesta revisão. O próximo deploy da Vercel deverá confirmar essa etapa. Nenhuma credencial real de transportadora foi usada nos testes e não há nova evidência de homologação autenticada.

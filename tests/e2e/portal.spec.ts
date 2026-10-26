@@ -171,3 +171,56 @@ test("real CSV upload, preview, confirmation and duplicate-safe import", async (
     page.getByRole("heading", { name: "Configurações do ambiente" }),
   ).toBeVisible();
 });
+
+test("failed synchronization refreshes the displayed error after carrier is enabled", async ({
+  page,
+}) => {
+  await login(page);
+  const created = await page.request.post("/api/admin/shipments", {
+    headers: { origin: "http://localhost:3100" },
+    data: {
+      ...shipmentFixture,
+      numero_pedido: "SYNC-FIXTURE-" + test.info().project.name,
+      numero_nf: test.info().project.name === "mobile" ? "998" : "997",
+    },
+  });
+  expect(created.ok()).toBe(true);
+  const { id } = await created.json();
+  await page.goto("/admin/remessas/" + id);
+  await page
+    .getByRole("button", { name: "Atualizar rastreamento", exact: true })
+    .click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Última falha registrada" }),
+  ).toContainText("INTEGRATION_DISABLED");
+  await page.goto("/admin/transportadoras");
+  const card = page
+    .getByRole("heading", { name: "Braspress", exact: true })
+    .locator("..");
+  await card
+    .getByRole("button", { name: "Habilitar consultas", exact: true })
+    .click();
+  await expect(
+    card.getByText("Consultas habilitadas", { exact: true }),
+  ).toBeVisible();
+  await page.goto("/admin/remessas/" + id);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Última falha registrada" }),
+  ).toContainText("As consultas estão habilitadas agora");
+  await page
+    .getByRole("button", { name: "Atualizar rastreamento", exact: true })
+    .click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Última falha registrada" }),
+  ).toContainText("CREDENTIALS_MISSING");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Última falha registrada" }),
+  ).not.toContainText("INTEGRATION_DISABLED");
+  await page.goto("/admin/transportadoras");
+  await card
+    .getByRole("button", { name: "Desativar consultas", exact: true })
+    .click();
+  await expect(
+    card.getByText("Consultas desabilitadas", { exact: true }),
+  ).toBeVisible();
+});

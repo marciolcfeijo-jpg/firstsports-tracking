@@ -32,12 +32,18 @@ export function ShipmentActions(p: Props) {
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await r.json();
+      // Sync failures are persisted too: refresh the server-rendered error and log.
+      if (path === "/sync") router.refresh();
       if (!r.ok)
         throw new Error(
           data.error || data.code || "Não foi possível concluir a ação",
         );
-      router.refresh();
-      setMessage("Operação concluída.");
+      if (path !== "/sync") router.refresh();
+      setMessage(
+        path === "/sync"
+          ? "Rastreamento atualizado com dados da transportadora."
+          : "Operação concluída.",
+      );
       return data;
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Falha na operação");

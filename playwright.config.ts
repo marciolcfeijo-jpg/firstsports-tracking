@@ -42,6 +42,8 @@ export default defineConfig({
         NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
         NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "synthetic-test-key",
         DOCUMENT_HMAC_KEY: "isolated-e2e-fixture-key-at-least-32-characters",
+        BRASPRESS_USERNAME: "",
+        BRASPRESS_PASSWORD: "",
         CRON_SECRET: "isolated-e2e-cron-secret-at-least-32-characters",
       },
     },

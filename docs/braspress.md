@@ -20,3 +20,9 @@ Resposta validada: `conhecimentos[]` com `numero`, `notasFiscais[].numero/serie`
 6. Confirmar o limite comercial de chamadas e ajustar lotes/intervalos antes de aumentar volume.
 
 Fixtures são sintéticas e usam os nomes de campos documentados. Não houve consulta real com credenciais nesta entrega; não declarar integração homologada apenas por testes de fixture.
+
+## Diagnóstico de integração desabilitada
+
+`INTEGRATION_DISABLED` é gerado pelo portal antes de qualquer chamada HTTP à Braspress. A página da remessa mantém essa falha como histórico; habilitar a transportadora não transforma uma tentativa anterior em sucesso. O resumo mostra o estado atual da transportadora e a data da última tentativa. A atualização manual recarrega o resumo também quando a tentativa falha, para não manter um código anterior na tela.
+
+Ao habilitar uma transportadora, remessas abertas cujo último erro foi INTEGRATION_DISABLED são reagendadas para uma nova tentativa. Erros anteriores de autenticação/rede mantêm suas janelas de retentativa. O painel não apaga o histórico de falhas nem consulta a API com credenciais no navegador.

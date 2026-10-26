@@ -1,3 +1,4 @@
+import { setCarrierEnabled } from "@/lib/carriers";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiError, checkOrigin } from "@/lib/security";
@@ -19,15 +20,7 @@ export async function PATCH(r: Request) {
     const body = z
       .object({ id: z.string(), enabled: z.boolean() })
       .parse(await r.json());
-    await db.$transaction(async (tx) => {
-      await tx.carrier.update({
-        where: { id: body.id },
-        data: { enabled: body.enabled },
-      });
-      await tx.auditLog.create({
-        data: { actorId: user.id, action: "CARRIER_UPDATE", entityId: body.id },
-      });
-    });
+    await setCarrierEnabled(body.id, body.enabled, user.id);
     return Response.json({ ok: true });
   } catch (e) {
     return apiError(e);

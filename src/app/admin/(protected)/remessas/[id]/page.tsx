@@ -67,13 +67,29 @@ export default async function Detail({
                 <dd>{s.cte || "Não informado"}</dd>
               </div>
               <div>
+                <dt>Consultas da transportadora</dt>
+                <dd>{s.carrier.enabled ? "Habilitadas" : "Desabilitadas"}</dd>
+              </div>
+              <div>
+                <dt>Última tentativa</dt>
+                <dd>{dateTime(s.syncLogs[0]?.createdAt)}</dd>
+              </div>
+              <div>
                 <dt>Falhas consecutivas</dt>
                 <dd>{s.syncFailures}</dd>
               </div>
             </dl>
             {s.lastSyncError && (
-              <div className="error">
-                Integração: {s.lastSyncError}. Últimos dados preservados.
+              <div className="error" role="alert">
+                <strong>Última falha registrada: {s.lastSyncError}.</strong>{" "}
+                Últimos dados preservados.
+                {s.lastSyncError === "INTEGRATION_DISABLED" && (
+                  <p className="!mb-0 !mt-2 !text-inherit">
+                    {s.carrier.enabled
+                      ? "Essa tentativa ocorreu com a integração desabilitada. As consultas estão habilitadas agora; clique em Atualizar rastreamento para obter um novo resultado."
+                      : "A transportadora está desabilitada. Habilite as consultas em Transportadoras antes de tentar novamente."}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -98,9 +114,9 @@ export default async function Detail({
             canWrite={user.role !== "VIEWER"}
           />
           <section className="card spaced">
-            <h3>Consultas à API</h3>
+            <h3>Tentativas de atualização</h3>
             {!s.syncLogs.length && (
-              <p className="small">Nenhuma consulta realizada.</p>
+              <p className="small">Nenhuma tentativa realizada.</p>
             )}
             {s.syncLogs.map((log) => (
               <div
