@@ -16,7 +16,8 @@
     "worker": "tsx scripts/worker.ts",
     "db:seed": "tsx scripts/seed-carriers.ts",
     "db:local": "node scripts/local-db.mjs",
-    "format": "prettier --check src integrations scripts tests docs *.md *.json *.ts *.mjs"
+    "format": "prettier --check src integrations scripts tests docs *.md *.json *.ts *.mjs",
+    "build:vercel": "node scripts/vercel-build.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.2",

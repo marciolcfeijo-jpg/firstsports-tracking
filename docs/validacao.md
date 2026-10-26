@@ -54,3 +54,9 @@ A consulta pública passou a usar exclusivamente NF + CPF/CNPJ do destinatário.
 Verificações: TypeScript e lint passaram; 54 testes unitários/de integração passaram; 6 testes E2E desktop/mobile passaram no fluxo por NF; build de produção passou. As APIs externas continuam sem homologação real. Durante a validação, a restrição de rede do sandbox bloqueou o PostgreSQL local; a suíte foi reexecutada com o acesso local autorizado e passou. Nenhuma assertion foi removida.
 
 A configuração do banco na Vercel, DOCUMENT_HMAC_KEY e as credenciais Braspress ainda precisam ser cadastradas pelo responsável. Apenas as variáveis públicas do Supabase não suprem esses requisitos. O guia docs/ativacao-braspress.md contém os passos, sem credenciais reais.
+
+## Atualização — inicialização do banco pelo deploy
+
+Adicionado `build:vercel` e configuração versionada da Vercel. Verificado com um PostgreSQL local isolado e inicialmente vazio: quatro migrations aplicadas, duas transportadoras desabilitadas cadastradas, zero remessas e zero administradores criados; build Next.js concluído. A reaplicação das migrations terminou sem pendências. TypeScript, lint e revisão de whitespace passaram.
+
+Esse teste não utilizou o Supabase do responsável. A conexão e as migrations nesse banco serão verificadas pelos Build Logs do próximo deploy de Production. O script não imprime os valores de DATABASE_URL ou DOCUMENT_HMAC_KEY.

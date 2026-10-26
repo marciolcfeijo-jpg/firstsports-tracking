@@ -29,7 +29,7 @@ Não coloque valores secretos no GitHub, em chat ou em capturas de tela. Não us
 
 No Supabase, Connect → Connection String apresenta a conexão PostgreSQL. Para hospedagem que precisa de IPv4, escolha Session pooler e substitua o marcador de senha pela senha do banco (não a senha da conta Supabase). Copie os parâmetros exatos do projeto. Preserve TLS e as exigências do provedor. Cadastre a conexão como DATABASE_URL na Vercel.
 
-Aplicar as migrations e cadastrar apenas as transportadoras não insere pedidos reais. Com as variáveis configuradas no servidor, execute `npm run db:migrate` e `npm run db:seed`, conforme docs/deploy.md. Caso a Vercel seja o único lugar com acesso seguro à conexão de homologação, o responsável pode configurar temporariamente o Build Command como `npm run db:migrate && npm run db:seed && npm run build` e realizar um novo deploy após revisar o banco de destino. Esse comando cria/atualiza as tabelas do portal; não deve ser apontado para um banco desconhecido.
+O build de Production da Vercel usa `npm run build:vercel`, definido em vercel.json: gera o Prisma Client, executa `npm run db:migrate` e `npm run db:seed`, e constrói a aplicação. Com a conexão e a chave privada cadastradas, o próximo deploy cria as tabelas e cadastra as transportadoras. Isso não insere pedidos reais nem cria administradores. Confira os Build Logs antes de considerar o banco pronto. Veja docs/deploy.md para overrides de comandos, bancos isolados e separação de privilégios.
 
 Crie um usuário confirmado em Supabase → Authentication → Users. Vincule o UUID desse usuário como ADMIN seguindo README.md; a conta do painel Supabase não equivale a um usuário do portal.
 

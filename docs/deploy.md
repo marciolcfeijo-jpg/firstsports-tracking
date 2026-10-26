@@ -1,6 +1,6 @@
 # Publicação de homologação e produção
 
-A aplicação não foi publicada e nenhum DNS foi alterado. Escolha uma hospedagem Node.js 22/24 (container/VPS ou Vercel), PostgreSQL gerenciado e Supabase Auth. Publique primeiro em homologação com banco/usuários/secrets próprios.
+O portal já foi conectado à Vercel pelo responsável. Este guia também permite preparar outros ambientes Node.js 22/24 com PostgreSQL e Supabase Auth. A classificação Production da Vercel refere-se à branch principal; a homologação comercial das transportadoras continua separada. O domínio institucional não é alterado por este procedimento.
 
 ## Preparação
 
@@ -36,3 +36,13 @@ Após homologação, confirme política de privacidade e canal do encarregado, r
 ## RLS e usuário de runtime
 
 A migration `private_tables` habilita RLS sem políticas públicas e revoga privilégios de PUBLIC, anon e authenticated quando esses papéis existem. O proprietário de migrations continua acessando as tabelas pelo servidor. Para usar uma conexão de runtime sem ownership, crie um papel LOGIN dedicado pelo gerenciador seguro do PostgreSQL e execute `scripts/grant-runtime.sql` como proprietário, informando `-v runtime_role=nome_do_papel`. O script concede somente DML e uma policy específica para esse papel. Não use anon/authenticated como papel de runtime. A URL privilegiada de migrations é usada apenas no deploy; a aplicação recebe a URL do papel restrito. Não execute novamente a criação de policies já existentes sem revisão.
+
+## Inicialização automática na Vercel
+
+`vercel.json` define instalação congelada com as ferramentas de build e `npm run build:vercel`. Em deploys com `VERCEL_ENV=production`, esse comando valida a presença/formato de DATABASE_URL e DOCUMENT_HMAC_KEY, gera o Prisma Client, aplica migrations pendentes, cadastra as transportadoras de forma idempotente e executa o build Next.js. Um erro de configuração ou conexão interrompe o deploy e aparece nos Build Logs; o código não imprime os valores secretos.
+
+O comando utiliza o DATABASE_URL de Production configurado pelo responsável. As credenciais dessa conexão precisam permitir migrations durante esta preparação; para separar as credenciais de migration e runtime em produção definitiva, adote o procedimento de privilégio mínimo descrito acima e execute migrations no pipeline dedicado. Antes de futuras migrations em banco com dados reais, revise o SQL e os backups.
+
+Migrations automáticas não são executadas nos deploys Preview/Development. Esses ambientes exigem banco isolado e preparação explícita. O seed cria apenas Braspress e Alfa, inicialmente desabilitadas, e preserva os estados já configurados; não cria clientes, encomendas ou administradores. Um deploy Ready confirma que os passos de inicialização terminaram, mas a autenticação real e a integração Braspress ainda precisam ser homologadas.
+
+Se houver Build Command ou Install Command substituído manualmente nas configurações da Vercel, desative o Override para usar vercel.json, ou ajuste os comandos para `npm run build:vercel` e `npm ci --include=dev`.
