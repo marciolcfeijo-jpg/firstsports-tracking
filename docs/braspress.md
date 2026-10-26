@@ -26,3 +26,9 @@ Fixtures são sintéticas e usam os nomes de campos documentados. Não houve con
 `INTEGRATION_DISABLED` é gerado pelo portal antes de qualquer chamada HTTP à Braspress. A página da remessa mantém essa falha como histórico; habilitar a transportadora não transforma uma tentativa anterior em sucesso. O resumo mostra o estado atual da transportadora e a data da última tentativa. A atualização manual recarrega o resumo também quando a tentativa falha, para não manter um código anterior na tela.
 
 Ao habilitar uma transportadora, remessas abertas cujo último erro foi INTEGRATION_DISABLED são reagendadas para uma nova tentativa. Erros anteriores de autenticação/rede mantêm suas janelas de retentativa. O painel não apaga o histórico de falhas nem consulta a API com credenciais no navegador.
+
+## Conferência de histórico recebido
+
+Após uma atualização manual, o painel informa as contagens de etapas `timeline`, ocorrências, registros sem data e eventos normalizados. O diagnóstico é retornado apenas pela ação autenticada e não inclui credenciais, documentos ou o corpo bruto da resposta. A confirmação da entrega pode gerar um evento a partir de `dataEntrega` quando ele não consta na timeline; por isso a contagem de eventos normalizados pode ser maior que as listas recebidas. Datas sem horário preservam essa precisão.
+
+Essas contagens se referem à última chamada, enquanto o histórico local preserva os eventos já recebidos. Se o portal Braspress mostrar etapas, mas a API retornar zero etapas e ocorrências, solicitar à Braspress a conferência do retorno v3 para a NF autorizada. Não preencher datas usando capturas de tela nem supor que o portal e a API retornem os mesmos dados.

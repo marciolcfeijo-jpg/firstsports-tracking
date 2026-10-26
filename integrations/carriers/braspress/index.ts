@@ -115,6 +115,21 @@ export class BraspressAdapter implements CarrierTrackingAdapter {
     const c = matching[0];
     const events = this.normalizeEvents({ conhecimentos: [c] });
     const deliveredAt = carrierDate(c.dataEntrega || undefined);
+    // The summary can confirm delivery even when the provider omits it from the timeline.
+    if (
+      deliveredAt &&
+      !events.some(
+        (e) => e.status === "DELIVERED" && e.occurredAt === deliveredAt,
+      )
+    ) {
+      events.push({
+        occurredAt: deliveredAt,
+        dateOnly: dateIsOnly(c.dataEntrega!),
+        description: "Entrega confirmada pela transportadora",
+        status: "DELIVERED",
+      });
+      ordered(events);
+    }
     let currentStatus = deliveredAt
       ? ("DELIVERED" as const)
       : mapStatus(c.status || "");
@@ -131,6 +146,14 @@ export class BraspressAdapter implements CarrierTrackingAdapter {
       estimatedDelivery: carrierDate(c.previsaoEntrega || undefined, true),
       deliveredAt,
       events,
+      diagnostics: {
+        timelineReceived: c.timeline.length,
+        occurrencesReceived: c.ocorrencias.length,
+        undatedReceived: [...c.timeline, ...c.ocorrencias].filter(
+          (e) => !e.data?.trim(),
+        ).length,
+        eventsNormalized: events.length,
+      },
     };
   }
   async healthCheck() {

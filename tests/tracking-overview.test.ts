@@ -40,3 +40,16 @@ it("confirms delivery from the carrier delivery date without inventing intermedi
   expect(html.match(/class="recorded"/g)).toHaveLength(1);
   expect(html).not.toContain("Ainda não confirmada");
 });
+
+it("does not show midnight as a confirmed delivery time without a timed event", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrackingOverview, {
+      ...shipment,
+      events: [],
+      status: "DELIVERED",
+      deliveredAt: "2026-10-25T03:00:00Z",
+    }),
+  );
+  expect(html).toContain("horário não informado");
+  expect(html).not.toContain("00:00");
+});

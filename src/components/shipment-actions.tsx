@@ -41,7 +41,10 @@ export function ShipmentActions(p: Props) {
       if (path !== "/sync") router.refresh();
       setMessage(
         path === "/sync"
-          ? "Rastreamento atualizado com dados da transportadora."
+          ? "Rastreamento atualizado com dados da transportadora." +
+              (data.diagnostics
+                ? ` API Braspress: ${data.diagnostics.timelineReceived} etapas, ${data.diagnostics.occurrencesReceived} ocorrências; ${data.diagnostics.undatedReceived} registros sem data. Histórico processado: ${data.diagnostics.eventsNormalized} eventos.`
+                : "")
           : "Operação concluída.",
       );
       return data;

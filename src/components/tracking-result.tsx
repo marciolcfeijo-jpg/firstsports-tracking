@@ -1,7 +1,12 @@
 import { TrackingOverview } from "./tracking-overview";
 import { TrackingHistory } from "./tracking-history";
 import { type publicShipment } from "@/lib/shipments";
-import { statusLabels, dateTime, dateOnly } from "@/lib/status";
+import {
+  statusLabels,
+  dateTime,
+  dateOnly,
+  deliveryDateTime,
+} from "@/lib/status";
 import {
   PackageCheck,
   Truck,
@@ -79,7 +84,7 @@ export function TrackingResult({ shipment: s }: { shipment: Shipment }) {
               {s.deliveredAt && (
                 <div>
                   <dt>Entrega confirmada</dt>
-                  <dd>{dateTime(s.deliveredAt)}</dd>
+                  <dd>{deliveryDateTime(s.deliveredAt, s.events)}</dd>
                 </div>
               )}
               {s.proofOfDeliveryUrl && (

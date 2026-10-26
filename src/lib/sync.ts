@@ -74,7 +74,11 @@ export async function syncShipment(
   id: string,
   adapterOverride?: CarrierTrackingAdapter,
   invoiceNumber?: string,
-) {
+): Promise<{
+  ok: boolean;
+  code?: string;
+  diagnostics?: TrackingResult["diagnostics"];
+}> {
   const claimed = await db.shipment.updateMany({
     where: {
       id,
@@ -138,7 +142,7 @@ export async function syncShipment(
         },
       });
     });
-    return { ok: true };
+    return { ok: true, diagnostics: result.diagnostics };
   } catch (e) {
     const code = e instanceof CarrierError ? e.code : "SYNC_FAILED";
     const shipment = await db.shipment.findUniqueOrThrow({ where: { id } });

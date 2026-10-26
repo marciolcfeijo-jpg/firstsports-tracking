@@ -187,3 +187,46 @@ describe("carrier contracts — synthetic fixtures based on official docs, NOT l
     );
   });
 });
+
+it("recognizes Braspress portal stage descriptions without inventing dates", () => {
+  expect(mapStatus("ENCOMENDA NA FILIAL ORIGEM - UNIDADE TESTE")).toBe(
+    "PICKED_UP",
+  );
+  expect(
+    mapStatus("ENCOMENDA EM TRANSFERÊNCIA ENTRE AS FILIAIS DA BRASPRESS"),
+  ).toBe("IN_TRANSIT");
+  expect(mapStatus("ENCOMENDA NA FILIAL DE DESTINO - UNIDADE TESTE")).toBe(
+    "IN_TRANSIT",
+  );
+  expect(mapStatus("ENCOMENDA EM PROCESSO DE ENTREGA")).toBe(
+    "OUT_FOR_DELIVERY",
+  );
+  expect(mapStatus("ENTREGA REALIZADA")).toBe("DELIVERED");
+});
+it("reports received history counts and preserves date-only delivery precision", async () => {
+  vi.stubEnv("BRASPRESS_USERNAME", "fixture");
+  vi.stubEnv("BRASPRESS_PASSWORD", "fixture");
+  const response = {
+    conhecimentos: [
+      {
+        ...braspressFixture.conhecimentos[0],
+        timeline: [],
+        ocorrencias: [],
+        dataEntrega: "25/10/2026",
+      },
+    ],
+  };
+  const result = await new BraspressAdapter(
+    vi.fn().mockResolvedValue(json(response)),
+  ).trackShipment(input);
+  expect(result.diagnostics).toEqual({
+    timelineReceived: 0,
+    occurrencesReceived: 0,
+    undatedReceived: 0,
+    eventsNormalized: 1,
+  });
+  expect(result.events[0]).toMatchObject({
+    status: "DELIVERED",
+    dateOnly: true,
+  });
+});

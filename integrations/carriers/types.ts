@@ -30,6 +30,14 @@ export const resultSchema = z
     deliveredAt: z.iso.datetime({ offset: true }).optional(),
     proofOfDeliveryUrl: z.url().optional(),
     events: z.array(eventSchema).max(2000),
+    diagnostics: z
+      .object({
+        timelineReceived: z.number().int().nonnegative(),
+        occurrencesReceived: z.number().int().nonnegative(),
+        undatedReceived: z.number().int().nonnegative(),
+        eventsNormalized: z.number().int().nonnegative(),
+      })
+      .optional(),
   })
   .refine(
     (r) => r.currentStatus !== "DELIVERED" || !!r.deliveredAt,

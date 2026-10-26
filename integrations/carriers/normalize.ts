@@ -73,11 +73,24 @@ export function mapStatus(value: string): ShipmentStatus {
   if (/CANCELAD/.test(s)) return "CANCELLED";
   if (/ENTREGUE|ENTREGA REALIZADA|ENTREGA CONCLUIDA/.test(s))
     return "DELIVERED";
-  if (/SAIU PARA ENTREGA|EM ROTA DE ENTREGA|EM ENTREGA/.test(s))
+  if (
+    /SAIU PARA ENTREGA|EM ROTA DE ENTREGA|EM ENTREGA|EM PROCESSO DE ENTREGA/.test(
+      s,
+    )
+  )
     return "OUT_FOR_DELIVERY";
   if (/AGUARDANDO COLETA/.test(s)) return "AWAITING_PICKUP";
-  if (/COLETAD|COLETA REALIZADA/.test(s)) return "PICKED_UP";
-  if (/TRANSPORTE|TRANSITO|TRANSFERENCIA|TRANSBORDO/.test(s))
+  if (
+    /COLETAD|COLETA REALIZADA|ENCOMENDA (?:NA )?ORIGEM|ENCOMENDA NA FILIAL ORIGEM/.test(
+      s,
+    )
+  )
+    return "PICKED_UP";
+  if (
+    /TRANSPORTE|TRANSITO|TRANSFERENCIA|TRANSBORDO|EM VIAGEM|CHEGADA (?:AO|NO) DESTINO|CHEGADA NA FILIAL DESTINO|ENCOMENDA NA FILIAL DE DESTINO/.test(
+      s,
+    )
+  )
     return "IN_TRANSIT";
   if (/FATURAD|EMITID/.test(s)) return "INVOICED";
   return "UNKNOWN";

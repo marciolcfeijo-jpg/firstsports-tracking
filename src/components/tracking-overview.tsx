@@ -1,7 +1,12 @@
 import React from "react";
 import { Package, Truck, Warehouse, Route, PackageCheck } from "lucide-react";
 import type { ShipmentStatus } from "@prisma/client";
-import { dateOnly, dateTime, statusLabels } from "@/lib/status";
+import {
+  deliveryDateTime,
+  dateOnly,
+  dateTime,
+  statusLabels,
+} from "@/lib/status";
 
 type Event = {
   occurredAt: Date | string;
@@ -29,7 +34,7 @@ const stages = [
     Icon: Package,
     matches: (e: Event) =>
       e.status === "PICKED_UP" ||
-      /(?:FILIAL|UNIDADE).*ORIGEM/.test(normalize(e.description)),
+      /(?:ENCOMENDA|FILIAL|UNIDADE).*ORIGEM/.test(normalize(e.description)),
   },
   {
     label: "Em viagem",
@@ -95,7 +100,9 @@ export function TrackingOverview(s: Props) {
         <div>
           <dt>Entregue em</dt>
           <dd>
-            {s.deliveredAt ? dateTime(s.deliveredAt) : "Ainda não confirmada"}
+            {s.deliveredAt
+              ? deliveryDateTime(s.deliveredAt, s.events)
+              : "Ainda não confirmada"}
           </dd>
         </div>
       </dl>
@@ -115,7 +122,9 @@ export function TrackingOverview(s: Props) {
                 {occurredAt
                   ? event?.dateOnly
                     ? dateOnly(occurredAt) + " · horário não informado"
-                    : dateTime(occurredAt)
+                    : confirmedDelivery && !event
+                      ? deliveryDateTime(occurredAt, s.events)
+                      : dateTime(occurredAt)
                   : "Sem registro recebido"}
               </span>
               {event?.location && <span>{event.location}</span>}
