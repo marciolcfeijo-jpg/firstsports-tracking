@@ -67,7 +67,10 @@ export default async function Dashboard({
       </div>
       <div className="page-heading spaced">
         <h2>Últimas atualizações</h2>
-        <Link className="text-blue-600 small" href="/admin/remessas">
+        <Link
+          className="text-[var(--brand-purple-dark)] small"
+          href="/admin/remessas"
+        >
           Ver todas →
         </Link>
       </div>
@@ -87,7 +90,7 @@ export default async function Dashboard({
                 <td>
                   <Link
                     href={"/admin/remessas/" + s.id}
-                    className="text-blue-600"
+                    className="text-[var(--brand-purple-dark)]"
                   >
                     {s.order.number}
                   </Link>

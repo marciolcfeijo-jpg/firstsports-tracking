@@ -87,7 +87,7 @@ export default async function Shipments({
                 <td>{dateTime(s.lastSyncedAt)}</td>
                 <td>
                   <Link
-                    className="text-blue-600"
+                    className="text-[var(--brand-purple-dark)]"
                     href={"/admin/remessas/" + s.id}
                   >
                     Visualizar →

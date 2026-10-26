@@ -87,7 +87,7 @@ export function TrackingResult({ shipment: s }: { shipment: Shipment }) {
                       href={s.proofOfDeliveryUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-blue-600"
+                      className="text-[var(--brand-purple-dark)]"
                     >
                       Consultar comprovante ↗
                     </a>
@@ -126,7 +126,7 @@ export function TrackingResult({ shipment: s }: { shipment: Shipment }) {
             )}
             {s.events.length > 4 && (
               <details>
-                <summary className="text-blue-600 cursor-pointer">
+                <summary className="text-[var(--brand-purple-dark)] cursor-pointer">
                   Ver histórico completo ({s.events.length - 4} eventos
                   anteriores)
                 </summary>

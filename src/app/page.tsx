@@ -12,7 +12,7 @@ export default function Home() {
               <h1>
                 Onde está
                 <br />
-                minha <span className="text-blue-600">entrega?</span>
+                minha <span className="brand-highlight">entrega?</span>
               </h1>
               <p>
                 Acompanhe seu pedido de forma rápida e segura, em um só lugar.
