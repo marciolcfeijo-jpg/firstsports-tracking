@@ -39,9 +39,34 @@ export async function rateLimit(key: string, limit = 10, seconds = 900) {
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  const expected = new URL(process.env.APP_URL || "http://localhost:3000")
-    .origin;
-  if (origin !== expected) throw new HttpError(403, "Origem não autorizada");
+  const allowed = new Set<string>();
+  const configured = process.env.APP_URL?.trim();
+  if (configured) {
+    try {
+      allowed.add(new URL(configured).origin);
+    } catch {
+      /* Ignore malformed configuration; never allow arbitrary origins. */
+    }
+  }
+  // Only server-injected Vercel metadata is trusted. Never derive permission from
+  // Host, forwarded headers, an arbitrary *.vercel.app suffix or the request URL.
+  if (process.env.VERCEL === "1") {
+    for (const host of [
+      process.env.VERCEL_URL,
+      process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    ]) {
+      if (
+        host &&
+        /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.vercel\.app$/i.test(host)
+      ) {
+        allowed.add(new URL("https://" + host).origin);
+      }
+    }
+  } else if (!configured && process.env.NODE_ENV !== "production") {
+    allowed.add("http://localhost:3000");
+  }
+  if (!origin || !allowed.has(origin))
+    throw new HttpError(403, "Origem não autorizada");
 }
 export function apiError(error: unknown) {
   if (
