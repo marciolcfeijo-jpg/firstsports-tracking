@@ -1,3 +1,4 @@
+import { TrackingOverview } from "@/components/tracking-overview";
 import { TrackingHistory } from "@/components/tracking-history";
 import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
@@ -38,6 +39,14 @@ export default async function Detail({
         </div>
         <span className={"badge " + s.status}>{statusLabels[s.status]}</span>
       </div>
+      <TrackingOverview
+        orderNumber={s.order.number}
+        invoices={s.invoices}
+        status={s.status}
+        estimatedDelivery={s.estimatedDelivery}
+        deliveredAt={s.deliveredAt}
+        events={s.events}
+      />
       <div className="detail-grid">
         <div>
           <div className="card">

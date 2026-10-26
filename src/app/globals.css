@@ -794,3 +794,98 @@ tr:last-child td {
     letter-spacing: 1.3px;
   }
 }
+
+.tracking-overview {
+  margin-bottom: 24px;
+}
+.tracking-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.tracking-summary > div {
+  padding: 14px;
+  background: var(--background);
+  min-width: 0;
+}
+.tracking-summary dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.tracking-summary dd {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.tracking-stages {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  padding: 28px 0;
+  margin: 0;
+  gap: 16px;
+}
+.tracking-stages li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  border-top: 3px solid var(--border);
+  padding-top: 18px;
+}
+.tracking-stages li.recorded {
+  border-color: var(--brand-orange);
+  color: var(--ink);
+}
+.stage-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--background);
+  border: 2px solid var(--border);
+}
+.recorded .stage-icon {
+  border-color: var(--brand-orange);
+  color: var(--brand-purple-dark);
+  background: #fff;
+}
+@media (max-width: 800px) {
+  .tracking-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .tracking-stages {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .tracking-stages li {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    text-align: left;
+    border-top: 0;
+    border-left: 3px solid var(--border);
+    padding: 12px 0 20px 18px;
+    margin-left: 8px;
+    gap: 6px 12px;
+  }
+  .tracking-stages li.recorded {
+    border-left-color: var(--brand-orange);
+  }
+  .stage-icon {
+    grid-row: span 4;
+    width: 50px;
+    height: 50px;
+  }
+}

@@ -1,3 +1,4 @@
+import { TrackingOverview } from "./tracking-overview";
 import { TrackingHistory } from "./tracking-history";
 import { type publicShipment } from "@/lib/shipments";
 import { statusLabels, dateTime, dateOnly } from "@/lib/status";
@@ -28,6 +29,7 @@ export function TrackingResult({ shipment: s }: { shipment: Shipment }) {
           <ShieldCheck size={13} className="mr-1" /> Consulta protegida
         </span>
       </div>
+      <TrackingOverview {...s} />
       <div className="detail-grid">
         <div>
           <section className="card">
