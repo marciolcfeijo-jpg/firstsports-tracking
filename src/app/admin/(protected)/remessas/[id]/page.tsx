@@ -73,8 +73,13 @@ export default async function Detail({
                 <dd>{dateTime(s.lastSyncedAt)}</dd>
               </div>
               <div>
-                <dt>CT-e</dt>
-                <dd>{s.cte || "Não informado"}</dd>
+                <dt>
+                  {s.carrier.code === "CORREIOS" ? "Código do objeto" : "CT-e"}
+                </dt>
+                <dd>
+                  {(s.carrier.code === "CORREIOS" ? s.trackingCode : s.cte) ||
+                    "Não informado"}
+                </dd>
               </div>
               <div>
                 <dt>Consultas da transportadora</dt>
@@ -107,6 +112,7 @@ export default async function Detail({
             id={s.id}
             version={s.version}
             cte={s.cte}
+            trackingCode={s.trackingCode}
             estimatedDelivery={s.estimatedDelivery?.toISOString() || null}
             senderDocument={s.senderDocument}
             links={s.links.map((l) => ({

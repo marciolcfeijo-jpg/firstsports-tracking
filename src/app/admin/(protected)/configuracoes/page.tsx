@@ -10,6 +10,9 @@ export default async function Settings() {
     "BRASPRESS_USERNAME",
     "BRASPRESS_PASSWORD",
     "ALFA_API_KEY",
+    "CORREIOS_USERNAME",
+    "CORREIOS_ACCESS_CODE",
+    "CORREIOS_POSTING_CARD",
   ];
   return (
     <>
@@ -45,8 +48,8 @@ export default async function Settings() {
         <div className="notice">
           Altere os valores no gerenciador seguro de configuração da hospedagem
           e reinicie a aplicação. Fuso de apresentação: America/Sao_Paulo. Links
-          públicos: 30 dias. Agendamento: execute o worker a cada 5 minutos;
-          remessas elegíveis são consultadas a cada 2 horas.
+          públicos: 30 dias. Agendamento Vercel: diário, a partir das 6h de
+          Brasília, em lotes de até 10 remessas elegíveis.
         </div>
       </div>
     </>

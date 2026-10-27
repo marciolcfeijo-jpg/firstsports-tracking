@@ -16,7 +16,7 @@ export async function lookupInvoice(
       order: { customer: { documentHash: documentHash(body.document) } },
       invoices: { some: { number: String(Number(body.number)) } },
     },
-    include: { carrier: { select: { name: true, enabled: true } } },
+    include: { carrier: { select: { name: true, enabled: true, code: true } } },
     orderBy: { createdAt: "asc" },
     take: 30,
   });
@@ -35,7 +35,9 @@ export async function lookupInvoice(
       (shipment.leaseUntil && shipment.leaseUntil > new Date())
     )
       continue;
-    refreshes++;
+    const requestCost = shipment.carrier.code === "CORREIOS" ? 2 : 1;
+    if (refreshes + requestCost > 3) continue;
+    refreshes += requestCost;
     try {
       await run(shipment.id, undefined, String(Number(body.number)));
     } catch {

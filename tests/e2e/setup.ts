@@ -26,6 +26,7 @@ export default async function setup() {
       data: [
         { code: "BRASPRESS", name: "Braspress" },
         { code: "ALFA", name: "Alfa Transportes" },
+        { code: "CORREIOS", name: "Correios" },
       ],
     });
   } finally {

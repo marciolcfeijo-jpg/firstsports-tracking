@@ -8,6 +8,8 @@ export async function createShipment(
   tx: Prisma.TransactionClient = db,
 ) {
   const data = shipmentSchema.parse(raw);
+  if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)
+    throw new HttpError(400, "Informe o código de rastreamento dos Correios");
   const issuerDocument = data.cnpj_remetente,
     series = String(Number(data.serie_nf)),
     number = String(Number(data.numero_nf));
@@ -63,6 +65,7 @@ export async function createShipment(
       senderDocument: issuerDocument,
       payerDocument: data.cnpj_tomador || null,
       cte: data.numero_cte || null,
+      trackingCode: data.codigo_rastreio || null,
       issuedAt: new Date(data.data_emissao + "T15:00:00Z"),
       invoices: { create: { issuerDocument, series, number } },
       events: {
@@ -119,6 +122,7 @@ export function publicShipment(
     invoices: s.invoices.map((i) => ({ number: i.number, series: i.series })),
     carrier: s.carrier.name,
     cte: s.cte,
+    trackingCode: s.trackingCode,
     proofOfDeliveryUrl: s.proofOfDeliveryUrl,
     status: s.status,
     estimatedDelivery: s.estimatedDelivery,

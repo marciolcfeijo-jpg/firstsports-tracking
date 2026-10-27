@@ -130,8 +130,12 @@ export function TrackingResult({ shipment: s }: { shipment: Shipment }) {
                 </dd>
               </div>
               <div>
-                <dt>Conhecimento de transporte</dt>
-                <dd>{s.cte || "Não informado"}</dd>
+                <dt>
+                  {s.trackingCode
+                    ? "Código do objeto"
+                    : "Conhecimento de transporte"}
+                </dt>
+                <dd>{s.trackingCode || s.cte || "Não informado"}</dd>
               </div>
             </dl>
           </section>

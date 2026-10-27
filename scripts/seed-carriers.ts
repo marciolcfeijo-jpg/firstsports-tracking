@@ -4,6 +4,7 @@ try {
   for (const [code, name] of [
     ["BRASPRESS", "Braspress"],
     ["ALFA", "Alfa Transportes"],
+    ["CORREIOS", "Correios"],
   ])
     await db.carrier.upsert({
       where: { code },

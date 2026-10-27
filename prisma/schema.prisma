@@ -79,6 +79,7 @@ model Shipment {
   destinationState   String            @default("")
   senderDocument     String
   payerDocument      String?
+  trackingCode       String?
   cte                String?
   issuedAt           DateTime
   estimatedDelivery  DateTime?

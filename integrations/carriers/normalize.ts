@@ -81,7 +81,7 @@ export function mapStatus(value: string): ShipmentStatus {
     return "OUT_FOR_DELIVERY";
   if (/AGUARDANDO COLETA/.test(s)) return "AWAITING_PICKUP";
   if (
-    /COLETAD|COLETA REALIZADA|ENCOMENDA (?:NA )?ORIGEM|ENCOMENDA NA FILIAL ORIGEM/.test(
+    /OBJETO POSTADO|COLETAD|COLETA REALIZADA|ENCOMENDA (?:NA )?ORIGEM|ENCOMENDA NA FILIAL ORIGEM/.test(
       s,
     )
   )

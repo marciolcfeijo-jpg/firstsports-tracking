@@ -5,6 +5,7 @@ type Props = {
   id: string;
   version: number;
   cte: string | null;
+  trackingCode: string | null;
   estimatedDelivery: string | null;
   senderDocument: string;
   links: { id: string; expiresAt: string; revokedAt: string | null }[];
@@ -120,6 +121,7 @@ export function ShipmentActions(p: Props) {
                 state: d.get("state"),
                 payerDocument: d.get("payer"),
                 carrierCode: d.get("carrier"),
+                trackingCode: String(d.get("trackingCode") || ""),
                 cte: String(d.get("cte") || "") || null,
                 estimatedDelivery: d.get("eta")
                   ? new Date(
@@ -166,6 +168,15 @@ export function ShipmentActions(p: Props) {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="field">
+              Código do objeto Correios
+              <input
+                name="trackingCode"
+                defaultValue={p.trackingCode || ""}
+                maxLength={13}
+                placeholder="AA123456789BR"
+              />
             </label>
             <label className="field">
               Conhecimento de transporte

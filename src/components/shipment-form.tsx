@@ -16,6 +16,7 @@ const labels: Record<string, string> = {
   email_cliente: "E-mail do cliente (opcional)",
   transportadora: "Transportadora",
   data_emissao: "Data de emissão",
+  codigo_rastreio: "Código do objeto Correios (13 caracteres)",
   numero_cte: "Número do CT-e (opcional)",
   cidade_destino: "Cidade de destino",
   uf_destino: "UF de destino",
@@ -77,7 +78,13 @@ export function ShipmentForm({
                       ? "email"
                       : "text"
                 }
-                maxLength={key === "uf_destino" ? 2 : 254}
+                maxLength={
+                  key === "uf_destino"
+                    ? 2
+                    : key === "codigo_rastreio"
+                      ? 13
+                      : 254
+                }
               />
             )}
             <span className="text-red-700">

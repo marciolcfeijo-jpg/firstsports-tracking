@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { shipmentSchema } from "./validation";
+import { shipmentSchema, trackingCodeSchema } from "./validation";
 import { db } from "./db";
 import { HttpError } from "./security";
 export const editSchema = z
   .object({
     version: z.number().int().nonnegative(),
+    trackingCode: trackingCodeSchema.optional(),
     cte: z.string().max(60).nullable().optional(),
     estimatedDelivery: z.iso.datetime().nullable().optional(),
     name: shipmentSchema.shape.nome_cliente.optional(),
@@ -20,7 +21,7 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
   return db.$transaction(async (tx) => {
     const s = await tx.shipment.findUnique({
       where: { id },
-      include: { order: true },
+      include: { order: true, carrier: true },
     });
     if (!s) throw new HttpError(404, "Remessa não encontrada");
     if (s.leaseUntil && s.leaseUntil > new Date())
@@ -35,6 +36,20 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
         409,
         "Remessa já sincronizada; abra uma remessa separada para outra transportadora.",
       );
+    if (
+      (carrier?.code || s.carrier.code) === "CORREIOS" &&
+      !(data.trackingCode ?? s.trackingCode)
+    )
+      throw new HttpError(400, "Informe o código de rastreamento dos Correios");
+    if (
+      s.lastSyncedAt &&
+      data.trackingCode !== undefined &&
+      data.trackingCode !== (s.trackingCode || "")
+    )
+      throw new HttpError(
+        409,
+        "Código já sincronizado; abra uma remessa separada para outro objeto.",
+      );
     const result = await tx.shipment.updateMany({
       where: {
         id,
@@ -43,6 +58,7 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
       },
       data: {
         cte: data.cte,
+        trackingCode: data.trackingCode,
         estimatedDelivery: data.estimatedDelivery
           ? new Date(data.estimatedDelivery)
           : data.estimatedDelivery,

@@ -244,3 +244,39 @@ test("failed synchronization refreshes the displayed error after carrier is enab
     card.getByText("Consultas desabilitadas", { exact: true }),
   ).toBeVisible();
 });
+
+test("Correios object code is registered and retained in the admin form", async ({
+  page,
+}) => {
+  await login(page);
+  await page.goto("/admin/remessas/nova");
+  const suffix = test.info().project.name === "mobile" ? "2" : "1";
+  for (const [label, value] of [
+    ["Número do pedido", "CORREIOS-E2E-" + suffix],
+    ["Número da NF", "888" + suffix],
+    ["Série da NF", "1"],
+    ["CNPJ do remetente", shipmentFixture.cnpj_remetente],
+    ["CPF/CNPJ do destinatário", shipmentFixture.cpf_cnpj_destinatario],
+    ["Nome do cliente", "Cliente fictício Correios"],
+    ["Data de emissão", "2026-10-27"],
+    ["Cidade de destino", "São Paulo"],
+    ["UF de destino", "SP"],
+    ["Código do objeto Correios (13 caracteres)", "AA123456789BR"],
+  ])
+    await page.getByLabel(label, { exact: true }).fill(value);
+  await page
+    .getByRole("combobox", { name: "Transportadora", exact: true })
+    .selectOption("CORREIOS");
+  await page.getByRole("button", { name: "Cadastrar remessa" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Pedido CORREIOS-E2E-" + suffix,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Código do objeto Correios", { exact: true }),
+  ).toHaveValue("AA123456789BR");
+  await page.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(page.getByRole("status")).toContainText("Operação concluída");
+});

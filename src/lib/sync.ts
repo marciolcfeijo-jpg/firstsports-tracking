@@ -1,3 +1,4 @@
+import { CorreiosAdapter } from "../../integrations/carriers/correios";
 import { db } from "./db";
 import { Prisma } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
@@ -13,6 +14,7 @@ import { HttpError } from "./security";
 const adapters: Record<string, CarrierTrackingAdapter> = {
   BRASPRESS: new BraspressAdapter(),
   ALFA: new AlfaAdapter(),
+  CORREIOS: new CorreiosAdapter(),
 };
 export const backoff = (failures: number) =>
   Math.min(24 * 3600000, 5 * 60000 * 2 ** Math.min(failures, 12));
@@ -55,7 +57,8 @@ export async function persistTracking(
     where: { id },
     data: {
       status: r.currentStatus,
-      cte: r.trackingNumber || undefined,
+      cte: r.carrier === "CORREIOS" ? undefined : r.trackingNumber || undefined,
+      trackingCode: r.carrier === "CORREIOS" ? r.trackingNumber : undefined,
       proofOfDeliveryUrl: r.proofOfDeliveryUrl || undefined,
       estimatedDelivery: r.estimatedDelivery
         ? new Date(r.estimatedDelivery)
@@ -127,6 +130,7 @@ export async function syncShipment(
     const invoice = candidates[0];
     if (!invoice) throw new CarrierError("INVOICE_MISSING", false);
     const result = await adapter.trackShipment({
+      trackingCode: shipment.trackingCode || undefined,
       invoiceNumber: invoice.number,
       invoiceSeries: invoice.series,
       senderDocument: shipment.senderDocument,
@@ -191,7 +195,9 @@ export async function syncDue(run: typeof syncShipment = syncShipment) {
     orderBy: { nextSyncAt: "asc" },
   });
   const results = [];
+  const deadline = Date.now() + 240000;
   for (const s of due) {
+    if (Date.now() >= deadline) break;
     try {
       results.push(await run(s.id));
     } catch {

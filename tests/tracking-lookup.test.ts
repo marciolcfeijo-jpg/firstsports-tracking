@@ -154,3 +154,43 @@ it("returns refreshed status in the lookup table and excludes other invoice matc
   expect(JSON.stringify(result)).not.toContain("OTHER");
   expect(JSON.stringify(result)).not.toContain(shipmentFixture.email_cliente);
 });
+
+it("requires and persists the Correios object code separately from CT-e", async () => {
+  await db.carrier.create({ data: { code: "CORREIOS", name: "Correios" } });
+  await expect(
+    createShipmentTransaction(
+      { ...shipmentFixture, transportadora: "CORREIOS" },
+      "test",
+    ),
+  ).rejects.toThrow("código de rastreamento");
+  const created = await createShipmentTransaction(
+    {
+      ...shipmentFixture,
+      transportadora: "CORREIOS",
+      codigo_rastreio: "aa123456789br",
+    },
+    "test",
+  );
+  expect(
+    await db.shipment.findUnique({ where: { id: created.id } }),
+  ).toMatchObject({ trackingCode: "AA123456789BR", cte: null });
+  const trackShipment = vi.fn(async (_input: { trackingCode?: string }) => {
+    void _input;
+    return {
+      ...normalizedFixture,
+      carrier: "CORREIOS",
+      trackingNumber: "AA123456789BR",
+    };
+  });
+  const result = await syncShipment(created.id, {
+    validateConfiguration: () => ({ valid: true }),
+    healthCheck: async () => ({ ok: true }),
+    normalizeEvents: () => normalizedFixture.events,
+    trackShipment,
+  });
+  expect(result.ok).toBe(true);
+  expect(trackShipment.mock.calls[0][0].trackingCode).toBe("AA123456789BR");
+  expect(
+    await db.shipment.findUnique({ where: { id: created.id } }),
+  ).toMatchObject({ trackingCode: "AA123456789BR", cte: null });
+});

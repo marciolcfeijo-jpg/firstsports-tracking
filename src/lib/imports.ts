@@ -8,7 +8,7 @@ export const MAX_BYTES = 5 * 1024 * 1024,
 export async function parseSpreadsheet(
   bytes: Buffer,
   filename: string,
-  knownCarrierCodes: string[] = ["BRASPRESS", "ALFA"],
+  knownCarrierCodes: string[] = ["BRASPRESS", "ALFA", "CORREIOS"],
 ) {
   if (bytes.length > MAX_BYTES) throw new HttpError(400, "Arquivo excede 5 MB");
   const book = new ExcelJS.Workbook();
@@ -85,6 +85,8 @@ export async function parseSpreadsheet(
     });
     if (!knownCarrierCodes.includes(data.transportadora))
       errors.push("Transportadora não cadastrada");
+    if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)
+      errors.push("Informe codigo_rastreio para remessas dos Correios");
     const result = shipmentSchema.safeParse(data);
     if (!result.success)
       errors.push(
@@ -103,7 +105,7 @@ export async function template() {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Pedidos");
   sheet.addRow([...columns]);
-  sheet.columns = columns.map((key) => ({
+  sheet.columns = [...columns, "codigo_rastreio"].map((key) => ({
     key,
     width: 24,
     style: { numFmt: "@" },
@@ -129,7 +131,7 @@ export async function template() {
     "Exclua a linha fictícia antes de importar. Máximo 2.000 registros / 5 MB.",
   ]);
   help.addRow([
-    "Mantenha identificadores como texto e datas AAAA-MM-DD. Transportadora: BRASPRESS ou ALFA.",
+    "Mantenha identificadores como texto e datas AAAA-MM-DD. Transportadora: BRASPRESS, ALFA ou CORREIOS. Para Correios, adicione a coluna codigo_rastreio com o código de 13 caracteres.",
   ]);
   help.addRow([
     "A identidade fiscal é CNPJ emitente + série + número; reimportações não duplicam remessas.",

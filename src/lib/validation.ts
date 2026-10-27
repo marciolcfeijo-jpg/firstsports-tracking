@@ -38,7 +38,16 @@ export const columns = [
   "cidade_destino",
   "uf_destino",
 ] as const;
+export const trackingCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(
+    /^(?:[A-Z]{2}\d{9}[A-Z]{2})?$/,
+    "Informe um código de objeto com 13 caracteres (ex.: AA123456789BR)",
+  );
 export const shipmentSchema = z.object({
+  codigo_rastreio: trackingCodeSchema.optional(),
   numero_pedido: text,
   numero_nf: z.string().regex(/^\d{1,12}$/, "NF deve ser texto numérico"),
   serie_nf: z.string().regex(/^\d{1,3}$/, "Série inválida"),
