@@ -53,18 +53,21 @@ export async function confirmImport(id: string, actorId: string) {
               numero_pedido: data.numero_pedido,
               numero_nf: data.numero_nf,
               serie_nf: data.serie_nf,
+              transportadora: data.transportadora,
               redacted: true,
             },
           },
         });
       });
-    } catch {
+    } catch (error) {
       await db.importRow.update({
         where: { id: row.id },
         data: {
           result: "ERROR",
           errors: [
-            "Não foi possível salvar a linha; confira os dados e reimporte.",
+            error instanceof HttpError
+              ? error.message
+              : "Não foi possível salvar a linha; confira os dados e reimporte.",
           ],
         },
       });

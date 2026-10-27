@@ -14,9 +14,11 @@ type Batch = {
 };
 export function ImportPanel({
   canWrite,
+  carriers,
   initialBatch,
 }: {
   canWrite: boolean;
+  carriers: { code: string; name: string }[];
   initialBatch?: Batch | null;
 }) {
   const [batch, setBatch] = useState<Batch | null>(initialBatch || null),
@@ -26,6 +28,7 @@ export function ImportPanel({
   async function preview(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setBatch(null);
     setBusy(true);
     try {
       const r = await fetch("/api/admin/imports", {
@@ -89,11 +92,54 @@ export function ImportPanel({
           cria outra remessa.
         </p>
         {canWrite && (
-          <form onSubmit={preview}>
+          <form
+            onSubmit={preview}
+            onChange={() => {
+              setBatch(null);
+              setError("");
+            }}
+          >
+            <div className="field">
+              <label htmlFor="import-carrier">
+                Transportadora destas notas fiscais
+              </label>
+              <select
+                id="import-carrier"
+                name="carrier"
+                required
+                defaultValue=""
+                disabled={busy}
+              >
+                <option value="" disabled>
+                  Selecione a transportadora do lote
+                </option>
+                {carriers.map((carrier) => (
+                  <option key={carrier.code} value={carrier.code}>
+                    {carrier.name}
+                  </option>
+                ))}
+                <option value="__FILE__">
+                  Usar a transportadora de cada linha da planilha
+                </option>
+              </select>
+            </div>
+            <p className="small">
+              A transportadora selecionada será aplicada a todas as linhas,
+              substituindo o valor da coluna transportadora. Nesse modo, a
+              coluna pode ficar vazia ou ser removida. Para arquivos com
+              transportadoras diferentes, escolha usar a transportadora de cada
+              linha.
+            </p>
             <div className="file-drop">
               <label className="field !mb-0">
                 Selecione sua planilha
-                <input name="file" type="file" accept=".xlsx,.csv" required />
+                <input
+                  disabled={busy}
+                  name="file"
+                  type="file"
+                  accept=".xlsx,.csv"
+                  required
+                />
               </label>
             </div>
             <button disabled={busy} className="button spaced">
@@ -138,6 +184,7 @@ export function ImportPanel({
                   <th>Linha</th>
                   <th>Pedido</th>
                   <th>Nota</th>
+                  <th>Transportadora</th>
                   <th>Resultado / erros</th>
                 </tr>
               </thead>
@@ -147,6 +194,10 @@ export function ImportPanel({
                     <td>{row.line}</td>
                     <td>{String(row.data.numero_pedido || "—")}</td>
                     <td>{String(row.data.numero_nf || "—")}</td>
+                    <td>
+                      {carriers.find((c) => c.code === row.data.transportadora)
+                        ?.name || String(row.data.transportadora || "—")}
+                    </td>
                     <td className="!whitespace-normal">
                       {row.errors.length
                         ? row.errors.join("; ")

@@ -9,7 +9,16 @@ export async function parseSpreadsheet(
   bytes: Buffer,
   filename: string,
   knownCarrierCodes: string[] = ["BRASPRESS", "ALFA", "CORREIOS"],
+  selectedCarrier?: string,
 ) {
+  if (
+    selectedCarrier !== undefined &&
+    !knownCarrierCodes.includes(selectedCarrier)
+  )
+    throw new HttpError(
+      400,
+      "Selecione uma transportadora cadastrada para o lote",
+    );
   if (bytes.length > MAX_BYTES) throw new HttpError(400, "Arquivo excede 5 MB");
   const book = new ExcelJS.Workbook();
   if (filename.toLowerCase().endsWith(".xlsx")) {
@@ -90,7 +99,9 @@ export async function parseSpreadsheet(
   });
   const names = headers.map((header) => header.name);
   if (
-    columns.some((c) => !names.includes(c)) ||
+    columns.some(
+      (c) => !(c === "transportadora" && selectedCarrier) && !names.includes(c),
+    ) ||
     new Set(names).size !== names.length ||
     [...populatedColumns].some(
       (column) => !headers.some((header) => header.column === column),
@@ -116,6 +127,7 @@ export async function parseSpreadsheet(
           ? value.toISOString().slice(0, 10)
           : String(value ?? "").trim();
     });
+    if (selectedCarrier) data.transportadora = selectedCarrier;
     if (!knownCarrierCodes.includes(data.transportadora))
       errors.push("Transportadora não cadastrada");
     if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)

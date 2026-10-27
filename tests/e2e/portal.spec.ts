@@ -148,6 +148,7 @@ test("real CSV upload, preview, confirmation and duplicate-safe import", async (
   const headers = Object.keys(shipmentFixture);
   const row = {
     ...shipmentFixture,
+    transportadora: "ALFA TRANSPORTES LTDA",
     numero_pedido: "E2E-IMPORT-" + test.info().project.name,
     numero_nf: test.info().project.name === "mobile" ? "994" : "993",
   };
@@ -161,9 +162,15 @@ test("real CSV upload, preview, confirmation and duplicate-safe import", async (
       mimeType: "text/csv",
       buffer: Buffer.from(csv),
     });
+    await page
+      .getByLabel("Transportadora destas notas fiscais", { exact: true })
+      .selectOption("ALFA");
     await page.getByRole("button", { name: "Validar e visualizar" }).click();
     await expect(
       page.getByRole("heading", { name: "Prévia dos dados" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("cell", { name: "Alfa Transportes", exact: true }),
     ).toBeVisible();
     await page
       .getByRole("button", { name: "Confirmar registros válidos" })

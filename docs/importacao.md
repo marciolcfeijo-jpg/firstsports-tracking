@@ -16,3 +16,9 @@ Documentos e dados da prévia têm acesso administrativo. Linhas concluídas sã
 A confirmação avança em blocos de até 100 linhas por requisição. O navegador continua até concluir; em caso de desconexão, use Abrir lote no histórico e retome. Um lote em processamento fica protegido por lease de cinco minutos; após falha do processo, pode ser retomado quando o lease expirar. Linhas já concluídas não são executadas novamente.
 
 A contagem ignora linhas vazias, espaços em branco e células apenas formatadas. Linhas ocultas com dados continuam contando. Colunas esparsas preservam suas posições originais; toda coluna com conteúdo precisa ter cabeçalho. A prévia mantém o número original da linha no Excel para facilitar as correções. Quando o limite é excedido, a mensagem informa quantas linhas ou colunas preenchidas foram encontradas.
+
+## Transportadora do lote
+
+Antes de validar o arquivo, selecione a transportadora das notas fiscais. A escolha substitui os valores da coluna `transportadora` em todas as linhas e é validada contra as transportadoras cadastradas no servidor. Nesse modo a coluna pode ser omitida ou permanecer vazia. A prévia e o relatório mostram a transportadora efetiva por linha. Para planilhas com transportadoras diferentes, selecione “Usar a transportadora de cada linha da planilha” e use os códigos BRASPRESS, ALFA ou CORREIOS na coluna.
+
+A seleção não elimina outras validações: por exemplo, remessas CORREIOS exigem `codigo_rastreio`. Trocar o arquivo ou a seleção descarta a prévia exibida e exige nova validação antes de confirmar. A confirmação utiliza os dados persistidos na prévia; nenhuma seleção posterior altera silenciosamente um lote já validado. Uma NF já cadastrada com transportadora diferente é recusada com orientação para corrigir a remessa existente, em vez de ser considerada uma duplicata correta ou sobrescrita.

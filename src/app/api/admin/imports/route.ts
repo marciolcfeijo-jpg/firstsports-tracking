@@ -28,11 +28,17 @@ export async function POST(request: Request) {
     const file = form.get("file");
     if (!(file instanceof File) || file.size > MAX_BYTES)
       throw new HttpError(400, "Selecione um arquivo de até 5 MB");
+    const selection = form.get("carrier");
+    if (selection !== null && typeof selection !== "string")
+      throw new HttpError(400, "Selecione uma transportadora válida");
+    const selectedCarrier =
+      selection === null || selection === "__FILE__" ? undefined : selection;
     const carriers = await db.carrier.findMany({ select: { code: true } });
     const rows = await parseSpreadsheet(
       Buffer.from(await file.arrayBuffer()),
       file.name,
       carriers.map((c) => c.code),
+      selectedCarrier,
     );
     const batch = await db.importBatch.create({
       data: {

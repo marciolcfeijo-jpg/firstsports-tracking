@@ -136,3 +136,55 @@ it("still rejects 31 populated columns and data in a column without a header", a
     ),
   ).rejects.toThrow("cabeçalho");
 });
+
+it("uses the explicitly selected carrier for all rows instead of inconsistent spreadsheet names", async () => {
+  const rows = await parseSpreadsheet(
+    csv([
+      { ...shipmentFixture, transportadora: "ALFA TRANSPORTES LTDA" },
+      { ...shipmentFixture, numero_nf: "124", transportadora: "Braspress" },
+    ]),
+    "carrier.csv",
+    ["BRASPRESS", "ALFA"],
+    "ALFA",
+  );
+  expect(rows.map((row) => row.data.transportadora)).toEqual(["ALFA", "ALFA"]);
+  expect(rows.every((row) => row.errors.length === 0)).toBe(true);
+});
+it("allows a missing carrier column only when the carrier is explicitly selected", async () => {
+  const headers = columns.filter((column) => column !== "transportadora");
+  const content = Buffer.from(
+    headers.join(";") +
+      "\n" +
+      headers.map((header) => shipmentFixture[header] || "").join(";"),
+  );
+  const rows = await parseSpreadsheet(
+    content,
+    "no-carrier.csv",
+    ["BRASPRESS", "ALFA"],
+    "ALFA",
+  );
+  expect(rows[0].data.transportadora).toBe("ALFA");
+  expect(rows[0].errors).toEqual([]);
+  await expect(parseSpreadsheet(content, "no-carrier.csv")).rejects.toThrow(
+    "Cabeçalhos",
+  );
+});
+it("rejects unregistered selections and retains Correios code validation", async () => {
+  await expect(
+    parseSpreadsheet(
+      csv([shipmentFixture]),
+      "carrier.csv",
+      ["ALFA"],
+      "UNKNOWN",
+    ),
+  ).rejects.toThrow("transportadora cadastrada");
+  const rows = await parseSpreadsheet(
+    csv([shipmentFixture]),
+    "carrier.csv",
+    ["CORREIOS"],
+    "CORREIOS",
+  );
+  expect(rows[0].errors).toContain(
+    "Informe codigo_rastreio para remessas dos Correios",
+  );
+});

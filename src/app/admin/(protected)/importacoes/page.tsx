@@ -21,6 +21,10 @@ export default async function Imports({
     take: 30,
     include: { _count: { select: { rows: true } } },
   });
+  const carriers = await db.carrier.findMany({
+    select: { code: true, name: true },
+    orderBy: { name: "asc" },
+  });
   return (
     <>
       <div className="page-heading">
@@ -32,6 +36,7 @@ export default async function Imports({
       <ImportPanel
         key={selected || "new"}
         canWrite={user.role !== "VIEWER"}
+        carriers={carriers}
         initialBatch={
           initialBatch
             ? {

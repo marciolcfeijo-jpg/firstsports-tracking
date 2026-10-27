@@ -182,3 +182,21 @@ it("keeps the document and tracking history when only descriptive fields are cor
 it("keeps the forecast calendar date in Brasilia when prefilling the edit form", () => {
   expect(inputDate("2026-10-29T02:59:59.000Z")).toBe("2026-10-28");
 });
+
+it("does not silently label an existing invoice as a different carrier during reimport", async () => {
+  const first = await createShipmentTransaction(shipmentFixture, "test");
+  await expect(
+    createShipmentTransaction(
+      { ...shipmentFixture, transportadora: "ALFA" },
+      "test",
+    ),
+  ).rejects.toThrow("outra transportadora");
+  expect(
+    (
+      await db.shipment.findUniqueOrThrow({
+        where: { id: first.id },
+        include: { carrier: true },
+      })
+    ).carrier.code,
+  ).toBe("BRASPRESS");
+});

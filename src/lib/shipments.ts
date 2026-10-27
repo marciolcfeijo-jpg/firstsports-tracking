@@ -16,7 +16,9 @@ export async function createShipment(
   const existing = await tx.shipmentInvoice.findUnique({
     where: { issuerDocument_series_number: { issuerDocument, series, number } },
     include: {
-      shipment: { include: { order: { include: { customer: true } } } },
+      shipment: {
+        include: { order: { include: { customer: true } }, carrier: true },
+      },
     },
   });
   if (existing) {
@@ -28,6 +30,11 @@ export async function createShipment(
       throw new HttpError(
         409,
         "Nota fiscal já vinculada a outro pedido ou destinatário",
+      );
+    if (existing.shipment.carrier.code !== data.transportadora)
+      throw new HttpError(
+        409,
+        "Nota fiscal já cadastrada com outra transportadora. Corrija a remessa existente no painel.",
       );
     return { id: existing.shipmentId, duplicate: true };
   }
