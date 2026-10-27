@@ -46,3 +46,11 @@ O comando utiliza o DATABASE_URL de Production configurado pelo responsável. As
 Migrations automáticas não são executadas nos deploys Preview/Development. Esses ambientes exigem banco isolado e preparação explícita. O seed cria apenas Braspress e Alfa, inicialmente desabilitadas, e preserva os estados já configurados; não cria clientes, encomendas ou administradores. Um deploy Ready confirma que os passos de inicialização terminaram, mas a autenticação real e a integração Braspress ainda precisam ser homologadas.
 
 Se houver Build Command ou Install Command substituído manualmente nas configurações da Vercel, desative o Override para usar vercel.json, ou ajuste os comandos para `npm run build:vercel` e `npm ci --include=dev`.
+
+## Agendamento automático na Vercel
+
+`vercel.json` agenda GET `/api/internal/sync` diariamente às 09:00 UTC (06:00 em Brasília). A Vercel Hobby pode iniciar a execução em qualquer momento da hora agendada. O cron roda apenas em Production e exige `CRON_SECRET` com pelo menos 32 caracteres, cadastrado como Secret na Vercel antes de um novo deploy. A Vercel envia esse valor no cabeçalho Authorization Bearer; sem ele a rota recusa a execução. Não usar DOCUMENT_HMAC_KEY como segredo do cron.
+
+Cada execução processa até 10 remessas elegíveis, preservando os limites e o backoff existentes. Considera somente transportadoras habilitadas e remessas ainda abertas; entregues, devolvidas e canceladas não são consultadas automaticamente. A consulta pública também pode atualizar uma remessa elegível, e a atualização manual permanece disponível. Cron não significa atualização instantânea do navegador.
+
+Verificação após deploy: Settings → Cron Jobs, confirmar o job ativo e consultar os logs da execução. A configuração no código não comprova que o job rodou. Para frequências inferiores a um dia, confirmar um plano Vercel que suporte a frequência e ajustar o cron, ou configurar um scheduler externo autenticado via POST conforme descrito acima. Para mais de 10 remessas pendentes por dia, ampliar a estratégia de lotes e frequência antes de considerar o acompanhamento automático suficiente.
