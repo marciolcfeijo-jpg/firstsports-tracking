@@ -889,3 +889,34 @@ tr:last-child td {
     height: 50px;
   }
 }
+
+.lookup-results {
+  grid-column: 1 / -1;
+  min-width: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+}
+.lookup-results h2 {
+  margin-bottom: 6px;
+}
+.lookup-results .table-wrap {
+  margin: 18px 0 12px;
+}
+.lookup-results .lookup-customer {
+  white-space: normal;
+  min-width: 180px;
+}
+.lookup-view {
+  color: var(--brand-purple-dark);
+  font-weight: 600;
+}
+.lookup-view:hover {
+  text-decoration: underline;
+}
+@media (max-width: 800px) {
+  .lookup-results {
+    padding: 18px;
+  }
+}

@@ -25,13 +25,19 @@ describe("NF and recipient lookup before carrier access", () => {
     ).toBe(false);
     expect(trackingLookupSchema.safeParse(body).success).toBe(true);
   });
-  it("matches the invoice and recipient, returning only safe links and carrier labels", async () => {
+  it("matches the invoice and recipient, returning the authorized invoice summary", async () => {
     await createShipmentTransaction(shipmentFixture, "test");
     const run = vi.fn(async () => ({ ok: true }));
     const result = await lookupInvoice(body, run);
     expect(result.links).toHaveLength(1);
     expect(result.links[0].carrier).toBe("Braspress");
     expect(result.links[0].invoiceNumber).toBe("123");
+    expect(result.links[0]).toMatchObject({
+      orderNumber: shipmentFixture.numero_pedido,
+      customerName: shipmentFixture.nome_cliente,
+      status: "INVOICED",
+      estimatedDelivery: null,
+    });
     expect(JSON.stringify(result)).not.toContain(body.document);
     expect(run).not.toHaveBeenCalled();
   });
@@ -120,4 +126,31 @@ describe("NF and recipient lookup before carrier access", () => {
     expect((await lookupInvoice(body, run)).links).toHaveLength(4);
     expect(run).toHaveBeenCalledTimes(3);
   });
+});
+
+it("returns refreshed status in the lookup table and excludes other invoice matches", async () => {
+  const created = await createShipmentTransaction(shipmentFixture, "test");
+  await createShipmentTransaction(
+    { ...shipmentFixture, numero_nf: "999", numero_pedido: "OTHER" },
+    "test",
+  );
+  await db.carrier.updateMany({ data: { enabled: true } });
+  const result = await lookupInvoice(body, async () => {
+    await db.shipment.update({
+      where: { id: created.id },
+      data: {
+        status: "IN_TRANSIT",
+        lastSyncedAt: new Date("2026-10-27T12:00:00Z"),
+      },
+    });
+    return { ok: true };
+  });
+  expect(result.links).toHaveLength(1);
+  expect(result.links[0]).toMatchObject({
+    invoiceNumber: "123",
+    status: "IN_TRANSIT",
+    lastSyncedAt: "2026-10-27T12:00:00.000Z",
+  });
+  expect(JSON.stringify(result)).not.toContain("OTHER");
+  expect(JSON.stringify(result)).not.toContain(shipmentFixture.email_cliente);
 });

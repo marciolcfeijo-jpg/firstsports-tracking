@@ -1,17 +1,22 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { trackingLookupSchema } from "@/lib/validation";
 import { Search, LockKeyhole, ArrowRight, PackageSearch } from "lucide-react";
-import Link from "next/link";
+import { LookupResults, type LookupRow } from "./lookup-results";
 const schema = trackingLookupSchema;
 export function LookupForm() {
   const [error, setError] = useState("");
-  const [links, setLinks] = useState<
-    { url: string; carrier: string; invoiceNumber: string }[]
-  >([]);
+  const [links, setLinks] = useState<LookupRow[]>([]);
+  useEffect(() => {
+    if (links.length) {
+      const heading = document.getElementById("lookup-results-heading");
+      heading?.focus({ preventScroll: true });
+      heading?.scrollIntoView({ block: "start", behavior: "auto" });
+    }
+  }, [links]);
   const {
     register,
     handleSubmit,
@@ -36,70 +41,67 @@ export function LookupForm() {
     }
   }
   return (
-    <div className="card lookup-card">
-      <div className="icon-box">
-        <PackageSearch size={23} />
-      </div>
-      <h2 className="!text-xl !mb-1">Encontre sua encomenda</h2>
-      <p className="small !mb-6">
-        Informe os dados abaixo para acompanhar a entrega.
-      </p>
-      <form onSubmit={handleSubmit(submit)} noValidate>
-        <label className="field">
-          Número da nota fiscal
-          <input
-            {...register("number")}
-            placeholder="Ex.: 33541"
-            inputMode="numeric"
-            maxLength={12}
-            autoComplete="off"
-            aria-invalid={!!errors.number}
-          />
-          {errors.number && (
-            <span className="text-red-700">{errors.number.message}</span>
-          )}
-        </label>
-        <label className="field">
-          CPF ou CNPJ do destinatário
-          <input
-            {...register("document")}
-            placeholder="Somente os números do documento"
-            inputMode="numeric"
-            autoComplete="off"
-            aria-invalid={!!errors.document}
-          />
-          {errors.document && (
-            <span className="text-red-700">{errors.document.message}</span>
-          )}
-        </label>
-        <button className="button full" disabled={isSubmitting}>
-          <Search size={17} />
-          {isSubmitting ? "CONSULTANDO…" : "RASTREAR ENTREGA"}
-          <ArrowRight size={17} className="ml-auto" />
-        </button>
-        <p className="secure-note">
-          <LockKeyhole size={12} /> Seus dados são usados apenas para validar a
-          consulta.
+    <>
+      <div className="card lookup-card">
+        <div className="icon-box">
+          <PackageSearch size={23} />
+        </div>
+        <h2 className="!text-xl !mb-1">Encontre sua encomenda</h2>
+        <p className="small !mb-6">
+          Informe os dados abaixo para acompanhar a entrega.
         </p>
-      </form>
-      {error && (
-        <div className="error" role="alert">
-          {error}
-        </div>
-      )}
-      {links.length > 0 && (
-        <div className="link-list" role="status">
-          <strong>{links.length} remessa(s) encontrada(s)</strong>
-          {links.map((l, i) => (
-            <Link key={l.url} href={l.url}>
-              Acompanhar remessa {i + 1} →<br />
-              <span className="small muted">
-                NF {l.invoiceNumber} · {l.carrier}
-              </span>
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+        <form
+          onSubmit={handleSubmit(submit)}
+          onChange={() => {
+            setLinks([]);
+            setError("");
+          }}
+          noValidate
+        >
+          <label className="field">
+            Número da nota fiscal
+            <input
+              {...register("number")}
+              placeholder="Ex.: 33541"
+              inputMode="numeric"
+              maxLength={12}
+              autoComplete="off"
+              aria-invalid={!!errors.number}
+            />
+            {errors.number && (
+              <span className="text-red-700">{errors.number.message}</span>
+            )}
+          </label>
+          <label className="field">
+            CPF ou CNPJ do destinatário
+            <input
+              {...register("document")}
+              placeholder="Somente os números do documento"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-invalid={!!errors.document}
+            />
+            {errors.document && (
+              <span className="text-red-700">{errors.document.message}</span>
+            )}
+          </label>
+          <button className="button full" disabled={isSubmitting}>
+            <Search size={17} />
+            {isSubmitting ? "CONSULTANDO…" : "RASTREAR ENTREGA"}
+            <ArrowRight size={17} className="ml-auto" />
+          </button>
+          <p className="secure-note">
+            <LockKeyhole size={12} /> Seus dados são usados apenas para validar
+            a consulta.
+          </p>
+        </form>
+        {error && (
+          <div className="error" role="alert">
+            {error}
+          </div>
+        )}
+      </div>
+      {links.length > 0 && <LookupResults rows={links} />}
+    </>
   );
 }

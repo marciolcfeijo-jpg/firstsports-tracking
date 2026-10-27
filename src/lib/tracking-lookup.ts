@@ -42,12 +42,31 @@ export async function lookupInvoice(
       /* Keep serving the last persisted information if upstream is unavailable. */
     }
   }
+  // Read again after refresh so the table shows the newly persisted carrier data.
+  const rows = await db.shipment.findMany({
+    where: {
+      id: { in: shipments.map((s) => s.id) },
+      order: { customer: { documentHash: documentHash(body.document) } },
+      invoices: { some: { number: String(Number(body.number)) } },
+    },
+    include: {
+      order: { include: { customer: { select: { name: true } } } },
+      carrier: { select: { name: true } },
+    },
+    orderBy: { createdAt: "asc" },
+  });
   const links = [];
-  for (const shipment of shipments)
+  for (const shipment of rows)
     links.push({
       url: "/rastreio/" + (await issueLink(shipment.id, "PUBLIC_LOOKUP")),
       carrier: shipment.carrier.name,
       invoiceNumber: String(Number(body.number)),
+      orderNumber: shipment.order.number,
+      customerName: shipment.order.customer.name,
+      issuedAt: shipment.issuedAt.toISOString(),
+      estimatedDelivery: shipment.estimatedDelivery?.toISOString() || null,
+      status: shipment.status,
+      lastSyncedAt: shipment.lastSyncedAt?.toISOString() || null,
     });
   return { links };
 }

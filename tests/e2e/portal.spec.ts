@@ -103,7 +103,27 @@ test("admin login, manual persistence, multiple invoices, secure lookup and revo
     .fill(shipmentFixture.cpf_cnpj_destinatario);
   await page.getByRole("button", { name: "RASTREAR ENTREGA" }).click();
   await expect(
-    page.getByRole("link", { name: "Acompanhar remessa 1" }),
+    page.getByRole("link", { name: /Visualizar rastreamento da NF/ }),
+  ).toBeVisible();
+  const results = page.getByRole("region", {
+    name: "Remessas da nota fiscal pesquisada",
+  });
+  await expect(results.getByRole("row")).toHaveCount(2);
+  await expect(results).toContainText(order);
+  await expect(results).toContainText("Cliente fictício E2E");
+  await expect(results).not.toContainText(
+    shipmentFixture.cpf_cnpj_destinatario,
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await results
+    .getByRole("link", { name: /Visualizar rastreamento da NF/ })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Pedido " + order, exact: true }),
   ).toBeVisible();
   await page.goto("/admin/remessas");
   await page.getByLabel("Buscar", { exact: true }).fill(order);
