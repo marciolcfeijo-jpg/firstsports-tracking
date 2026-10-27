@@ -83,7 +83,8 @@ export function ImportPanel({
           </a>
         </div>
         <p className="small">
-          Arquivos XLSX ou CSV, até 5 MB e 2.000 linhas. Preencha os
+          Arquivos XLSX ou CSV, até 5 MB e 2.000 registros. Linhas vazias e
+          células apenas formatadas não entram na contagem. Preencha os
           identificadores como texto. A reimportação da mesma nota fiscal não
           cria outra remessa.
         </p>

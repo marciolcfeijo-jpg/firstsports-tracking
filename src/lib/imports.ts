@@ -49,32 +49,65 @@ export async function parseSpreadsheet(
     });
   } else throw new HttpError(400, "Use um arquivo .xlsx ou .csv");
   const sheet = book.worksheets[0];
-  if (!sheet || sheet.rowCount < 2) throw new HttpError(400, "Planilha vazia");
-  if (sheet.rowCount > MAX_ROWS + 1 || sheet.columnCount > 30)
-    throw new HttpError(400, "Máximo de 2.000 linhas e 30 colunas");
-  const header = sheet.getRow(1).values as ExcelJS.CellValue[];
-  const names = header.slice(1).map((v) =>
-    String(v ?? "")
-      .replace(/^\uFEFF/, "")
-      .trim(),
-  );
+  if (!sheet) throw new HttpError(400, "Planilha vazia");
+  // XLSX rowCount/columnCount include formatted empty cells. Count actual content,
+  // keep the original coordinates, and still enforce the data/ZIP size limits.
+  const hasContent = (value: ExcelJS.CellValue) =>
+    value !== null &&
+    value !== undefined &&
+    (typeof value !== "string" || value.trim().length > 0);
+  const populatedRows: ExcelJS.Row[] = [];
+  const populatedColumns = new Set<number>();
+  sheet.eachRow((row) => {
+    let populated = false;
+    row.eachCell((cell, column) => {
+      if (!hasContent(cell.value)) return;
+      populated = true;
+      populatedColumns.add(column);
+    });
+    if (row.number > 1 && populated) populatedRows.push(row);
+  });
+  if (populatedRows.length > MAX_ROWS)
+    throw new HttpError(
+      400,
+      `Máximo de 2.000 linhas com dados, sem contar o cabeçalho. Encontradas: ${populatedRows.length}.`,
+    );
+  if (populatedColumns.size > 30)
+    throw new HttpError(
+      400,
+      `Máximo de 30 colunas preenchidas. Encontradas: ${populatedColumns.size}.`,
+    );
+  if (!populatedRows.length) throw new HttpError(400, "Planilha vazia");
+  const headers: { name: string; column: number }[] = [];
+  sheet.getRow(1).eachCell((cell, column) => {
+    if (!hasContent(cell.value)) return;
+    headers.push({
+      name: String(cell.value)
+        .replace(/^\uFEFF/, "")
+        .trim(),
+      column,
+    });
+  });
+  const names = headers.map((header) => header.name);
   if (
     columns.some((c) => !names.includes(c)) ||
-    new Set(names).size !== names.length
+    new Set(names).size !== names.length ||
+    [...populatedColumns].some(
+      (column) => !headers.some((header) => header.column === column),
+    )
   )
     throw new HttpError(
       400,
-      "Cabeçalhos ausentes ou repetidos. Baixe o modelo.",
+      "Cabeçalhos ausentes ou repetidos. Toda coluna com dados deve ter cabeçalho. Baixe o modelo.",
     );
   const seen = new Set<string>();
   const rows = [];
-  for (let line = 2; line <= sheet.rowCount; line++) {
-    const row = sheet.getRow(line);
-    if (!row.hasValues) continue;
+  for (const row of populatedRows) {
+    const line = row.number;
     const data: Record<string, string> = {};
     const errors: string[] = [];
-    names.forEach((name, index) => {
-      const cell = row.getCell(index + 1);
+    headers.forEach(({ name, column }) => {
+      const cell = row.getCell(column);
       const value = cell.value;
       if (value && typeof value === "object" && !(value instanceof Date))
         errors.push(`${name}: fórmulas e objetos não são permitidos`);
