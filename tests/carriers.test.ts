@@ -219,7 +219,7 @@ it("reports received history counts and preserves date-only delivery precision",
   const result = await new BraspressAdapter(
     vi.fn().mockResolvedValue(json(response)),
   ).trackShipment(input);
-  expect(result.diagnostics).toEqual({
+  expect(result.diagnostics).toMatchObject({
     timelineReceived: 0,
     occurrencesReceived: 0,
     undatedReceived: 0,

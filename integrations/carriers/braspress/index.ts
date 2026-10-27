@@ -22,7 +22,70 @@ const knowledge = z.object({
   timeline: z.array(movement).default([]),
   ocorrencias: z.array(movement).default([]),
 });
-const responseSchema = z.object({ conhecimentos: z.array(knowledge) });
+const responseSchema = z.object({
+  conhecimentos: z.array(knowledge),
+  timeline: z.array(movement).optional(),
+  ocorrencias: z.array(movement).optional(),
+});
+// Structural metadata only: field names and array counts, never payload values.
+export function braspressStructure(payload: unknown) {
+  const fields = (value: unknown): string[] =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.keys(value)
+          .filter((key) => /^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(key))
+          .slice(0, 40)
+      : [];
+  const root =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {};
+  const items = Array.isArray(root.conhecimentos) ? root.conhecimentos : [];
+  const arrays: string[] = [];
+  const visit = (value: unknown, path: string, depth: number) => {
+    if (depth > 3 || arrays.length >= 20) return;
+    if (Array.isArray(value)) {
+      arrays.push(
+        `${path}: ${value.length} registro(s); campos: ${fields(value[0]).join(", ") || "sem campos"}`.slice(
+          0,
+          512,
+        ),
+      );
+      if (value.length) visit(value[0], path + "[]", depth + 1);
+    } else if (value && typeof value === "object") {
+      for (const key of fields(value))
+        visit(
+          (value as Record<string, unknown>)[key],
+          path + "." + key,
+          depth + 1,
+        );
+    }
+  };
+  visit(root, "resposta", 0);
+  return {
+    rootFields: fields(root),
+    knowledgeFields: fields(items[0]),
+    arrayFields: arrays,
+  };
+}
+function historyFor(
+  data: z.infer<typeof responseSchema>,
+  item: z.infer<typeof knowledge>,
+) {
+  const hasRoot = !!data.timeline?.length || !!data.ocorrencias?.length;
+  const hasNested = !!item.timeline.length || !!item.ocorrencias.length;
+  if (hasRoot && data.conhecimentos.length > 1 && !hasNested)
+    throw new CarrierError("AMBIGUOUS_TRACKING_HISTORY", false);
+  // A root history is only attributable when there is exactly one knowledge.
+  const rootTimeline =
+    data.conhecimentos.length === 1 ? data.timeline || [] : [];
+  const rootOccurrences =
+    data.conhecimentos.length === 1 ? data.ocorrencias || [] : [];
+  return {
+    ...item,
+    timeline: [...item.timeline, ...rootTimeline],
+    ocorrencias: [...item.ocorrencias, ...rootOccurrences],
+  };
+}
 /** Official GET /v3/tracking/byNf/{payerCnpj}/{nf}/json. Documentation checked 2026-10-24. */
 export class BraspressAdapter implements CarrierTrackingAdapter {
   constructor(private readonly fetcher: typeof fetch = fetch) {}
@@ -55,35 +118,48 @@ export class BraspressAdapter implements CarrierTrackingAdapter {
   }
   normalizeEvents(payload: unknown): TrackingEvent[] {
     const data = this.parse(payload);
-    return ordered(
-      data.conhecimentos.flatMap((c) => [
-        ...c.timeline.flatMap((e) => {
+    const events: TrackingEvent[] = data.conhecimentos.flatMap((item) => {
+      const history = historyFor(data, item);
+      return [
+        ...history.timeline.flatMap((e) => {
           const occurredAt = carrierDate(e.data || undefined);
-          if (!occurredAt) return [];
-          return [
-            {
-              occurredAt,
-              dateOnly: dateIsOnly(e.data!),
-              description: e.descricao,
-              status: mapStatus(e.descricao),
-            },
-          ];
+          return occurredAt
+            ? [
+                {
+                  occurredAt,
+                  dateOnly: dateIsOnly(e.data!),
+                  description: e.descricao,
+                  status: mapStatus(e.descricao),
+                },
+              ]
+            : [];
         }),
-        ...c.ocorrencias.flatMap((e) => {
+        ...history.ocorrencias.flatMap((e) => {
           const occurredAt = carrierDate(e.data || undefined);
-          if (!occurredAt) return [];
-          return [
-            {
-              occurredAt,
-              dateOnly: dateIsOnly(e.data!),
-              description: e.descricao,
-              status: "EXCEPTION" as const,
-            },
-          ];
+          const mapped = mapStatus(e.descricao);
+          return occurredAt
+            ? [
+                {
+                  occurredAt,
+                  dateOnly: dateIsOnly(e.data!),
+                  description: e.descricao,
+                  status:
+                    mapped === "UNKNOWN" ? ("EXCEPTION" as const) : mapped,
+                },
+              ]
+            : [];
         }),
+      ];
+    });
+    const unique = new Map(
+      events.map((event) => [
+        JSON.stringify([event.occurredAt, event.description, event.status]),
+        event,
       ]),
     );
+    return ordered([...unique.values()]);
   }
+
   async trackShipment(input: TrackingInput): Promise<TrackingResult> {
     const conf = this.validateConfiguration();
     if (!conf.valid) throw new CarrierError(conf.reason!, false);
@@ -113,8 +189,28 @@ export class BraspressAdapter implements CarrierTrackingAdapter {
     if (matching.length > 1)
       throw new CarrierError("AMBIGUOUS_TRACKING", false);
     const c = matching[0];
-    const events = this.normalizeEvents({ conhecimentos: [c] });
-    const deliveredAt = carrierDate(c.dataEntrega || undefined);
+    const history = historyFor(data, c);
+    const events = this.normalizeEvents({ conhecimentos: [history] });
+    const summaryDelivery = carrierDate(c.dataEntrega || undefined);
+    const deliveryEvent = events
+      .filter((event) => event.status === "DELIVERED")
+      .at(-1);
+    const calendarDate = (value: string) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date(value));
+    const deliveredAt =
+      summaryDelivery &&
+      !(
+        dateIsOnly(c.dataEntrega!) &&
+        deliveryEvent &&
+        calendarDate(deliveryEvent.occurredAt) === calendarDate(summaryDelivery)
+      )
+        ? summaryDelivery
+        : deliveryEvent?.occurredAt || summaryDelivery;
     // The summary can confirm delivery even when the provider omits it from the timeline.
     if (
       deliveredAt &&
@@ -147,12 +243,22 @@ export class BraspressAdapter implements CarrierTrackingAdapter {
       deliveredAt,
       events,
       diagnostics: {
-        timelineReceived: c.timeline.length,
-        occurrencesReceived: c.ocorrencias.length,
-        undatedReceived: [...c.timeline, ...c.ocorrencias].filter(
+        timelineReceived: history.timeline.length,
+        occurrencesReceived: history.ocorrencias.length,
+        undatedReceived: [...history.timeline, ...history.ocorrencias].filter(
           (e) => !e.data?.trim(),
         ).length,
         eventsNormalized: events.length,
+        historySource:
+          c.timeline.length || c.ocorrencias.length
+            ? data.conhecimentos.length === 1 &&
+              (data.timeline?.length || data.ocorrencias?.length)
+              ? "ambos"
+              : "conhecimento"
+            : history.timeline.length || history.ocorrencias.length
+              ? "raiz"
+              : "ausente",
+        structure: braspressStructure(raw),
       },
     };
   }

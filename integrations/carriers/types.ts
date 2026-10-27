@@ -36,6 +36,16 @@ export const resultSchema = z
         occurrencesReceived: z.number().int().nonnegative(),
         undatedReceived: z.number().int().nonnegative(),
         eventsNormalized: z.number().int().nonnegative(),
+        historySource: z
+          .enum(["conhecimento", "raiz", "ambos", "ausente"])
+          .optional(),
+        structure: z
+          .object({
+            rootFields: z.array(z.string()).max(40),
+            knowledgeFields: z.array(z.string()).max(40),
+            arrayFields: z.array(z.string().max(512)).max(20),
+          })
+          .optional(),
       })
       .optional(),
   })

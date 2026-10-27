@@ -1,6 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { TrackingResult } from "../../integrations/carriers/types";
 import { inputDate } from "@/lib/status";
 type Props = {
   id: string;
@@ -25,6 +26,8 @@ type Props = {
 export function ShipmentActions(p: Props) {
   const [message, setMessage] = useState("");
   const [link, setLink] = useState("");
+  const [diagnostics, setDiagnostics] =
+    useState<TrackingResult["diagnostics"]>();
   const [requestBusy, setBusy] = useState(false);
   const [refreshing, startTransition] = useTransition();
   const busy = requestBusy || refreshing;
@@ -32,6 +35,7 @@ export function ShipmentActions(p: Props) {
   async function call(path: string, body?: unknown, method = "POST") {
     setBusy(true);
     setMessage("");
+    if (path === "/sync") setDiagnostics(undefined);
     try {
       const r = await fetch(`/api/admin/shipments/${p.id}${path}`, {
         method,
@@ -47,11 +51,14 @@ export function ShipmentActions(p: Props) {
         );
       if (path !== "/sync") startTransition(() => router.refresh());
       if (data.linksRevoked) setLink("");
+      if (path === "/sync") setDiagnostics(data.diagnostics);
       setMessage(
         path === "/sync"
-          ? "Rastreamento atualizado com dados da transportadora." +
+          ? (data.diagnostics?.eventsNormalized === 0
+              ? "Dados gerais atualizados, mas nenhum evento de histórico com data foi processado. Confira o diagnóstico abaixo."
+              : "Rastreamento atualizado com dados da transportadora.") +
               (data.diagnostics
-                ? ` API Braspress: ${data.diagnostics.timelineReceived} etapas, ${data.diagnostics.occurrencesReceived} ocorrências; ${data.diagnostics.undatedReceived} registros sem data. Histórico processado: ${data.diagnostics.eventsNormalized} eventos.`
+                ? ` API Braspress: ${data.diagnostics.timelineReceived} etapas, ${data.diagnostics.occurrencesReceived} ocorrências; ${data.diagnostics.undatedReceived} registros sem data. Histórico processado: ${data.diagnostics.eventsNormalized} eventos.${data.diagnostics.historySource ? ` Origem do histórico: ${data.diagnostics.historySource}.` : ""}`
                 : "")
           : "Operação concluída." +
               (data.resetTracking
@@ -114,6 +121,36 @@ export function ShipmentActions(p: Props) {
         <p role="status" className="small !mt-4 !mb-0">
           {message}
         </p>
+        {diagnostics?.structure && (
+          <details className="small spaced">
+            <summary className="cursor-pointer">
+              Diagnóstico da estrutura da resposta Braspress
+            </summary>
+            <pre className="overflow-auto !my-3">
+              {JSON.stringify(diagnostics, null, 2)}
+            </pre>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    JSON.stringify(diagnostics, null, 2),
+                  );
+                  setMessage(
+                    "Diagnóstico copiado. Ele contém apenas contagens e nomes de campos.",
+                  );
+                } catch {
+                  setMessage(
+                    "Selecione o diagnóstico acima e copie manualmente.",
+                  );
+                }
+              }}
+            >
+              Copiar diagnóstico
+            </button>
+          </details>
+        )}
       </section>
       <section className="card spaced">
         <h3>Editar dados cadastrais</h3>

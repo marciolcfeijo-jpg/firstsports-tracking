@@ -347,3 +347,57 @@ test("bulk tracking is authenticated and handles an empty eligible queue without
     ),
   ).toBe(true);
 });
+
+test("shows safe Braspress history diagnostics from a synthetic API result", async ({
+  page,
+}) => {
+  await login(page);
+  const created = await page.request.post("/api/admin/shipments", {
+    headers: { origin: "http://localhost:3100" },
+    data: {
+      ...shipmentFixture,
+      numero_nf: test.info().project.name === "mobile" ? "8862" : "8861",
+      numero_pedido: "DIAGNOSTIC-" + test.info().project.name,
+    },
+  });
+  expect(created.ok()).toBe(true);
+  const { id } = await created.json();
+  await page.goto("/admin/remessas/" + id);
+  // Only a browser API fixture: does not authenticate with or call the carrier.
+  await page.route(`**/api/admin/shipments/${id}/sync`, (route) =>
+    route.fulfill({
+      json: {
+        ok: true,
+        diagnostics: {
+          timelineReceived: 4,
+          occurrencesReceived: 0,
+          undatedReceived: 0,
+          eventsNormalized: 4,
+          historySource: "raiz",
+          structure: {
+            rootFields: ["conhecimentos", "timeline"],
+            knowledgeFields: ["numero", "notasFiscais"],
+            arrayFields: [
+              "resposta.timeline: 4 registro(s); campos: descricao, data",
+            ],
+          },
+        },
+      },
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Atualizar rastreamento", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Origem do histórico: raiz",
+  );
+  await page
+    .getByText("Diagnóstico da estrutura da resposta Braspress", {
+      exact: true,
+    })
+    .click();
+  await expect(page.locator("pre")).toContainText("resposta.timeline: 4");
+  await expect(
+    page.getByRole("button", { name: "Copiar diagnóstico", exact: true }),
+  ).toBeVisible();
+});
