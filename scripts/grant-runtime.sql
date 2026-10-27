@@ -3,8 +3,8 @@
 \set ON_ERROR_STOP on
 GRANT USAGE ON SCHEMA public TO :"runtime_role";
 SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I TO %I', table_name, :'runtime_role')
-FROM unnest(ARRAY['AdminUser', 'Customer', 'Order', 'Carrier', 'Shipment', 'ShipmentInvoice', 'TrackingEvent', 'TrackingLink', 'ImportBatch', 'ImportRow', 'SyncLog', 'AuditLog', 'RateLimit']) AS table_name
+FROM unnest(ARRAY['AdminUser', 'Customer', 'Order', 'Carrier', 'Shipment', 'ShipmentInvoice', 'TrackingEvent', 'TrackingLink', 'ImportBatch', 'ImportRow', 'SyncLog', 'AuditLog', 'RateLimit', 'BulkSync']) AS table_name
 \gexec
 SELECT format('CREATE POLICY runtime_server_access ON %I FOR ALL TO %I USING (true) WITH CHECK (true)', table_name, :'runtime_role')
-FROM unnest(ARRAY['AdminUser', 'Customer', 'Order', 'Carrier', 'Shipment', 'ShipmentInvoice', 'TrackingEvent', 'TrackingLink', 'ImportBatch', 'ImportRow', 'SyncLog', 'AuditLog', 'RateLimit']) AS table_name
+FROM unnest(ARRAY['AdminUser', 'Customer', 'Order', 'Carrier', 'Shipment', 'ShipmentInvoice', 'TrackingEvent', 'TrackingLink', 'ImportBatch', 'ImportRow', 'SyncLog', 'AuditLog', 'RateLimit', 'BulkSync']) AS table_name
 \gexec

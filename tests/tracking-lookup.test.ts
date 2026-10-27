@@ -64,7 +64,12 @@ describe("NF and recipient lookup before carrier access", () => {
       throw new Error("synthetic upstream outage");
     });
     expect((await lookupInvoice(body, run)).links).toHaveLength(1);
-    expect(run).toHaveBeenCalledExactlyOnceWith(created.id, undefined, "123");
+    expect(run).toHaveBeenCalledExactlyOnceWith(
+      created.id,
+      undefined,
+      "123",
+      expect.any(Date),
+    );
   });
   it("respects retry windows, terminal shipments and active sync leases", async () => {
     const created = await createShipmentTransaction(shipmentFixture, "test");

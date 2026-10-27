@@ -11,7 +11,18 @@ export async function POST(r: Request, c: { params: Promise<{ id: string }> }) {
       data: { actorId: actor.id, action: "SYNC_REQUEST", entityId: id },
     });
     const result = await syncShipment(id);
-    return Response.json(result, { status: result.ok ? 200 : 422 });
+    return Response.json(
+      {
+        ...result,
+        ...(result.skipped
+          ? {
+              error:
+                "Outra consulta à transportadora está em andamento. Aguarde e tente novamente.",
+            }
+          : {}),
+      },
+      { status: result.ok ? 200 : result.skipped ? 409 : 422 },
+    );
   } catch (e) {
     return apiError(e);
   }

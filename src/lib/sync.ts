@@ -77,15 +77,24 @@ export async function syncShipment(
   id: string,
   adapterOverride?: CarrierTrackingAdapter,
   invoiceNumber?: string,
+  dueAt?: Date,
 ): Promise<{
   ok: boolean;
   code?: string;
   diagnostics?: TrackingResult["diagnostics"];
+  skipped?: boolean;
 }> {
   const claimed = await db.shipment.updateMany({
     where: {
       id,
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+      ...(dueAt
+        ? {
+            nextSyncAt: { lte: dueAt },
+            status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] as const },
+            carrier: { enabled: true },
+          }
+        : {}),
     },
     data: { leaseUntil: new Date(Date.now() + 120000) },
   });
@@ -149,6 +158,10 @@ export async function syncShipment(
     return { ok: true, diagnostics: result.diagnostics };
   } catch (e) {
     const code = e instanceof CarrierError ? e.code : "SYNC_FAILED";
+    if (code === "CARRIER_BUSY") {
+      await db.shipment.update({ where: { id }, data: { leaseUntil: null } });
+      return { ok: false, code, skipped: true };
+    }
     const shipment = await db.shipment.findUniqueOrThrow({ where: { id } });
     await db.$transaction([
       db.shipment.update({
@@ -184,10 +197,11 @@ export async function syncShipment(
   }
 }
 export async function syncDue(run: typeof syncShipment = syncShipment) {
+  const cutoff = new Date();
   const due = await db.shipment.findMany({
     where: {
       status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] },
-      nextSyncAt: { lte: new Date() },
+      nextSyncAt: { lte: cutoff },
       carrier: { enabled: true },
     },
     select: { id: true },
@@ -199,7 +213,7 @@ export async function syncDue(run: typeof syncShipment = syncShipment) {
   for (const s of due) {
     if (Date.now() >= deadline) break;
     try {
-      results.push(await run(s.id));
+      results.push(await run(s.id, undefined, undefined, cutoff));
     } catch {
       results.push({ ok: false, code: "BUSY" });
     }

@@ -201,3 +201,19 @@ model RateLimit {
 
   @@index([resetAt])
 }
+
+model BulkSync {
+  id              String   @id
+  runId           String
+  status          String   @default("DONE")
+  cutoff          DateTime
+  total           Int      @default(0)
+  processed       Int      @default(0)
+  succeeded       Int      @default(0)
+  failed          Int      @default(0)
+  blockedCarriers String[] @default([])
+  errors          Json     @default("{}")
+  leaseUntil      DateTime?
+  leaseToken      String?
+  updatedAt       DateTime @updatedAt
+}

@@ -12,6 +12,7 @@ export default async function setup() {
   });
   const db = new PrismaClient({ datasources: { db: { url } } });
   try {
+    await db.bulkSync.deleteMany();
     await db.$executeRawUnsafe(
       'TRUNCATE "Customer", "Order", "Shipment", "ShipmentInvoice", "TrackingEvent", "Carrier", "TrackingLink", "SyncLog", "RateLimit", "AuditLog", "ImportBatch", "ImportRow", "AdminUser" CASCADE',
     );

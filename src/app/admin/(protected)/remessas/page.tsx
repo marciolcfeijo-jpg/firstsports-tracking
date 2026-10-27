@@ -1,3 +1,4 @@
+import { BulkTracking } from "@/components/bulk-tracking";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
 import { shipmentWhere } from "@/lib/filters";
@@ -9,7 +10,7 @@ export default async function Shipments({
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
-  await requirePageAdmin();
+  const user = await requirePageAdmin();
   const p = await searchParams;
   const page = Math.max(1, Number(p.page) || 1),
     where = shipmentWhere(new URLSearchParams(p));
@@ -46,6 +47,7 @@ export default async function Shipments({
           </Link>
         </div>
       </div>
+      {user.role !== "VIEWER" && <BulkTracking />}
       <Filters values={p} />
       <div className="table-wrap">
         <table>

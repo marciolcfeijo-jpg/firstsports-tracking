@@ -317,3 +317,33 @@ test("Correios object code is registered and retained in the admin form", async 
     page.getByRole("region", { name: "Remessas da nota fiscal pesquisada" }),
   ).toContainText("CORRECTED-E2E-" + suffix);
 });
+
+test("bulk tracking is authenticated and handles an empty eligible queue without carrier calls", async ({
+  page,
+  request,
+}) => {
+  expect(
+    (await request.get("/api/admin/shipments/sync-pending")).status(),
+  ).toBe(401);
+  expect(
+    (
+      await request.post("/api/admin/shipments/sync-pending", {
+        headers: { origin: "https://evil.example" },
+        data: { action: "start" },
+      })
+    ).status(),
+  ).toBe(403);
+  await login(page);
+  await page.goto("/admin/remessas");
+  await page
+    .getByRole("button", { name: "Atualizar pendentes em massa", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText(
+    "Nenhuma remessa pendente de checagem",
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});

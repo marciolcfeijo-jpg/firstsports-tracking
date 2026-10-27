@@ -44,6 +44,7 @@ export default defineConfig({
         DOCUMENT_HMAC_KEY: "isolated-e2e-fixture-key-at-least-32-characters",
         BRASPRESS_USERNAME: "",
         BRASPRESS_PASSWORD: "",
+        ALFA_API_KEY: "",
         CORREIOS_USERNAME: "",
         CORREIOS_ACCESS_CODE: "",
         CORREIOS_POSTING_CARD: "",

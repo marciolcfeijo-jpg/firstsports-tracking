@@ -25,13 +25,14 @@ export async function lookupInvoice(
       404,
       "Não foi possível validar a consulta. Confira a nota fiscal e o documento ou solicite um link seguro à First Sports.",
     );
+  const cutoff = new Date();
   let refreshes = 0;
   for (const shipment of shipments) {
     if (refreshes >= 3) break;
     if (
       !shipment.carrier.enabled ||
       ["DELIVERED", "RETURNED", "CANCELLED"].includes(shipment.status) ||
-      shipment.nextSyncAt > new Date() ||
+      shipment.nextSyncAt > cutoff ||
       (shipment.leaseUntil && shipment.leaseUntil > new Date())
     )
       continue;
@@ -39,7 +40,7 @@ export async function lookupInvoice(
     if (refreshes + requestCost > 3) continue;
     refreshes += requestCost;
     try {
-      await run(shipment.id, undefined, String(Number(body.number)));
+      await run(shipment.id, undefined, String(Number(body.number)), cutoff);
     } catch {
       /* Keep serving the last persisted information if upstream is unavailable. */
     }
