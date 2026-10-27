@@ -187,6 +187,7 @@ model AuditLog {
   id        String   @id @default(cuid())
   actorId   String
   action    String
+  snapshot  Json?
   entityId  String
   createdAt DateTime @default(now())
 

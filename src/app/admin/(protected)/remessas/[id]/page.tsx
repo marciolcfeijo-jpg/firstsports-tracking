@@ -1,3 +1,4 @@
+import { ShipmentRevisions } from "@/components/shipment-revisions";
 import { TrackingOverview } from "@/components/tracking-overview";
 import { TrackingHistory } from "@/components/tracking-history";
 import { db } from "@/lib/db";
@@ -26,6 +27,12 @@ export default async function Detail({
   const carriers = await db.carrier.findMany({
     select: { code: true, name: true },
     orderBy: { name: "asc" },
+  });
+  const revisions = await db.auditLog.findMany({
+    where: { entityId: s.id, action: "SHIPMENT_UPDATE" },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { id: true, createdAt: true, snapshot: true },
   });
   return (
     <>
@@ -115,6 +122,9 @@ export default async function Detail({
             trackingCode={s.trackingCode}
             estimatedDelivery={s.estimatedDelivery?.toISOString() || null}
             senderDocument={s.senderDocument}
+            orderNumber={s.order.number}
+            issuedAt={s.issuedAt.toISOString()}
+            invoices={s.invoices}
             links={s.links.map((l) => ({
               id: l.id,
               expiresAt: l.expiresAt.toISOString(),
@@ -129,6 +139,7 @@ export default async function Detail({
             carriers={carriers}
             canWrite={user.role !== "VIEWER"}
           />
+          <ShipmentRevisions revisions={revisions} />
           <section className="card spaced">
             <h3>Tentativas de atualização</h3>
             {!s.syncLogs.length && (

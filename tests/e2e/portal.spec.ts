@@ -279,4 +279,34 @@ test("Correios object code is registered and retained in the admin form", async 
   ).toHaveValue("AA123456789BR");
   await page.getByRole("button", { name: "Salvar alterações" }).click();
   await expect(page.getByRole("status")).toContainText("Operação concluída");
+  await page
+    .getByLabel("Corrigir CPF/CNPJ do destinatário", { exact: true })
+    .fill("04252011000110");
+  await page
+    .getByLabel("Número do pedido", { exact: true })
+    .fill("CORRECTED-E2E-" + suffix);
+  await page.getByLabel("Número da NF 1", { exact: true }).fill("777" + suffix);
+  await page.getByLabel("Série da NF 1", { exact: true }).fill("2");
+  await page.getByRole("button", { name: "Salvar alterações" }).click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Pedido CORRECTED-E2E-" + suffix,
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Cadastro corrigido");
+  await expect(
+    page.getByLabel("Corrigir CPF/CNPJ do destinatário", { exact: true }),
+  ).toHaveValue("");
+  await page.goto("/");
+  await page
+    .getByLabel("Número da nota fiscal", { exact: true })
+    .fill("777" + suffix);
+  await page
+    .getByLabel("CPF ou CNPJ do destinatário", { exact: true })
+    .fill("04252011000110");
+  await page.getByRole("button", { name: "RASTREAR ENTREGA" }).click();
+  await expect(
+    page.getByRole("region", { name: "Remessas da nota fiscal pesquisada" }),
+  ).toContainText("CORRECTED-E2E-" + suffix);
 });

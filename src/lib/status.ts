@@ -43,3 +43,15 @@ export function deliveryDateTime(
   );
   return timed ? dateTime(value) : dateOnly(value) + " · horário não informado";
 }
+
+export function inputDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(value));
+  const fields = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  return `${fields.year}-${fields.month}-${fields.day}`;
+}
