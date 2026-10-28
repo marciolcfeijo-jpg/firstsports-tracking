@@ -48,7 +48,7 @@ export function BulkTracking() {
       throw new Error(data.error || "Não foi possível atualizar as remessas.");
     return data;
   }
-  async function update() {
+  async function update(retrySuspended = false) {
     if (working.current) return;
     working.current = true;
     stop.current = false;
@@ -56,7 +56,11 @@ export function BulkTracking() {
     setStopping(false);
     setError("");
     try {
-      let current = await send({ action: "start" });
+      let current = await send(
+        retrySuspended && summary
+          ? { action: "retry", runId: summary.runId }
+          : { action: "start" },
+      );
       if (mounted.current) setSummary(current);
       while (!stop.current && current.status !== "DONE") {
         current = await send({ action: "next", runId: current.runId });
@@ -93,13 +97,23 @@ export function BulkTracking() {
       <p className="small">
         Consulta todas as remessas abertas com checagem vencida e transportadora
         habilitada, independentemente dos filtros abaixo. Respeita os intervalos
-        de nova tentativa e os bloqueios de consultas em andamento.
+        de nova tentativa e os bloqueios de consultas em andamento. A ordem é da
+        data de emissão mais antiga para a mais recente.
       </p>
       <div className="actions">
         <button
           className="button"
-          disabled={running || !!summary?.busy}
-          onClick={update}
+          disabled={
+            running ||
+            !!summary?.busy ||
+            !!(
+              summary &&
+              summary.remaining > 0 &&
+              summary.eligible === 0 &&
+              Object.keys(summary.errors).length
+            )
+          }
+          onClick={() => update()}
         >
           <RefreshCw size={16} aria-hidden="true" />
           {running
@@ -108,6 +122,18 @@ export function BulkTracking() {
               ? "Retomar atualização de pendentes"
               : "Atualizar pendentes em massa"}
         </button>
+        {!running &&
+          summary &&
+          summary.remaining > 0 &&
+          Object.keys(summary.errors).length > 0 && (
+            <button
+              className="button secondary"
+              disabled={summary.busy}
+              onClick={() => update(true)}
+            >
+              Retestar transportadoras suspensas
+            </button>
+          )}
         {running && (
           <button
             className="button secondary"
@@ -127,10 +153,34 @@ export function BulkTracking() {
             {summary.status === "DONE"
               ? "Atualização encerrada."
               : summary.status === "PAUSED"
-                ? "Atualização pausada; retome para continuar."
+                ? summary.eligible === 0 &&
+                  summary.remaining > 0 &&
+                  Object.keys(summary.errors).length > 0
+                  ? "Atualização pausada por falha de integração. Corrija a causa e use Retestar transportadoras suspensas."
+                  : "Atualização pausada; retome para continuar."
                 : "Lote em andamento."}{" "}
-            Consultadas: {summary.processed} de {summary.total} inicialmente
-            pendentes. Sucessos: {summary.succeeded}. Falhas: {summary.failed}.
+          </p>
+          <dl className="data-list">
+            <div>
+              <dt>Consultas realizadas</dt>
+              <dd>{summary.processed}</dd>
+            </div>
+            <div>
+              <dt>Atualizadas com sucesso</dt>
+              <dd>{summary.succeeded}</dd>
+            </div>
+            <div>
+              <dt>Consultas com erro</dt>
+              <dd>{summary.failed}</dd>
+            </div>
+            <div>
+              <dt>Ainda na fila deste lote</dt>
+              <dd>{summary.remaining}</dd>
+            </div>
+          </dl>
+          <p className="!mb-1">
+            Fila inicial: {summary.total}. A fila é reavaliada conforme outras
+            consultas terminam; falhas respeitam o prazo de nova tentativa.
           </p>
           {summary.status === "DONE" && summary.total === 0 && (
             <p className="!mb-1">
@@ -139,7 +189,6 @@ export function BulkTracking() {
           )}
           {summary.remaining > 0 && (
             <p className="!mb-1">
-              Ainda pendentes deste lote: {summary.remaining}.{" "}
               {summary.eligible === 0
                 ? "As consultas restantes foram suspensas por falha na transportadora; confira os motivos abaixo antes de iniciar outro lote."
                 : "Consultas em andamento em outra tela ou processo são respeitadas."}
@@ -147,10 +196,25 @@ export function BulkTracking() {
           )}
           {Object.entries(summary.errors).map(([carrier, code]) => (
             <p className="!mb-1" key={carrier}>
-              Consultas suspensas neste lote: {carrier} · {code}.
+              {carrier}:{" "}
+              {code === "AUTH_FAILED"
+                ? "falha de autenticação"
+                : code === "RATE_LIMITED"
+                  ? "limite de consultas atingido"
+                  : code.startsWith("INVALID_")
+                    ? "resposta da transportadora em formato incompatível"
+                    : "consultas suspensas após falha da integração"}{" "}
+              ({code}).
             </p>
           ))}
         </div>
+      )}
+      {!running && summary && Object.keys(summary.errors).length > 0 && (
+        <p className="small !mt-3 !mb-0">
+          Após corrigir a configuração ou o conector, reteste as transportadoras
+          suspensas. Se o erro persistir, elas serão suspensas novamente; os
+          prazos das remessas não serão antecipados.
+        </p>
       )}
       {running && (
         <p className="small !mt-3 !mb-0">

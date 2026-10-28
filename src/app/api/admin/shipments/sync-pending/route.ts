@@ -6,6 +6,7 @@ import {
   startBulkSync,
   processBulkSync,
   pauseBulkSync,
+  retryBlockedCarriers,
 } from "@/lib/bulk-sync";
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -13,6 +14,7 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("start") }),
   z.object({ action: z.literal("next"), runId: z.uuid() }),
   z.object({ action: z.literal("pause"), runId: z.uuid() }),
+  z.object({ action: z.literal("retry"), runId: z.uuid() }),
 ]);
 export async function GET() {
   try {
@@ -30,6 +32,12 @@ export async function POST(request: Request) {
     if (body.action === "start") {
       await rateLimit("bulk-sync:start:" + actor.id, 3, 60);
       return Response.json(await startBulkSync(actor.id), { headers: noStore });
+    }
+    if (body.action === "retry") {
+      await rateLimit("bulk-sync:retry:" + actor.id, 3, 60);
+      return Response.json(await retryBlockedCarriers(body.runId, actor.id), {
+        headers: noStore,
+      });
     }
     return Response.json(
       await (body.action === "next"

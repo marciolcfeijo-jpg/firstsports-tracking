@@ -171,7 +171,10 @@ export async function processBulkSync(
     const errors = { ...(batch.errors as Record<string, string>) };
     const seen: string[] = [];
     let processed = 0;
+    // Leave time for the final carrier call and persistence before Vercel's 120s limit.
+    const deadline = Date.now() + 60000;
     for (let index = 0; index < 3; index++) {
+      if (Date.now() >= deadline) break;
       const now = new Date();
       const shipment = await db.shipment.findFirst({
         where: {
@@ -187,10 +190,11 @@ export async function processBulkSync(
           ],
         },
         select: { id: true, carrier: { select: { code: true } } },
-        orderBy: [{ nextSyncAt: "asc" }, { id: "asc" }],
+        orderBy: [{ issuedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       });
       if (!shipment) break;
       if (index) await pace();
+      if (Date.now() >= deadline) break;
       seen.push(shipment.id);
       let result;
       try {
@@ -216,12 +220,20 @@ export async function processBulkSync(
         },
       });
     }
-    const eligible = await db.shipment.count({
-      where: pendingWhere(batch.cutoff, [...blocked]),
-    });
+    const [remaining, eligible] = await Promise.all([
+      db.shipment.count({ where: pendingWhere(batch.cutoff) }),
+      db.shipment.count({ where: pendingWhere(batch.cutoff, [...blocked]) }),
+    ]);
     await db.bulkSync.updateMany({
       where: { id: ID, runId, leaseToken: token },
-      data: { status: eligible ? (processed ? "ACTIVE" : "PAUSED") : "DONE" },
+      data: {
+        status:
+          remaining === 0
+            ? "DONE"
+            : eligible && processed
+              ? "ACTIVE"
+              : "PAUSED",
+      },
     });
     await db.auditLog.create({
       data: { actorId, action: "BULK_SYNC_CHUNK", entityId: runId },
@@ -232,5 +244,34 @@ export async function processBulkSync(
       data: { leaseToken: null, leaseUntil: null },
     });
   }
+  return bulkSummary(runId);
+}
+
+/** An explicit operator retry removes this run's circuit breakers, never shipment backoff. */
+export async function retryBlockedCarriers(runId: string, actorId: string) {
+  const changed = await db.bulkSync.updateMany({
+    where: {
+      id: ID,
+      runId,
+      status: { in: ["ACTIVE", "PAUSED", "DONE"] },
+      blockedCarriers: { isEmpty: false },
+      OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+    },
+    data: {
+      blockedCarriers: [],
+      errors: {},
+      status: "PAUSED",
+      leaseToken: null,
+      leaseUntil: null,
+    },
+  });
+  if (!changed.count)
+    throw new HttpError(
+      409,
+      "Não foi possível retestar agora. Atualize o painel; outro processo pode estar em andamento ou o lote pode ter mudado.",
+    );
+  await db.auditLog.create({
+    data: { actorId, action: "BULK_SYNC_RETRY_CARRIERS", entityId: runId },
+  });
   return bulkSummary(runId);
 }

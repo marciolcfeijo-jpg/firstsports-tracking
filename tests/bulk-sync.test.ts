@@ -146,7 +146,7 @@ it.each(["AUTH_FAILED", "RATE_LIMITED"])(
     const result = (await processBulkSync(start.runId, "test", run, noDelay))!;
     expect(called).toEqual(["ALFA", "BRASPRESS"]);
     expect(result).toMatchObject({
-      status: "DONE",
+      status: "PAUSED",
       processed: 2,
       succeeded: 1,
       failed: 1,
@@ -222,3 +222,26 @@ it.each([false, true])(
     expect(trackShipment).not.toHaveBeenCalled();
   },
 );
+
+it("prioritizes invoice issue date over next-check date or insertion order", async () => {
+  const recent = await create(1),
+    oldest = await create(2),
+    middle = await create(3);
+  for (const [id, date] of [
+    [recent, "2026-10-25"],
+    [oldest, "2026-07-01"],
+    [middle, "2026-09-15"],
+  ])
+    await db.shipment.update({
+      where: { id },
+      data: { issuedAt: new Date(date + "T15:00:00Z") },
+    });
+  const start = (await startBulkSync("test"))!;
+  const run = vi.fn(success);
+  await processBulkSync(start.runId, "test", run, noDelay);
+  expect(run.mock.calls.map((call) => call[0])).toEqual([
+    oldest,
+    middle,
+    recent,
+  ]);
+});
