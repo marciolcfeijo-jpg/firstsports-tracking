@@ -5,6 +5,7 @@ try {
     ["BRASPRESS", "Braspress"],
     ["ALFA", "Alfa Transportes"],
     ["CORREIOS", "Correios"],
+    ["ICARO", "Icaro"],
   ])
     await db.carrier.upsert({
       where: { code },

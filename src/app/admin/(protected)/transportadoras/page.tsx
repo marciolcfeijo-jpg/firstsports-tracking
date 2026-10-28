@@ -1,3 +1,4 @@
+import { IcaroAdapter } from "../../../../../integrations/carriers/icaro";
 import { CorreiosAdapter } from "../../../../../integrations/carriers/correios";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
@@ -11,6 +12,7 @@ export default async function Carriers() {
     BRASPRESS: new BraspressAdapter().validateConfiguration(),
     ALFA: new AlfaAdapter().validateConfiguration(),
     CORREIOS: new CorreiosAdapter().validateConfiguration(),
+    ICARO: new IcaroAdapter().validateConfiguration(),
   };
   return (
     <>
@@ -22,9 +24,9 @@ export default async function Carriers() {
       </div>
       <div className="notice">
         Conectores baseados na documentação oficial: Braspress v3, Alfa v1.2 e
-        Correios SRO. As consultas reais dependem das credenciais e de
-        homologação autorizada. Credenciais são configuradas exclusivamente no
-        servidor.
+        Correios SRO e Icaro (ESL Cloud). As consultas reais dependem das
+        credenciais e de homologação autorizada. Credenciais são configuradas
+        exclusivamente no servidor.
       </div>
       <div className="grid-2">
         {carriers.map((c) => (

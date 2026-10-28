@@ -36,7 +36,12 @@ export async function lookupInvoice(
       (shipment.leaseUntil && shipment.leaseUntil > new Date())
     )
       continue;
-    const requestCost = shipment.carrier.code === "CORREIOS" ? 2 : 1;
+    const requestCost =
+      shipment.carrier.code === "ICARO"
+        ? 3 // Paginated history: allow only one Icaro refresh in this HTTP request.
+        : shipment.carrier.code === "CORREIOS"
+          ? 2
+          : 1;
     if (refreshes + requestCost > 3) continue;
     refreshes += requestCost;
     try {

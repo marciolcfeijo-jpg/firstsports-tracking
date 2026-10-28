@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/auth";
 import { apiError, checkOrigin } from "@/lib/security";
 import { syncShipment } from "@/lib/sync";
 import { db } from "@/lib/db";
+export const maxDuration = 60;
 export async function POST(r: Request, c: { params: Promise<{ id: string }> }) {
   try {
     checkOrigin(r);

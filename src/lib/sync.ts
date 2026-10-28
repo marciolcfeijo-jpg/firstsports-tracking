@@ -1,3 +1,5 @@
+import { IcaroAdapter } from "../../integrations/carriers/icaro";
+import { icaroRequest } from "./icaro-request";
 import { CorreiosAdapter } from "../../integrations/carriers/correios";
 import { db } from "./db";
 import { Prisma } from "@prisma/client";
@@ -15,6 +17,7 @@ const adapters: Record<string, CarrierTrackingAdapter> = {
   BRASPRESS: new BraspressAdapter(),
   ALFA: new AlfaAdapter(),
   CORREIOS: new CorreiosAdapter(),
+  ICARO: new IcaroAdapter(fetch, icaroRequest),
 };
 export const backoff = (failures: number) =>
   Math.min(24 * 3600000, 5 * 60000 * 2 ** Math.min(failures, 12));
@@ -109,7 +112,7 @@ export async function syncShipment(
   try {
     const shipment = await db.shipment.findUniqueOrThrow({
       where: { id },
-      include: { carrier: true, invoices: true },
+      include: { carrier: true, invoices: true, order: true },
     });
     if (!shipment.carrier.enabled && !adapterOverride)
       throw new CarrierError("INTEGRATION_DISABLED", false);
@@ -140,6 +143,11 @@ export async function syncShipment(
     if (!invoice) throw new CarrierError("INVOICE_MISSING", false);
     const result = await adapter.trackShipment({
       trackingCode: shipment.trackingCode || undefined,
+      invoiceAccessKey: invoice.accessKey || undefined,
+      orderNumber: shipment.order.number,
+      issuedAt: new Date(
+        shipment.issuedAt.toISOString().slice(0, 10) + "T00:00:00-03:00",
+      ).toISOString(),
       invoiceNumber: invoice.number,
       invoiceSeries: invoice.series,
       senderDocument: shipment.senderDocument,

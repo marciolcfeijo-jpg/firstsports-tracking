@@ -57,6 +57,9 @@ export type TrackingEvent = z.infer<typeof eventSchema>;
 export type TrackingResult = z.infer<typeof resultSchema>;
 export interface TrackingInput {
   trackingCode?: string;
+  invoiceAccessKey?: string;
+  orderNumber?: string;
+  issuedAt?: string;
   invoiceNumber: string;
   invoiceSeries: string;
   senderDocument: string;
