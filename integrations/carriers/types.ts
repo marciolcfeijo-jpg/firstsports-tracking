@@ -71,10 +71,16 @@ export interface CarrierTrackingAdapter {
   normalizeEvents(payload: unknown): TrackingEvent[];
   healthCheck(): Promise<{ ok: boolean; reason?: string }>;
 }
+export type CarrierResponseDiagnostics = {
+  carrier: "ALFA";
+  format: "json" | "xml";
+  issues: { field: string; code: string; receivedType: string }[];
+};
 export class CarrierError extends Error {
   constructor(
     public code: string,
     public retryable: boolean,
+    public responseDiagnostics?: CarrierResponseDiagnostics,
   ) {
     super(code);
   }

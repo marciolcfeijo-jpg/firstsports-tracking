@@ -17,3 +17,11 @@ O comprovante só é aceito em HTTPS no host `areadocliente.alfatransportes.com.
 ## Pendências externas
 
 Solicitar chave individual ao comercial Alfa, configurar `ALFA_API_KEY`, validar os parâmetros divergentes e comparar uma NF autorizada no ambiente da conta. Confirmar limites de requisição e formatos de data/retorno. Nenhuma chamada real autenticada foi feita; testes são apenas fixtures sintéticas isoladas.
+
+## Campos opcionais e diagnóstico de incompatibilidade
+
+Seções e campos opcionais aceitam `null` como ausência, sem inventar datas ou confirmar entrega. NF e CT-e continuam validados pelo contrato, e o número da NF deve corresponder ao solicitado. Erros de negócio JSON são classificados pelo status antes de validar os dados de uma resposta de sucesso, pois esses erros podem vir com seções incompletas.
+
+Se persistir `INVALID_ALFA_RESPONSE`, ao executar **Atualizar rastreamento** o painel administrativo mostra **Diagnóstico do formato da resposta Alfa**, com botão para copiar. Esse diagnóstico contém somente caminhos de campos conhecidos do schema, códigos de validação e nomes de tipos. Não inclui valores, mensagens brutas, chaves desconhecidas da resposta nem credenciais; também não grava a resposta bruta no banco.
+
+A compatibilidade com `null` foi validada com respostas sintéticas, não com a resposta da NF real. A confirmação depende de nova consulta após o deploy. Os campos de uma resposta nova devem ser confirmados antes de adicionar aliases ou trocar de API.

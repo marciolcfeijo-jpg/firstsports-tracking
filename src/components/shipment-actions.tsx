@@ -1,7 +1,10 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { TrackingResult } from "../../integrations/carriers/types";
+import type {
+  CarrierResponseDiagnostics,
+  TrackingResult,
+} from "../../integrations/carriers/types";
 import { inputDate } from "@/lib/status";
 type Props = {
   id: string;
@@ -30,6 +33,8 @@ export function ShipmentActions(p: Props) {
   const [link, setLink] = useState("");
   const [diagnostics, setDiagnostics] =
     useState<TrackingResult["diagnostics"]>();
+  const [responseDiagnostics, setResponseDiagnostics] =
+    useState<CarrierResponseDiagnostics>();
   const [requestBusy, setBusy] = useState(false);
   const [refreshing, startTransition] = useTransition();
   const busy = requestBusy || refreshing;
@@ -37,7 +42,10 @@ export function ShipmentActions(p: Props) {
   async function call(path: string, body?: unknown, method = "POST") {
     setBusy(true);
     setMessage("");
-    if (path === "/sync") setDiagnostics(undefined);
+    if (path === "/sync") {
+      setDiagnostics(undefined);
+      setResponseDiagnostics(undefined);
+    }
     try {
       const r = await fetch(`/api/admin/shipments/${p.id}${path}`, {
         method,
@@ -46,7 +54,10 @@ export function ShipmentActions(p: Props) {
       });
       const data = await r.json();
       // Sync failures are persisted too: refresh the server-rendered error and log.
-      if (path === "/sync") startTransition(() => router.refresh());
+      if (path === "/sync") {
+        setResponseDiagnostics(data.responseDiagnostics);
+        startTransition(() => router.refresh());
+      }
       if (!r.ok)
         throw new Error(
           data.error || data.code || "Não foi possível concluir a ação",
@@ -123,6 +134,34 @@ export function ShipmentActions(p: Props) {
         <p role="status" className="small !mt-4 !mb-0">
           {message}
         </p>
+        {responseDiagnostics && (
+          <details className="small spaced" open>
+            <summary>Diagnóstico do formato da resposta Alfa</summary>
+            <p>
+              Somente campos e tipos incompatíveis; nenhum valor da remessa ou
+              credencial é exibido.
+            </p>
+            <pre className="overflow-auto !my-3">
+              {JSON.stringify(responseDiagnostics, null, 2)}
+            </pre>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(
+                    JSON.stringify(responseDiagnostics, null, 2),
+                  );
+                  setMessage("Diagnóstico copiado.");
+                } catch {
+                  setMessage("Selecione o diagnóstico e copie manualmente.");
+                }
+              }}
+            >
+              Copiar diagnóstico
+            </button>
+          </details>
+        )}
         {diagnostics?.structure && (
           <details className="small spaced">
             <summary className="cursor-pointer">
