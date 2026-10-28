@@ -86,6 +86,7 @@ export function mapStatus(value: string): ShipmentStatus {
     )
   )
     return "PICKED_UP";
+  if (/^SAIDA (?:DA|DE) (?:UNIDADE|FILIAL|BASE)\b/.test(s)) return "IN_TRANSIT";
   if (
     /TRANSPORTE|TRANSITO|TRANSFERENCIA|TRANSBORDO|EM VIAGEM|CHEGADA (?:AO|NO) DESTINO|CHEGADA NA FILIAL DESTINO|ENCOMENDA NA FILIAL DE DESTINO/.test(
       s,

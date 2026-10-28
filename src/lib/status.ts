@@ -2,7 +2,7 @@ export const statusLabels = {
   INVOICED: "Pedido faturado",
   AWAITING_PICKUP: "Aguardando coleta",
   PICKED_UP: "Coletado",
-  IN_TRANSIT: "Em transporte",
+  IN_TRANSIT: "Em viagem",
   OUT_FOR_DELIVERY: "Saiu para entrega",
   DELIVERED: "Entregue",
   EXCEPTION: "Ocorrência",

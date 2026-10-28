@@ -39,3 +39,9 @@ Esses registros identificam a camada que falhou; sua implementação não confir
 ### Seção de entrega vazia em formato texto
 
 `dadosEntrega` aceita também string vazia (inclusive somente espaços) como ausência de dados de entrega. Isso preserva as movimentações de uma remessa ainda em transporte e não fabrica confirmação ou data de entrega. Strings não vazias continuam sendo incompatíveis; não são interpretadas como data, JSON embutido ou entrega confirmada sem contrato conhecido. Quando um erro envolve uma string, o diagnóstico informa `stringKind: empty|nonempty`, sem mostrar o texto. A indicação anterior `receivedType: string` sozinha não permite confirmar se o conteúdo era vazio.
+
+### Saída de unidade e status em viagem
+
+Descrições iniciadas por “SAÍDA DA UNIDADE”, “SAÍDA DA FILIAL” ou “SAÍDA DA BASE” são classificadas como `IN_TRANSIT`, exibido como **Em viagem**. “Saiu para entrega” continua sendo uma etapa distinta. Eventos posteriores sem status reconhecido permanecem no histórico, mas não substituem o último status conhecido da Alfa.
+
+Ao atualizar uma remessa Alfa, um evento anteriormente `UNKNOWN` é substituído pela classificação conhecida somente quando corresponde à mesma identificação, data e descrição (fingerprint anterior). Não é necessário apagar ou recadastrar a remessa; faça nova consulta após o deploy.
