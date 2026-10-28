@@ -1,3 +1,5 @@
+import { SyncDiagnostics } from "@/components/sync-diagnostics";
+import { syncDiagnosticSchema } from "@/lib/sync-diagnostic-data";
 import { ShipmentRevisions } from "@/components/shipment-revisions";
 import { TrackingOverview } from "@/components/tracking-overview";
 import { TrackingHistory } from "@/components/tracking-history";
@@ -35,6 +37,24 @@ export default async function Detail({
     orderBy: { email: "asc" },
   });
   const sellers = sellerUsers.map((user) => ({ ...user, name: user.email }));
+  const diagnosticRecords = await db.auditLog.findMany({
+    where: { entityId: s.id, action: "SYNC_DIAGNOSTIC" },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: { id: true, createdAt: true, snapshot: true },
+  });
+  const diagnosticEntries = diagnosticRecords.flatMap((record) => {
+    const parsed = syncDiagnosticSchema.safeParse(record.snapshot);
+    return parsed.success
+      ? [
+          {
+            id: record.id,
+            createdAt: record.createdAt.toISOString(),
+            diagnostic: parsed.data,
+          },
+        ]
+      : [];
+  });
   const revisions = await db.auditLog.findMany({
     where: { entityId: s.id, action: "SHIPMENT_UPDATE" },
     orderBy: { createdAt: "desc" },
@@ -153,6 +173,9 @@ export default async function Detail({
             canWrite={user.role !== "VIEWER"}
           />
           <ShipmentRevisions revisions={revisions} />
+          {user.role !== "VIEWER" && (
+            <SyncDiagnostics entries={diagnosticEntries} />
+          )}
           <section className="card spaced">
             <h3>Tentativas de atualização</h3>
             {!s.syncLogs.length && (

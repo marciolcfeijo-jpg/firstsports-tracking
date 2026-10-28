@@ -25,3 +25,13 @@ Seções e campos opcionais aceitam `null` como ausência, sem inventar datas ou
 Se persistir `INVALID_ALFA_RESPONSE`, ao executar **Atualizar rastreamento** o painel administrativo mostra **Diagnóstico do formato da resposta Alfa**, com botão para copiar. Esse diagnóstico contém somente caminhos de campos conhecidos do schema, códigos de validação e nomes de tipos. Não inclui valores, mensagens brutas, chaves desconhecidas da resposta nem credenciais; também não grava a resposta bruta no banco.
 
 A compatibilidade com `null` foi validada com respostas sintéticas, não com a resposta da NF real. A confirmação depende de nova consulta após o deploy. Os campos de uma resposta nova devem ser confirmados antes de adicionar aliases ou trocar de API.
+
+### Diagnóstico persistente e falhas inesperadas
+
+Depois de uma nova consulta com falha, consulte **Diagnósticos técnicos das consultas** nos detalhes administrativos da remessa (ADMIN/OPERATOR). O painel mantém os 20 registros mais recentes com data, referência, etapa, código e eventuais campos/tipos incompatíveis. **Copiar diagnóstico** funciona mesmo após recarregar a página. Tentativas antigas não ganham detalhes retroativamente.
+
+Os registros usam a tabela de auditoria existente (`SYNC_DIAGNOSTIC`); não há nova migration. O erro original de resposta da transportadora é registrado antes de salvar a tentativa malsucedida. Exceções inesperadas da rota também recebem referência, incluindo códigos Prisma como `P2022`, sem mensagens, consultas SQL, URLs de banco ou stack traces.
+
+Se o próprio banco não permitir gravar o diagnóstico, a função publica a mesma referência nos logs da Vercel com o prefixo `SHIPMENT_SYNC_DIAGNOSTIC` e avisa `SHIPMENT_SYNC_DIAGNOSTIC_NOT_PERSISTED`. Falhas inesperadas na autenticação são registradas somente nos logs da função, sem associar uma remessa antes da autorização. Erros esperados de autenticação/autorização não criam diagnósticos de remessa.
+
+Esses registros identificam a camada que falhou; sua implementação não confirma, por si só, que o formato real da resposta da Alfa foi corrigido.

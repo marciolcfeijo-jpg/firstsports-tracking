@@ -85,3 +85,37 @@ export class CarrierError extends Error {
     super(code);
   }
 }
+
+export const alfaDiagnosticFieldNames = [
+  "wsRastreamento",
+  "rst",
+  "rstStatus",
+  "@_stsCd",
+  "NF",
+  "@_nro",
+  "NFCtrc",
+  "NFDataPrevista",
+  "embarque",
+  "embNF",
+  "entrega",
+  "entS",
+  "entNF",
+  "status",
+  "dadosCte",
+  "numeroNota",
+  "numeroCte",
+  "dataPrivista",
+  "dataPrevista",
+  "dadosEmbarque",
+  "cidadeOrigem",
+  "cidadeDestino",
+  "horaSaida",
+  "horaChegada",
+  "dadosEntrega",
+  "dataEntrega",
+  "urlComprovante",
+  "ocorrenciasExtras",
+  "codigoOcorrencia",
+  "dataOcorrencia",
+  "descricaoOcorrencia",
+];
