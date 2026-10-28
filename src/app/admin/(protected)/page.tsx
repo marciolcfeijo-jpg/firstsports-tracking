@@ -1,3 +1,4 @@
+import { TrackingAvailability } from "@/components/tracking-availability";
 import { DeliverySummary } from "@/components/delivery-summary";
 import { deliveryMetrics } from "@/lib/delivery-metrics";
 import { db } from "@/lib/db";
@@ -72,6 +73,7 @@ export default async function Dashboard({
                   <span className={"badge " + s.status}>
                     {statusLabels[s.status]}
                   </span>
+                  <TrackingAvailability error={s.lastSyncError} />
                 </td>
                 <td>{dateTime(s.updatedAt)}</td>
               </tr>

@@ -56,6 +56,14 @@ export async function Filters({ values }: { values: Record<string, string> }) {
           </option>
         ))}
       </select>
+      <select
+        name="tracking"
+        defaultValue={values.tracking || ""}
+        aria-label="Situação da consulta"
+      >
+        <option value="">Todas as situações de consulta</option>
+        <option value="not_found">Não localizada na transportadora</option>
+      </select>
       <input
         name="state"
         placeholder="UF"

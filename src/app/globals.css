@@ -1178,3 +1178,12 @@ tr:last-child td {
     font-size: 38px;
   }
 }
+
+.tracking-not-found {
+  background: #fff4df;
+  color: #855000;
+  display: block;
+  width: fit-content;
+  margin-top: 0.4rem;
+  white-space: normal;
+}
