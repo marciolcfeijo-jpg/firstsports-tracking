@@ -28,7 +28,10 @@ it("persists safe Alfa validation details and a request reference", async () => 
     "carrier_request",
     error,
   );
-  expect(diagnostic.response?.issues[0].field).toBe("dadosCte.numeroNota");
+  expect(
+    diagnostic.response?.carrier === "ALFA" &&
+      diagnostic.response.issues[0].field,
+  ).toBe("dadosCte.numeroNota");
   expect(create).toHaveBeenCalledWith({
     data: {
       actorId: "system:sync",
@@ -116,4 +119,41 @@ it("discards invalid response diagnostics instead of accidentally logging sensit
   expect(JSON.stringify(create.mock.calls)).not.toContain(
     "private@example.test",
   );
+});
+
+it("persists safe Correios HTTP context and strips unknown payload fields", async () => {
+  const diagnostic = await recordSyncDiagnostic(
+    "shipment",
+    requestId,
+    "carrier_request",
+    new CarrierError("UPSTREAM_HTTP_ERROR", true, {
+      carrier: "CORREIOS",
+      operation: "tracking",
+      environment: "production",
+      httpStatus: 503,
+    }),
+  );
+  expect(diagnostic.response).toEqual({
+    carrier: "CORREIOS",
+    operation: "tracking",
+    environment: "production",
+    httpStatus: 503,
+  });
+  expect(create).toHaveBeenCalled();
+  const safe = syncDiagnosticSchema.parse({
+    ...diagnostic,
+    response: {
+      ...diagnostic.response,
+      token: "PRIVATE",
+      body: "PRIVATE",
+      url: "PRIVATE",
+    },
+  });
+  expect(JSON.stringify(safe)).not.toContain("PRIVATE");
+  expect(
+    syncDiagnosticSchema.safeParse({
+      ...diagnostic,
+      response: { ...diagnostic.response, operation: "PRIVATE" },
+    }).success,
+  ).toBe(false);
 });
