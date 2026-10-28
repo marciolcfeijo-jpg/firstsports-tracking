@@ -78,7 +78,7 @@ export async function createShipment(
       destinationCity: data.cidade_destino,
       destinationState: data.uf_destino,
       senderDocument: issuerDocument,
-      payerDocument: data.cnpj_tomador || null,
+      payerDocument: data.cnpj_tomador || issuerDocument,
       cte: data.numero_cte || null,
       trackingCode: data.codigo_rastreio || null,
       issuedAt: new Date(data.data_emissao + "T15:00:00Z"),

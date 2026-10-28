@@ -10,7 +10,7 @@ const labels: Record<string, string> = {
   numero_nf: "Número da NF",
   serie_nf: "Série da NF",
   cnpj_remetente: "CNPJ do remetente",
-  cnpj_tomador: "CNPJ do tomador (opcional)",
+  cnpj_tomador: "CNPJ do tomador (vazio: usa o remetente)",
   cpf_cnpj_destinatario: "CPF/CNPJ do destinatário",
   nome_cliente: "Nome do cliente",
   email_cliente: "E-mail do cliente (opcional)",

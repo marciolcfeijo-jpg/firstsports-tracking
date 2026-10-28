@@ -272,7 +272,7 @@ export function ShipmentActions(p: Props) {
                 />
               </label>
               <label className="field">
-                CNPJ do tomador
+                CNPJ do tomador (vazio: usa o remetente)
                 <input name="payer" defaultValue={p.payerDocument || ""} />
               </label>
               <label className="field">

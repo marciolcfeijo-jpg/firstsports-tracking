@@ -157,3 +157,54 @@ it("filters unassigned shipments and leaves all sellers selected by default", ()
   });
   expect(shipmentWhere(new URLSearchParams())).not.toHaveProperty("sellerId");
 });
+
+it.each([undefined, ""])(
+  "defaults missing payer %s to the sender during creation",
+  async (payer) => {
+    await createShipment({ ...shipmentFixture, cnpj_tomador: payer }, "actor");
+    expect(store.shipment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          payerDocument: shipmentFixture.cnpj_remetente,
+        }),
+      }),
+    );
+  },
+);
+it("preserves an explicitly supplied payer different from the sender", async () => {
+  await createShipment(
+    { ...shipmentFixture, cnpj_tomador: "04252011000110" },
+    "actor",
+  );
+  expect(store.shipment.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({ payerDocument: "04252011000110" }),
+    }),
+  );
+});
+it("fills an omitted payer during editing without erasing tracking", async () => {
+  const result = await editShipment("shipment", { version: 0 }, "actor");
+  expect(store.shipment.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        payerDocument: shipmentFixture.cnpj_remetente,
+      }),
+    }),
+  );
+  expect(result.resetTracking).toBe(false);
+});
+it("uses the sender when the payer field is submitted empty", async () => {
+  const result = await editShipment(
+    "shipment",
+    { version: 0, payerDocument: "" },
+    "actor",
+  );
+  expect(store.shipment.update).toHaveBeenCalledWith(
+    expect.objectContaining({
+      data: expect.objectContaining({
+        payerDocument: shipmentFixture.cnpj_remetente,
+      }),
+    }),
+  );
+  expect(result.resetTracking).toBe(false);
+});

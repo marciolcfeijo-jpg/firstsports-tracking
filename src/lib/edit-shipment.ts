@@ -80,6 +80,10 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
           "Informe o código de rastreamento dos Correios",
         );
       const senderDocument = data.senderDocument ?? s.senderDocument;
+      const payerDocument =
+        data.payerDocument === undefined
+          ? s.payerDocument || senderDocument
+          : data.payerDocument || senderDocument;
       const invoices = data.invoices ?? s.invoices;
       if (
         invoices.some(
@@ -126,7 +130,7 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
         carrier.id !== s.carrierId ||
         (trackingCode || "") !== (s.trackingCode || "") ||
         (data.payerDocument !== undefined &&
-          (data.payerDocument || "") !== (s.payerDocument || ""));
+          payerDocument !== (s.payerDocument || s.senderDocument));
       // Claim this version before changing any shared records. A concurrent sync/editor must roll back.
       const claimed = await tx.shipment.updateMany({
         where: {
@@ -275,7 +279,7 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
               : data.estimatedDelivery,
           destinationCity: data.city,
           destinationState: data.state,
-          payerDocument: data.payerDocument,
+          payerDocument,
           ...(resetTracking
             ? {
                 status: "INVOICED",
