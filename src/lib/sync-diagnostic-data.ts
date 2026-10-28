@@ -47,6 +47,7 @@ export const syncDiagnosticSchema = z.object({
               "invalid_element",
               "not_multiple_of",
             ]),
+            stringKind: z.enum(["empty", "nonempty"]).optional(),
             receivedType: z.enum([
               "null",
               "array",
