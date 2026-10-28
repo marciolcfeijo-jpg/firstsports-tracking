@@ -110,3 +110,31 @@ it("uses the same Em viagem label in the summary and journey stage", () => {
   expect(html.match(/Em viagem/g)).toHaveLength(2);
   expect(html).not.toContain("Aguardando informações");
 });
+
+it("shows the carrier current route status even when history dates are unavailable", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrackingOverview, {
+      ...shipment,
+      status: "OUT_FOR_DELIVERY",
+      events: [],
+    }),
+  );
+  expect(html.match(/Em rota de entrega/g)).toHaveLength(2);
+  expect(html.match(/class="recorded"/g)).toHaveLength(1);
+  expect(html).toContain("Etapa atual · data não informada");
+  expect(html.match(/Sem registro recebido/g)).toHaveLength(4);
+  expect(html).toContain("Ainda não confirmada");
+});
+it("does not infer earlier journey dates or a completed delivery from current route status", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrackingOverview, {
+      ...shipment,
+      status: "OUT_FOR_DELIVERY",
+      events: [],
+      estimatedDelivery: "2026-11-09T15:00:00Z",
+    }),
+  );
+  expect(html).toContain("09/11/2026");
+  expect(html.match(/class="recorded"/g)).toHaveLength(1);
+  expect(html).not.toContain("20/10/2026");
+});
