@@ -1,3 +1,8 @@
+import {
+  TrackingAvailability,
+  notFoundLabel,
+  notFoundGuidance,
+} from "@/components/tracking-availability";
 import { SyncDiagnostics } from "@/components/sync-diagnostics";
 import { syncDiagnosticSchema } from "@/lib/sync-diagnostic-data";
 import { ShipmentRevisions } from "@/components/shipment-revisions";
@@ -72,6 +77,7 @@ export default async function Detail({
           </p>
         </div>
         <span className={"badge " + s.status}>{statusLabels[s.status]}</span>
+        <TrackingAvailability error={s.lastSyncError} />
       </div>
       <TrackingOverview
         orderNumber={s.order.number}
@@ -134,8 +140,15 @@ export default async function Detail({
             </dl>
             {s.lastSyncError && (
               <div className="error" role="alert">
-                <strong>Última falha registrada: {s.lastSyncError}.</strong>{" "}
+                <strong>
+                  {s.lastSyncError === "NOT_FOUND"
+                    ? notFoundLabel
+                    : `Última falha registrada: ${s.lastSyncError}.`}
+                </strong>{" "}
                 Últimos dados preservados.
+                {s.lastSyncError === "NOT_FOUND" && (
+                  <p>{notFoundGuidance} Código: NOT_FOUND.</p>
+                )}
                 {s.lastSyncError === "INTEGRATION_DISABLED" && (
                   <p className="!mb-0 !mt-2 !text-inherit">
                     {s.carrier.enabled

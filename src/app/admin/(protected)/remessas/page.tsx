@@ -1,3 +1,4 @@
+import { TrackingAvailability } from "@/components/tracking-availability";
 import { ShipmentRow } from "@/components/shipment-row";
 import { BulkTracking } from "@/components/bulk-tracking";
 import { requirePageAdmin } from "@/lib/page-auth";
@@ -96,6 +97,7 @@ export default async function Shipments({
                   <span className={"badge " + s.status}>
                     {statusLabels[s.status]}
                   </span>
+                  <TrackingAvailability error={s.lastSyncError} />
                 </td>
                 <td>{dateTime(s.lastSyncedAt)}</td>
                 <td>
