@@ -16,6 +16,7 @@ export async function GET(request: Request) {
         include: {
           order: { include: { customer: true } },
           carrier: true,
+          seller: { select: { id: true, email: true, active: true } },
           invoices: true,
         },
         orderBy: {

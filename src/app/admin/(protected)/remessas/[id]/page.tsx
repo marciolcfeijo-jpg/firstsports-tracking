@@ -17,6 +17,7 @@ export default async function Detail({
     include: {
       order: { include: { customer: true } },
       carrier: true,
+      seller: { select: { email: true } },
       invoices: true,
       events: { orderBy: { occurredAt: "desc" } },
       syncLogs: { orderBy: { createdAt: "desc" }, take: 20 },
@@ -28,6 +29,12 @@ export default async function Detail({
     select: { code: true, name: true },
     orderBy: { name: "asc" },
   });
+  const sellerUsers = await db.adminUser.findMany({
+    where: { OR: [{ active: true }, { id: s.sellerId || "" }] },
+    select: { id: true, email: true, active: true },
+    orderBy: { email: "asc" },
+  });
+  const sellers = sellerUsers.map((user) => ({ ...user, name: user.email }));
   const revisions = await db.auditLog.findMany({
     where: { entityId: s.id, action: "SHIPMENT_UPDATE" },
     orderBy: { createdAt: "desc" },
@@ -59,6 +66,10 @@ export default async function Detail({
           <div className="card">
             <h3>Informações de transporte</h3>
             <dl className="data-list">
+              <div>
+                <dt>Vendedor / representante</dt>
+                <dd>{s.seller?.email || "Sem vendedor"}</dd>
+              </div>
               <div>
                 <dt>Transportadora</dt>
                 <dd>{s.carrier.name}</dd>
@@ -137,6 +148,8 @@ export default async function Detail({
             payerDocument={s.payerDocument}
             carrierCode={s.carrier.code}
             carriers={carriers}
+            sellerId={s.sellerId}
+            sellers={sellers}
             canWrite={user.role !== "VIEWER"}
           />
           <ShipmentRevisions revisions={revisions} />

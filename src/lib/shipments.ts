@@ -42,6 +42,13 @@ export async function createShipment(
     where: { code: data.transportadora },
   });
   if (!carrier) throw new HttpError(400, "Transportadora não cadastrada");
+  if (
+    data.vendedor_id &&
+    !(await tx.adminUser.findFirst({
+      where: { id: data.vendedor_id, active: true },
+    }))
+  )
+    throw new HttpError(400, "Selecione um vendedor ativo cadastrado");
   const customer = await tx.customer.upsert({
     where: { documentHash: documentHash(data.cpf_cnpj_destinatario) },
     create: {
@@ -66,6 +73,7 @@ export async function createShipment(
   const shipment = await tx.shipment.create({
     data: {
       orderId: order.id,
+      sellerId: data.vendedor_id || null,
       carrierId: carrier.id,
       destinationCity: data.cidade_destino,
       destinationState: data.uf_destino,
