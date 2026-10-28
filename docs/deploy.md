@@ -41,7 +41,7 @@ A migration `private_tables` habilita RLS sem políticas públicas e revoga priv
 
 `vercel.json` define instalação congelada com as ferramentas de build e `npm run build:vercel`. Em deploys com `VERCEL_ENV=production`, esse comando valida a presença/formato de DATABASE_URL e DOCUMENT_HMAC_KEY, gera o Prisma Client, aplica migrations pendentes, cadastra as transportadoras de forma idempotente e executa o build Next.js. Um erro de configuração ou conexão interrompe o deploy e aparece nos Build Logs; o código não imprime os valores secretos.
 
-O comando utiliza o DATABASE_URL de Production configurado pelo responsável. As credenciais dessa conexão precisam permitir migrations durante esta preparação; para separar as credenciais de migration e runtime em produção definitiva, adote o procedimento de privilégio mínimo descrito acima e execute migrations no pipeline dedicado. Antes de futuras migrations em banco com dados reais, revise o SQL e os backups.
+O comando utiliza MIGRATION_DATABASE_URL para migrations quando configurado e DATABASE_URL para o runtime/seed. Sem conexão separada, usa DATABASE_URL para ambos. As credenciais de migration precisam permitir DDL; para separar as credenciais de migration e runtime em produção definitiva, adote o procedimento de privilégio mínimo descrito acima e execute migrations no pipeline dedicado. Antes de futuras migrations em banco com dados reais, revise o SQL e os backups.
 
 Migrations automáticas não são executadas nos deploys Preview/Development. Esses ambientes exigem banco isolado e preparação explícita. O seed cria apenas Braspress e Alfa, inicialmente desabilitadas, e preserva os estados já configurados; não cria clientes, encomendas ou administradores. Um deploy Ready confirma que os passos de inicialização terminaram, mas a autenticação real e a integração Braspress ainda precisam ser homologadas.
 
@@ -54,3 +54,18 @@ Se houver Build Command ou Install Command substituído manualmente nas configur
 Cada execução processa até 10 remessas elegíveis, preservando os limites e o backoff existentes. Considera somente transportadoras habilitadas e remessas ainda abertas; entregues, devolvidas e canceladas não são consultadas automaticamente. A consulta pública também pode atualizar uma remessa elegível, e a atualização manual permanece disponível. Cron não significa atualização instantânea do navegador.
 
 Verificação após deploy: Settings → Cron Jobs, confirmar o job ativo e consultar os logs da execução. A configuração no código não comprova que o job rodou. Para frequências inferiores a um dia, confirmar um plano Vercel que suporte a frequência e ajustar o cron, ou configurar um scheduler externo autenticado via POST conforme descrito acima. Para mais de 10 remessas pendentes por dia, ampliar a estratégia de lotes e frequência antes de considerar o acompanhamento automático suficiente.
+
+## Supabase: limite de conexões em funções serverless
+
+`EMAXCONNSESSION: max clients reached in session mode` indica que o pool **Session** esgotou seu limite; não é um erro de rastreamento ou do download do Prisma no Codex. Cada instância serverless pode manter um cliente/pool próprio, e deploys diferentes também podem compartilhar esse orçamento.
+
+Em **Supabase → Connect**, obtenha as duas URIs fornecidas pelo provedor (não monte o hostname nem altere somente a porta):
+
+- **Transaction pooler** para `DATABASE_URL` na Vercel. Para este Prisma 6, configure `pgbouncer=true`, `connection_limit=1` e, opcionalmente, `pool_timeout=20`. Preserve usuário, senha codificada, banco e opções TLS da conexão fornecida. Se já houver `?`, acrescente parâmetros com `&`, sem repetir parâmetros.
+- **Direct** ou **Session pooler** para `MIGRATION_DATABASE_URL`. Use o modo compatível com a rede da Vercel; a conexão direta pode exigir IPv6, enquanto o Session pooler oferece uma alternativa conforme o projeto. Não use `pgbouncer=true` nem Transaction pooler para migrações. A URI deve apontar para o mesmo banco/schema da aplicação e ter permissão DDL.
+
+Cadastre ambas como variáveis sensíveis nos ambientes apropriados da Vercel **antes do deploy desta versão**. O novo build usa `MIGRATION_DATABASE_URL` somente para `db:migrate`; o seed e o site usam `DATABASE_URL`. Para fluxos antigos sem Transaction pooler, a variável de migration continua opcional e o build preserva o uso da URL existente. Para executar migrations manualmente, forneça a conexão de migration como `DATABASE_URL` apenas ao processo Prisma CLI.
+
+O código reutiliza o cliente Prisma na instância aquecida e acrescenta por padrão `connection_limit=1` e `pool_timeout=20` somente quando ausentes na URI. Limites explicitamente configurados são preservados. Isso reduz conexões por instância, mas não garante que um pool Session com limite 15 suporte qualquer quantidade de instâncias; a troca para Transaction pooler continua necessária para o cenário descrito.
+
+Após publicar, teste login, Transportadoras e atualização de uma remessa. Confira os logs para verificar que `EMAXCONNSESSION` cessou. Não encerre sessões do banco nem aumente limites às cegas: o provedor deve dimensionar o pool conforme o plano e as demais aplicações que usam o mesmo banco.

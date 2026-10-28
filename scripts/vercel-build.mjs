@@ -1,9 +1,10 @@
 import { spawnSync } from "node:child_process";
+import { migrationConnection } from "./migration-connection.mjs";
 
-function run(script) {
+function run(script, environment = process.env) {
   const result = spawnSync("npm", ["run", script], {
     stdio: "inherit",
-    env: process.env,
+    env: environment,
   });
   if (result.error || result.status !== 0) {
     process.exit(result.status || 1);
@@ -32,8 +33,12 @@ if (process.env.VERCEL_ENV === "production") {
   console.log(
     "Preparando banco do portal: migrations versionadas e cadastro de transportadoras.",
   );
+  const migrationUrl = migrationConnection(
+    process.env.DATABASE_URL,
+    process.env.MIGRATION_DATABASE_URL,
+  );
   run("db:generate");
-  run("db:migrate");
+  run("db:migrate", { ...process.env, DATABASE_URL: migrationUrl });
   run("db:seed");
 } else {
   console.log(
