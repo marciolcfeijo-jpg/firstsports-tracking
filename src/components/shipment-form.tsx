@@ -24,8 +24,10 @@ const labels: Record<string, string> = {
 type Input = z.input<typeof shipmentSchema>;
 export function ShipmentForm({
   carriers,
+  sellers = [],
 }: {
   carriers: { code: string; name: string }[];
+  sellers?: { id: string; name: string }[];
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -57,6 +59,18 @@ export function ShipmentForm({
   return (
     <form onSubmit={handleSubmit(submit)} className="card" noValidate>
       <div className="grid-2">
+        <label className="field">
+          Vendedor / representante (opcional)
+          <select {...register("vendedor_id")}>
+            <option value="">Sem vendedor</option>
+            {sellers.map((seller) => (
+              <option key={seller.id} value={seller.id}>
+                {seller.name}
+              </option>
+            ))}
+          </select>
+          <span className="text-red-700">{errors.vendedor_id?.message}</span>
+        </label>
         {Object.entries(labels).map(([key, label]) => (
           <label className="field" key={key}>
             {label}

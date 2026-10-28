@@ -3,6 +3,7 @@ export function shipmentWhere(p: URLSearchParams): Prisma.ShipmentWhereInput {
   const q = p.get("q")?.slice(0, 120),
     status = p.get("status"),
     carrier = p.get("carrier"),
+    seller = p.get("seller"),
     state = p.get("state"),
     from = p.get("from"),
     to = p.get("to");
@@ -24,6 +25,7 @@ export function shipmentWhere(p: URLSearchParams): Prisma.ShipmentWhereInput {
     Object.values(ShipmentStatus).includes(status as ShipmentStatus)
       ? { status: status as ShipmentStatus }
       : {}),
+    ...(seller ? { sellerId: seller === "none" ? null : seller } : {}),
     ...(carrier ? { carrier: { code: carrier } } : {}),
     ...(state ? { destinationState: state } : {}),
     ...((from && !Number.isNaN(Date.parse(from))) ||

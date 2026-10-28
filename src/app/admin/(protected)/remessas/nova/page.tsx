@@ -7,6 +7,12 @@ export default async function New() {
     select: { code: true, name: true },
     orderBy: { name: "asc" },
   });
+  const sellerUsers = await db.adminUser.findMany({
+    where: { active: true },
+    select: { id: true, email: true },
+    orderBy: { email: "asc" },
+  });
+  const sellers = sellerUsers.map((user) => ({ ...user, name: user.email }));
   return (
     <>
       <div className="page-heading">
@@ -18,7 +24,7 @@ export default async function New() {
           </p>
         </div>
       </div>
-      <ShipmentForm carriers={carriers} />
+      <ShipmentForm carriers={carriers} sellers={sellers} />
     </>
   );
 }

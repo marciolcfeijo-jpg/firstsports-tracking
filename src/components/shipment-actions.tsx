@@ -21,6 +21,8 @@ type Props = {
   state: string;
   payerDocument: string | null;
   carrierCode: string;
+  sellerId?: string | null;
+  sellers?: { id: string; name: string; active: boolean }[];
   carriers: { code: string; name: string }[];
 };
 export function ShipmentActions(p: Props) {
@@ -180,6 +182,7 @@ export function ShipmentActions(p: Props) {
                 state: d.get("state"),
                 payerDocument: d.get("payer"),
                 carrierCode: d.get("carrier"),
+                sellerId: String(d.get("sellerId") || "") || null,
                 trackingCode: String(d.get("trackingCode") || ""),
                 cte: String(d.get("cte") || "") || null,
                 estimatedDelivery: d.get("eta")
@@ -200,6 +203,18 @@ export function ShipmentActions(p: Props) {
               rastreamento e gere um novo link.
             </p>
             <div className="grid-2">
+              <label className="field">
+                Vendedor / representante
+                <select name="sellerId" defaultValue={p.sellerId || ""}>
+                  <option value="">Sem vendedor</option>
+                  {(p.sellers || []).map((seller) => (
+                    <option key={seller.id} value={seller.id}>
+                      {seller.name}
+                      {seller.active ? "" : " (inativo)"}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label className="field">
                 Número do pedido
                 <input

@@ -47,6 +47,7 @@ export const trackingCodeSchema = z
     "Informe um código de objeto com 13 caracteres (ex.: AA123456789BR)",
   );
 export const shipmentSchema = z.object({
+  vendedor_id: z.string().trim().max(100).optional(),
   codigo_rastreio: trackingCodeSchema.optional(),
   numero_pedido: text,
   numero_nf: z.string().regex(/^\d{1,12}$/, "NF deve ser texto numérico"),

@@ -72,6 +72,7 @@ Playwright usa `/usr/bin/chromium` neste ambiente. Para outra instalação, defi
 - [Importação Excel/CSV](docs/importacao.md)
 - [Braspress](docs/braspress.md) e [Alfa](docs/alfa.md)
 - [Icaro ESL Cloud](docs/icaro.md)
+- [Vendedores e representantes nas remessas](docs/vendedores.md)
 - [Operações administrativas](docs/operacoes.md)
 - [Deploy, DNS, backup e rollback](docs/deploy.md)
 - [Decisões arquiteturais](docs/arquitetura.md)

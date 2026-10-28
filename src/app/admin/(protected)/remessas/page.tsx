@@ -19,6 +19,7 @@ export default async function Shipments({
       where,
       include: {
         carrier: true,
+        seller: { select: { email: true } },
         order: { include: { customer: true } },
         invoices: true,
       },
@@ -57,6 +58,7 @@ export default async function Shipments({
                 "Pedido / NF",
                 "Cliente",
                 "Transportadora",
+                "Vendedor / representante",
                 "Emissão",
                 "Previsão",
                 "Status",
@@ -79,6 +81,7 @@ export default async function Shipments({
                 </td>
                 <td>{s.order.customer.name}</td>
                 <td>{s.carrier.name}</td>
+                <td>{s.seller?.email || "Sem vendedor"}</td>
                 <td>{dateOnly(s.issuedAt)}</td>
                 <td>{dateOnly(s.estimatedDelivery)}</td>
                 <td>

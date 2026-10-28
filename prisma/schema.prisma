@@ -28,11 +28,12 @@ enum Role {
 }
 
 model AdminUser {
-  id        String   @id // Supabase Auth user UUID
-  email     String   @unique
-  role      Role     @default(VIEWER)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id             String     @id // Supabase Auth user UUID
+  email          String     @unique
+  role           Role       @default(VIEWER)
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  salesShipments Shipment[] @relation("ShipmentSeller")
 }
 
 model Customer {
@@ -73,6 +74,8 @@ model Shipment {
   id                 String            @id @default(cuid())
   orderId            String
   order              Order             @relation(fields: [orderId], references: [id])
+  sellerId           String?
+  seller             AdminUser?        @relation("ShipmentSeller", fields: [sellerId], references: [id], onDelete: SetNull)
   carrierId          String
   carrier            Carrier           @relation(fields: [carrierId], references: [id])
   destinationCity    String            @default("")
@@ -101,6 +104,7 @@ model Shipment {
 
   @@index([status, nextSyncAt])
   @@index([orderId])
+  @@index([sellerId])
 }
 
 model ShipmentInvoice {

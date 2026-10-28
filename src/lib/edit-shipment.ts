@@ -10,6 +10,7 @@ const invoiceSchema = z.object({
 });
 export const editSchema = z
   .object({
+    sellerId: z.string().trim().max(100).nullable().optional(),
     version: z.number().int().nonnegative(),
     orderNumber: shipmentSchema.shape.numero_pedido.optional(),
     recipientDocument: z
@@ -64,6 +65,14 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
         ? await tx.carrier.findUnique({ where: { code: data.carrierCode } })
         : s.carrier;
       if (!carrier) throw new HttpError(400, "Transportadora não cadastrada");
+      if (
+        data.sellerId &&
+        data.sellerId !== s.sellerId &&
+        !(await tx.adminUser.findFirst({
+          where: { id: data.sellerId, active: true },
+        }))
+      )
+        throw new HttpError(400, "Selecione um vendedor ativo cadastrado");
       const trackingCode = data.trackingCode ?? s.trackingCode;
       if (carrier.code === "CORREIOS" && !trackingCode)
         throw new HttpError(
@@ -183,6 +192,7 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
       const snapshot = JSON.parse(
         JSON.stringify({
           version: s.version,
+          sellerId: s.sellerId,
           orderNumber: s.order.number,
           customerName: s.order.customer.name,
           customerId: s.order.customerId,
@@ -247,6 +257,8 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
         where: { id },
         data: {
           orderId: order.id,
+          sellerId:
+            data.sellerId === undefined ? undefined : data.sellerId || null,
           senderDocument,
           issuedAt,
           carrierId: carrier.id,

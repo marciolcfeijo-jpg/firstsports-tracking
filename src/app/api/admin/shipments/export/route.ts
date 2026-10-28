@@ -13,16 +13,29 @@ export async function GET(r: Request) {
     await requireAdmin();
     const items = await db.shipment.findMany({
       where: shipmentWhere(new URL(r.url).searchParams),
-      include: { order: true, invoices: true, carrier: true },
+      include: {
+        order: true,
+        invoices: true,
+        carrier: true,
+        seller: { select: { email: true } },
+      },
       take: 10000,
       orderBy: { createdAt: "desc" },
     });
     const rows = [
-      ["pedido", "notas_fiscais", "transportadora", "status", "previsao"],
+      [
+        "pedido",
+        "notas_fiscais",
+        "transportadora",
+        "vendedor",
+        "status",
+        "previsao",
+      ],
       ...items.map((s) => [
         s.order.number,
         s.invoices.map((i) => i.number).join(" / "),
         s.carrier.name,
+        s.seller?.email || "",
         s.status,
         s.estimatedDelivery?.toISOString(),
       ]),

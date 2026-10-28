@@ -5,6 +5,11 @@ export async function Filters({ values }: { values: Record<string, string> }) {
     select: { code: true, name: true },
     orderBy: { name: "asc" },
   });
+  const sellerUsers = await db.adminUser.findMany({
+    orderBy: { email: "asc" },
+    select: { id: true, email: true, active: true },
+  });
+  const sellers = sellerUsers.map((user) => ({ ...user, name: user.email }));
   return (
     <form className="toolbar">
       <input
@@ -22,6 +27,20 @@ export async function Filters({ values }: { values: Record<string, string> }) {
         {carriers.map((c) => (
           <option key={c.code} value={c.code}>
             {c.name}
+          </option>
+        ))}
+      </select>
+      <select
+        name="seller"
+        defaultValue={values.seller || ""}
+        aria-label="Vendedor / representante"
+      >
+        <option value="">Todos os vendedores</option>
+        <option value="none">Sem vendedor</option>
+        {sellers.map((seller) => (
+          <option key={seller.id} value={seller.id}>
+            {seller.name}
+            {seller.active ? "" : " (inativo)"}
           </option>
         ))}
       </select>
