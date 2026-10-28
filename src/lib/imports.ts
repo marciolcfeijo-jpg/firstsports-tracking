@@ -8,7 +8,7 @@ export const MAX_BYTES = 5 * 1024 * 1024,
 export async function parseSpreadsheet(
   bytes: Buffer,
   filename: string,
-  knownCarrierCodes: string[] = ["BRASPRESS", "ALFA", "CORREIOS"],
+  knownCarrierCodes: string[] = ["BRASPRESS", "ALFA", "CORREIOS", "ICARO"],
   selectedCarrier?: string,
 ) {
   if (
@@ -176,7 +176,7 @@ export async function template() {
     "Exclua a linha fictícia antes de importar. Máximo 2.000 registros / 5 MB.",
   ]);
   help.addRow([
-    "Mantenha identificadores como texto e datas AAAA-MM-DD. Transportadora: BRASPRESS, ALFA ou CORREIOS. Para Correios, adicione a coluna codigo_rastreio com o código de 13 caracteres.",
+    "Mantenha identificadores como texto e datas AAAA-MM-DD. Transportadora: BRASPRESS, ALFA, CORREIOS ou ICARO. Para Correios, adicione a coluna codigo_rastreio com o código de 13 caracteres.",
   ]);
   help.addRow([
     "A identidade fiscal é CNPJ emitente + série + número; reimportações não duplicam remessas.",

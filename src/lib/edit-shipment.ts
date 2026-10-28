@@ -109,6 +109,9 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
         : s.order.customer.documentHash;
       const recipientChanged = recipientHash !== s.order.customer.documentHash;
       const resetTracking =
+        (carrier.code === "ICARO" &&
+          data.orderNumber !== undefined &&
+          data.orderNumber !== s.order.number) ||
         recipientChanged ||
         invoiceChanged ||
         carrier.id !== s.carrierId ||
