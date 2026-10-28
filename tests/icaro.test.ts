@@ -207,3 +207,38 @@ it("paces standalone requests across separate adapter instances", async () => {
   expect(times).toHaveLength(2);
   expect(times[1] - times[0]).toBeGreaterThanOrEqual(2000);
 });
+
+it("preserves confirmed delivery when proof is digitized afterwards, including across pages", async () => {
+  const { adapter } = setup(
+    page([row(2, "Comprovante digitalizado", "2026-10-02T12:01:00-03:00")], 20),
+    page([
+      row(1, "Entrega Realizada Normalmente", "2026-10-02T12:00:00-03:00"),
+    ]),
+  );
+  const result = resultSchema.parse(await adapter.trackShipment(input));
+  expect(result.currentStatus).toBe("DELIVERED");
+  expect(result.deliveredAt).toBe("2026-10-02T15:00:00.000Z");
+  expect(result.events).toHaveLength(2);
+  expect(result.events[1]).toMatchObject({
+    description: "Comprovante digitalizado",
+    status: "UNKNOWN",
+  });
+});
+it("uses a later known transport status instead of making delivery irreversible", async () => {
+  const { adapter } = setup(
+    page([
+      row(1),
+      row(2, "DEVOLVIDO", "2026-10-03T12:00:00-03:00"),
+      row(3, "Comprovante digitalizado", "2026-10-03T12:01:00-03:00"),
+    ]),
+  );
+  const result = await adapter.trackShipment(input);
+  expect(result.currentStatus).toBe("RETURNED");
+  expect(result.deliveredAt).toBeUndefined();
+});
+it("does not manufacture delivery from a standalone administrative event", async () => {
+  const { adapter } = setup(page([row(1, "Comprovante digitalizado")]));
+  const result = await adapter.trackShipment(input);
+  expect(result.currentStatus).toBe("UNKNOWN");
+  expect(result.deliveredAt).toBeUndefined();
+});

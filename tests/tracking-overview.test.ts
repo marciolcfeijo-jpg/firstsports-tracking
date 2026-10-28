@@ -53,3 +53,54 @@ it("does not show midnight as a confirmed delivery time without a timed event", 
   expect(html).toContain("horário não informado");
   expect(html).not.toContain("00:00");
 });
+
+it("shows the documented normal delivery type and confirmed time after a proof record", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrackingOverview, {
+      ...shipment,
+      status: "DELIVERED",
+      deliveredAt: "2026-09-15T14:57:00Z",
+      events: [
+        {
+          occurredAt: "2026-09-15T14:57:00Z",
+          dateOnly: false,
+          description: "Entrega Realizada Normalmente",
+          status: "DELIVERED",
+          location: null,
+        },
+        {
+          occurredAt: "2026-09-15T14:58:00Z",
+          dateOnly: false,
+          description: "Comprovante digitalizado",
+          status: "UNKNOWN",
+          location: null,
+        },
+      ],
+    }),
+  );
+  expect(html).toContain("Normal (conforme ocorrência)");
+  expect(html).toContain("Entregue");
+  expect(html).toContain("15/09/2026");
+  expect(html).toContain("11:57");
+  expect(html).not.toContain("Ainda não confirmada");
+});
+it("does not infer a normal delivery type without explicit carrier evidence", () => {
+  const html = renderToStaticMarkup(
+    createElement(TrackingOverview, {
+      ...shipment,
+      status: "DELIVERED",
+      deliveredAt: "2026-09-15T14:57:00Z",
+      events: [
+        {
+          occurredAt: "2026-09-15T14:57:00Z",
+          dateOnly: false,
+          description: "Entrega concluída",
+          status: "DELIVERED",
+          location: null,
+        },
+      ],
+    }),
+  );
+  expect(html).toContain("Não informado pela integração");
+  expect(html).not.toContain("Normal (conforme ocorrência)");
+});
