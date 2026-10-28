@@ -202,3 +202,54 @@ it("accepts root timeLine only for a uniquely attributable knowledge", async () 
     }).trackShipment(input),
   ).rejects.toThrow("AMBIGUOUS_TRACKING_HISTORY");
 });
+
+it.each([
+  ["timeline", "nested"],
+  ["timeLine", "nested"],
+  ["timeline", "root"],
+  ["timeLine", "root"],
+])("preserves %s history at the %s location", async (field, location) => {
+  const movements = [
+    { descricao: "Em viagem", data: "23/10/2026 07:12:00" },
+    { descricao: "Entrega realizada", data: null },
+  ];
+  const raw =
+    location === "nested"
+      ? { conhecimentos: [{ ...summary, [field]: movements }] }
+      : { conhecimentos: [summary], [field]: movements };
+  const result = await adapter(raw).trackShipment(input);
+  expect(result.events).toHaveLength(1);
+  expect(result.events[0]).toMatchObject({
+    status: "IN_TRANSIT",
+    occurredAt: "2026-10-23T10:12:00.000Z",
+  });
+  expect(result.deliveredAt).toBeUndefined();
+  expect(result.diagnostics).toMatchObject({
+    timelineReceived: 2,
+    undatedReceived: 1,
+    eventsNormalized: 1,
+  });
+});
+it("queries the invoice number, not the separately supplied sales order", async () => {
+  vi.stubEnv("BRASPRESS_USERNAME", "synthetic-user");
+  vi.stubEnv("BRASPRESS_PASSWORD", "synthetic-password");
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      json({
+        conhecimentos: [
+          { ...summary, notasFiscais: [{ numero: "33553", serie: "1" }] },
+        ],
+      }),
+    );
+  const result = await new BraspressAdapter(fetcher).trackShipment({
+    ...input,
+    orderNumber: "40648",
+    invoiceNumber: "33553",
+  });
+  expect(String(fetcher.mock.calls[0][0])).toBe(
+    "https://api.braspress.com/v3/tracking/byNf/11222333000181/33553/json",
+  );
+  expect(result.carrier).toBe("BRASPRESS");
+  expect(result).not.toHaveProperty("orderNumber");
+});
