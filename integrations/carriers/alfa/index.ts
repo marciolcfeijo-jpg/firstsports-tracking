@@ -59,19 +59,23 @@ const responseSchema = z.object({
     .union([departure, z.array(departure)])
     .nullish()
     .transform((value) => value ?? undefined),
-  dadosEntrega: z
-    .object({
-      dataEntrega: z
-        .string()
-        .nullish()
-        .transform((value) => value ?? undefined),
-      urlComprovante: z
-        .string()
-        .nullish()
-        .transform((value) => value ?? undefined),
-    })
-    .nullish()
-    .transform((value) => value ?? undefined),
+  dadosEntrega: z.preprocess(
+    (value) =>
+      typeof value === "string" && value.trim() === "" ? undefined : value,
+    z
+      .object({
+        dataEntrega: z
+          .string()
+          .nullish()
+          .transform((value) => value ?? undefined),
+        urlComprovante: z
+          .string()
+          .nullish()
+          .transform((value) => value ?? undefined),
+      })
+      .nullish()
+      .transform((value) => value ?? undefined),
+  ),
   ocorrenciasExtras: z
     .array(
       z.object({
@@ -420,6 +424,14 @@ function responseDiagnostics(
             )
             .join(".") || "response",
         code: issue.code,
+        ...(typeof value === "string"
+          ? {
+              stringKind:
+                value.trim() === ""
+                  ? ("empty" as const)
+                  : ("nonempty" as const),
+            }
+          : {}),
         receivedType:
           value === null
             ? "null"

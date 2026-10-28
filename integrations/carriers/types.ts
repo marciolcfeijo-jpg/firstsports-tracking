@@ -74,7 +74,12 @@ export interface CarrierTrackingAdapter {
 export type CarrierResponseDiagnostics = {
   carrier: "ALFA";
   format: "json" | "xml";
-  issues: { field: string; code: string; receivedType: string }[];
+  issues: {
+    field: string;
+    code: string;
+    receivedType: string;
+    stringKind?: "empty" | "nonempty";
+  }[];
 };
 export class CarrierError extends Error {
   constructor(

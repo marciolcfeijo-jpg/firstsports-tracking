@@ -35,3 +35,7 @@ Os registros usam a tabela de auditoria existente (`SYNC_DIAGNOSTIC`); não há 
 Se o próprio banco não permitir gravar o diagnóstico, a função publica a mesma referência nos logs da Vercel com o prefixo `SHIPMENT_SYNC_DIAGNOSTIC` e avisa `SHIPMENT_SYNC_DIAGNOSTIC_NOT_PERSISTED`. Falhas inesperadas na autenticação são registradas somente nos logs da função, sem associar uma remessa antes da autorização. Erros esperados de autenticação/autorização não criam diagnósticos de remessa.
 
 Esses registros identificam a camada que falhou; sua implementação não confirma, por si só, que o formato real da resposta da Alfa foi corrigido.
+
+### Seção de entrega vazia em formato texto
+
+`dadosEntrega` aceita também string vazia (inclusive somente espaços) como ausência de dados de entrega. Isso preserva as movimentações de uma remessa ainda em transporte e não fabrica confirmação ou data de entrega. Strings não vazias continuam sendo incompatíveis; não são interpretadas como data, JSON embutido ou entrega confirmada sem contrato conhecido. Quando um erro envolve uma string, o diagnóstico informa `stringKind: empty|nonempty`, sem mostrar o texto. A indicação anterior `receivedType: string` sozinha não permite confirmar se o conteúdo era vazio.

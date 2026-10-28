@@ -10,14 +10,12 @@ const input = {
 };
 const adapter = (data: unknown) =>
   new AlfaAdapter(
-    vi
-      .fn<typeof fetch>()
-      .mockImplementation(
-        async () =>
-          new Response(JSON.stringify(data), {
-            headers: { "content-type": "application/json" },
-          }),
-      ),
+    vi.fn<typeof fetch>().mockImplementation(
+      async () =>
+        new Response(JSON.stringify(data), {
+          headers: { "content-type": "application/json" },
+        }),
+    ),
   );
 beforeEach(() => vi.stubEnv("ALFA_API_KEY", "synthetic-test-token"));
 afterEach(() => vi.unstubAllEnvs());
@@ -67,13 +65,11 @@ it("retains the existing JSON and XML contracts", async () => {
     "IN_TRANSIT",
   );
   const xml = new AlfaAdapter(
-    vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        new Response(alfaXmlFixture, {
-          headers: { "content-type": "application/xml" },
-        }),
-      ),
+    vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(alfaXmlFixture, {
+        headers: { "content-type": "application/xml" },
+      }),
+    ),
   );
   expect(resultSchema.parse(await xml.trackShipment(input))).toMatchObject({
     currentStatus: "DELIVERED",
@@ -154,3 +150,53 @@ it.each([null, {}, { status: null }, { status: "<private value>" }])(
     });
   },
 );
+
+it.each(["", "   ", "\n\t"])(
+  "treats empty delivery section %j as pending without discarding movement history",
+  async (dadosEntrega) => {
+    const result = resultSchema.parse(
+      await adapter({ ...alfaFixture, dadosEntrega }).trackShipment(input),
+    );
+    expect(result.currentStatus).toBe("IN_TRANSIT");
+    expect(result.deliveredAt).toBeUndefined();
+    expect(result.estimatedDelivery).toBe("2026-10-29T02:59:59.000Z");
+    expect(result.events.length).toBeGreaterThan(0);
+    expect(result.events.some((event) => event.status === "DELIVERED")).toBe(
+      false,
+    );
+  },
+);
+it.each(["PRIVATE UPSTREAM MESSAGE", '{"dataEntrega":"2026-10-27"}'])(
+  "does not silently discard or interpret a nonempty delivery string",
+  async (dadosEntrega) => {
+    try {
+      await adapter({ ...alfaFixture, dadosEntrega }).trackShipment(input);
+      expect.fail("Unexpected delivery content accepted");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CarrierError);
+      const failure = error as CarrierError;
+      expect(failure.responseDiagnostics).toMatchObject({
+        issues: [
+          {
+            field: "dadosEntrega",
+            receivedType: "string",
+            stringKind: "nonempty",
+          },
+        ],
+      });
+      expect(JSON.stringify(failure.responseDiagnostics)).not.toContain(
+        dadosEntrega,
+      );
+    }
+  },
+);
+it("still confirms a delivery supplied as a proper object", async () => {
+  const result = resultSchema.parse(
+    await adapter({
+      ...alfaFixture,
+      dadosEntrega: { dataEntrega: "2026-10-27 15:30:00" },
+    }).trackShipment(input),
+  );
+  expect(result.currentStatus).toBe("DELIVERED");
+  expect(result.deliveredAt).toBe("2026-10-27T18:30:00.000Z");
+});
