@@ -125,8 +125,17 @@ export function TrackingOverview(s: Props) {
           const confirmedDelivery =
             label === "Entrega realizada" ? s.deliveredAt : null;
           const occurredAt = event?.occurredAt || confirmedDelivery;
+          const currentWithoutDate =
+            !occurredAt &&
+            ((label === "Na origem / coletado" && s.status === "PICKED_UP") ||
+              (label === "Em viagem" && s.status === "IN_TRANSIT") ||
+              (label === "Em rota de entrega" &&
+                s.status === "OUT_FOR_DELIVERY"));
           return (
-            <li key={label} className={occurredAt ? "recorded" : ""}>
+            <li
+              key={label}
+              className={occurredAt || currentWithoutDate ? "recorded" : ""}
+            >
               <span className="stage-icon">
                 <Icon size={26} aria-hidden="true" />
               </span>
@@ -138,7 +147,9 @@ export function TrackingOverview(s: Props) {
                     : confirmedDelivery && !event
                       ? deliveryDateTime(occurredAt, s.events)
                       : dateTime(occurredAt)
-                  : "Sem registro recebido"}
+                  : currentWithoutDate
+                    ? "Etapa atual · data não informada"
+                    : "Sem registro recebido"}
               </span>
               {event?.location && <span>{event.location}</span>}
             </li>

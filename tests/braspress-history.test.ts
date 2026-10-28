@@ -133,3 +133,123 @@ it("reports absence honestly when neither supported location contains dated hist
     eventsNormalized: 0,
   });
 });
+
+it("reads the observed timeLine spelling and normalizes all four dated stages", async () => {
+  const timeLine = [
+    {
+      descricao: "ENCOMENDA NA FILIAL ORIGEM - JOINVILLE - SC",
+      data: "21/10/2026 15:38:00",
+    },
+    {
+      descricao: "ENCOMENDA EM TRANSFERÊNCIA ENTRE AS FILIAIS DA BRASPRESS",
+      data: "23/10/2026 07:12:00",
+    },
+    {
+      descricao: "ENCOMENDA NA FILIAL DE DESTINO - FEIRA DE SANTANA - BA",
+      data: "27/10/2026 00:07:00",
+    },
+    { descricao: "EM ROTA DE ENTREGA", data: "27/10/2026" },
+  ];
+  const result = await adapter({
+    conhecimentos: [{ ...summary, status: "EM ROTA DE ENTREGA", timeLine }],
+  }).trackShipment(input);
+  expect(result.currentStatus).toBe("OUT_FOR_DELIVERY");
+  expect(result.events).toHaveLength(4);
+  expect(result.events.map((event) => event.status)).toEqual([
+    "PICKED_UP",
+    "IN_TRANSIT",
+    "OUT_FOR_DELIVERY",
+    "IN_TRANSIT",
+  ]);
+  expect(result.events[0].occurredAt).toBe("2026-10-21T18:38:00.000Z");
+  expect(
+    result.events.find((event) => event.status === "OUT_FOR_DELIVERY")
+      ?.dateOnly,
+  ).toBe(true);
+  expect(result.deliveredAt).toBeUndefined();
+  expect(result.diagnostics).toMatchObject({
+    timelineReceived: 4,
+    eventsNormalized: 4,
+    historySource: "conhecimento",
+  });
+});
+it("combines both timeline spellings without duplicating events or double-counting during parsing", async () => {
+  const movements = [{ descricao: "Em viagem", data: "23/10/2026 07:12:00" }];
+  const result = await adapter({
+    conhecimentos: [{ ...summary, timeline: movements, timeLine: movements }],
+  }).trackShipment(input);
+  expect(result.events).toHaveLength(1);
+  expect(result.diagnostics).toMatchObject({
+    timelineReceived: 2,
+    eventsNormalized: 1,
+  });
+});
+it("accepts root timeLine only for a uniquely attributable knowledge", async () => {
+  const timeLine = [{ descricao: "Em viagem", data: "23/10/2026 07:12:00" }];
+  const single = await adapter({
+    conhecimentos: [summary],
+    timeLine,
+  }).trackShipment(input);
+  expect(single.events).toHaveLength(1);
+  expect(single.diagnostics?.historySource).toBe("raiz");
+  await expect(
+    adapter({
+      conhecimentos: [
+        summary,
+        { ...summary, numero: 999, notasFiscais: [{ numero: 999, serie: 1 }] },
+      ],
+      timeLine,
+    }).trackShipment(input),
+  ).rejects.toThrow("AMBIGUOUS_TRACKING_HISTORY");
+});
+
+it.each([
+  ["timeline", "nested"],
+  ["timeLine", "nested"],
+  ["timeline", "root"],
+  ["timeLine", "root"],
+])("preserves %s history at the %s location", async (field, location) => {
+  const movements = [
+    { descricao: "Em viagem", data: "23/10/2026 07:12:00" },
+    { descricao: "Entrega realizada", data: null },
+  ];
+  const raw =
+    location === "nested"
+      ? { conhecimentos: [{ ...summary, [field]: movements }] }
+      : { conhecimentos: [summary], [field]: movements };
+  const result = await adapter(raw).trackShipment(input);
+  expect(result.events).toHaveLength(1);
+  expect(result.events[0]).toMatchObject({
+    status: "IN_TRANSIT",
+    occurredAt: "2026-10-23T10:12:00.000Z",
+  });
+  expect(result.deliveredAt).toBeUndefined();
+  expect(result.diagnostics).toMatchObject({
+    timelineReceived: 2,
+    undatedReceived: 1,
+    eventsNormalized: 1,
+  });
+});
+it("queries the invoice number, not the separately supplied sales order", async () => {
+  vi.stubEnv("BRASPRESS_USERNAME", "synthetic-user");
+  vi.stubEnv("BRASPRESS_PASSWORD", "synthetic-password");
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(
+      json({
+        conhecimentos: [
+          { ...summary, notasFiscais: [{ numero: "33553", serie: "1" }] },
+        ],
+      }),
+    );
+  const result = await new BraspressAdapter(fetcher).trackShipment({
+    ...input,
+    orderNumber: "40648",
+    invoiceNumber: "33553",
+  });
+  expect(String(fetcher.mock.calls[0][0])).toBe(
+    "https://api.braspress.com/v3/tracking/byNf/11222333000181/33553/json",
+  );
+  expect(result.carrier).toBe("BRASPRESS");
+  expect(result).not.toHaveProperty("orderNumber");
+});

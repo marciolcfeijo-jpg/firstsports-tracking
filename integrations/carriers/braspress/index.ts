@@ -13,20 +13,32 @@ const movement = z.object({
   descricao: z.string().min(1),
   data: z.string().nullish(),
 });
-const knowledge = z.object({
-  numero: scalar,
-  previsaoEntrega: z.string().nullish(),
-  dataEntrega: z.string().nullish(),
-  status: scalar.optional(),
-  notasFiscais: z.array(z.object({ numero: scalar, serie: scalar })).min(1),
-  timeline: z.array(movement).default([]),
-  ocorrencias: z.array(movement).default([]),
-});
-const responseSchema = z.object({
-  conhecimentos: z.array(knowledge),
-  timeline: z.array(movement).optional(),
-  ocorrencias: z.array(movement).optional(),
-});
+const knowledge = z
+  .object({
+    numero: scalar,
+    previsaoEntrega: z.string().nullish(),
+    dataEntrega: z.string().nullish(),
+    status: scalar.optional(),
+    notasFiscais: z.array(z.object({ numero: scalar, serie: scalar })).min(1),
+    timeline: z.array(movement).default([]),
+    timeLine: z.array(movement).default([]),
+    ocorrencias: z.array(movement).default([]),
+  })
+  .transform(({ timeLine, ...item }) => ({
+    ...item,
+    timeline: [...item.timeline, ...timeLine],
+  }));
+const responseSchema = z
+  .object({
+    conhecimentos: z.array(knowledge),
+    timeline: z.array(movement).optional(),
+    timeLine: z.array(movement).default([]),
+    ocorrencias: z.array(movement).optional(),
+  })
+  .transform(({ timeLine, ...data }) => ({
+    ...data,
+    timeline: [...(data.timeline || []), ...timeLine],
+  }));
 // Structural metadata only: field names and array counts, never payload values.
 export function braspressStructure(payload: unknown) {
   const fields = (value: unknown): string[] =>

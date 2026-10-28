@@ -40,3 +40,11 @@ O parser aceita `timeline` e `ocorrencias` no nível principal ou dentro do conh
 O diagnóstico anterior contava apenas as listas aninhadas e, portanto, não comprovava que a resposta completa estivesse vazia. Agora a origem é indicada como raiz, conhecimento, ambos ou ausente. O painel oferece Copiar diagnóstico: inclui somente contagens e nomes de campos/arrays limitados em tamanho, nunca valores da resposta, dados do destinatário, credenciais ou Authorization. Não há armazenamento do payload bruto. A estrutura de arrays desconhecidos também pode ser identificada sem enviar seu conteúdo pelo chat.
 
 A leitura das duas estruturas foi validada com fixtures sintéticas. Isso não comprova qual estrutura veio na consulta de uma NF real; após o deploy, executar atualização manual e conferir origem/contagens. Se continuar sem eventos, usar o diagnóstico de estrutura para conferir os campos efetivamente retornados ou solicitar à Braspress a liberação/conferência da API v3. O portal comercial e a API podem ter conteúdos ou permissões distintos.
+
+## Compatibilidade com `timeLine`
+
+O diagnóstico de uma resposta real identificou `conhecimentos[].timeLine` (L maiúsculo), com registros `{descricao,data}`. O conector agora unifica `timeLine` e `timeline` antes de normalizar as movimentações, preservando também os formatos anteriores e a restrição de atribuição do histórico principal a um único conhecimento. A normalização remove o alias para evitar contagem duplicada ao revalidar internamente o conhecimento escolhido. Eventos iguais nos dois campos são deduplicados.
+
+O resumo exibe **Em rota de entrega** para `OUT_FOR_DELIVERY`. Quando o status é conhecido, mas sua data não consta no histórico, a etapa atual é destacada com **Etapa atual · data não informada**. Isso não gera datas nem confirma etapas anteriores.
+
+A captura do portal comercial não deve substituir dados da API: o número do pedido continua vindo do cadastro interno. `tipoFrete` não é convertido em tipo de entrega “Padrão”, pois responsabilidade do frete e modalidade de entrega são conceitos diferentes. Esse campo depende da confirmação do contrato/retorno específico da Braspress.

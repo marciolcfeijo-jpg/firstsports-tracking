@@ -3,7 +3,7 @@ export const statusLabels = {
   AWAITING_PICKUP: "Aguardando coleta",
   PICKED_UP: "Coletado",
   IN_TRANSIT: "Em viagem",
-  OUT_FOR_DELIVERY: "Saiu para entrega",
+  OUT_FOR_DELIVERY: "Em rota de entrega",
   DELIVERED: "Entregue",
   EXCEPTION: "Ocorrência",
   RETURNING: "Em devolução",
