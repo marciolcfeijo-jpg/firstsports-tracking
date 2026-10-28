@@ -66,6 +66,15 @@ export function TrackingOverview(s: Props) {
   const chronological = [...s.events].sort(
     (a, b) => +new Date(a.occurredAt) - +new Date(b.occurredAt),
   );
+  const deliveryEvent = chronological.findLast(
+    (event) => event.status === "DELIVERED",
+  );
+  const normalDelivery =
+    s.status === "DELIVERED" &&
+    deliveryEvent &&
+    /^ENTREGA REALIZADA NORMALMENTE$/.test(
+      normalize(deliveryEvent.description).trim(),
+    );
   return (
     <section
       className="card tracking-overview"
@@ -91,7 +100,11 @@ export function TrackingOverview(s: Props) {
         </div>
         <div>
           <dt>Tipo de entrega</dt>
-          <dd>Não informado pela integração</dd>
+          <dd>
+            {normalDelivery
+              ? "Normal (conforme ocorrência)"
+              : "Não informado pela integração"}
+          </dd>
         </div>
         <div>
           <dt>Status</dt>

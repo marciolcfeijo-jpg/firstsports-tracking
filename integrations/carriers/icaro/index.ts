@@ -150,7 +150,10 @@ export class IcaroAdapter implements CarrierTrackingAdapter {
       data: rows,
       paging: { next_id: null },
     });
-    const latest = events.at(-1)!;
+    // Administrative records (e.g. digitized proof) stay in the timeline, but
+    // do not erase the most recent meaningful transport status or delivery time.
+    const latest =
+      events.findLast((event) => event.status !== "UNKNOWN") ?? events.at(-1)!;
     const newestRow = [...rows]
       .sort((a, b) => Date.parse(a.occurrence_at) - Date.parse(b.occurrence_at))
       .at(-1)!;
