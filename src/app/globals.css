@@ -920,3 +920,30 @@ tr:last-child td {
     padding: 18px;
   }
 }
+
+/* Shipment details remain accessible even when rightmost table columns overflow. */
+.shipment-row {
+  cursor: pointer;
+}
+.shipment-row:hover,
+.shipment-row:focus-within {
+  background: #f5f1fc;
+}
+.shipment-order-link {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  color: var(--brand-purple-dark);
+}
+.shipment-open-hint {
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.shipment-order-link:focus-visible {
+  outline: 2px solid var(--brand-purple-dark);
+  outline-offset: 4px;
+  border-radius: 3px;
+}

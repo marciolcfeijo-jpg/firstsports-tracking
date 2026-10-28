@@ -1,3 +1,4 @@
+import { ShipmentRow } from "@/components/shipment-row";
 import { BulkTracking } from "@/components/bulk-tracking";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
@@ -50,6 +51,7 @@ export default async function Shipments({
       </div>
       {user.role !== "VIEWER" && <BulkTracking />}
       <Filters values={p} />
+      <p className="small">Clique em uma remessa para abrir os detalhes.</p>
       <div className="table-wrap">
         <table>
           <thead>
@@ -71,13 +73,19 @@ export default async function Shipments({
           </thead>
           <tbody>
             {items.map((s) => (
-              <tr key={s.id}>
+              <ShipmentRow key={s.id} href={"/admin/remessas/" + s.id}>
                 <td>
-                  <strong>{s.order.number}</strong>
-                  <br />
-                  <span className="muted">
-                    NF {s.invoices.map((i) => i.number).join(", ")}
-                  </span>
+                  <Link
+                    className="shipment-order-link"
+                    href={"/admin/remessas/" + s.id}
+                    aria-label={"Abrir detalhes do pedido " + s.order.number}
+                  >
+                    <strong>{s.order.number}</strong>
+                    <span className="muted">
+                      NF {s.invoices.map((i) => i.number).join(", ")}
+                    </span>
+                    <span className="shipment-open-hint">Ver detalhes →</span>
+                  </Link>
                 </td>
                 <td>{s.order.customer.name}</td>
                 <td>{s.carrier.name}</td>
@@ -98,7 +106,7 @@ export default async function Shipments({
                     Visualizar →
                   </Link>
                 </td>
-              </tr>
+              </ShipmentRow>
             ))}
           </tbody>
         </table>
