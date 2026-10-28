@@ -244,7 +244,7 @@ export async function syncDue(run: typeof syncShipment = syncShipment) {
     },
     select: { id: true },
     take: 10,
-    orderBy: { nextSyncAt: "asc" },
+    orderBy: [{ issuedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
   const results = [];
   const deadline = Date.now() + 240000;
