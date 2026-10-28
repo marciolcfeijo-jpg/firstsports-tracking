@@ -6,6 +6,7 @@ import {
   type TrackingEvent,
   type TrackingResult,
   CarrierError,
+  alfaDiagnosticFieldNames,
   type CarrierResponseDiagnostics,
 } from "../types";
 import { carrierRequest } from "../http";
@@ -394,39 +395,7 @@ function responseDiagnostics(
   raw: unknown,
   format: "json" | "xml",
 ): CarrierResponseDiagnostics {
-  const known = new Set([
-    "wsRastreamento",
-    "rst",
-    "rstStatus",
-    "@_stsCd",
-    "NF",
-    "@_nro",
-    "NFCtrc",
-    "NFDataPrevista",
-    "embarque",
-    "embNF",
-    "entrega",
-    "entS",
-    "entNF",
-    "status",
-    "dadosCte",
-    "numeroNota",
-    "numeroCte",
-    "dataPrivista",
-    "dataPrevista",
-    "dadosEmbarque",
-    "cidadeOrigem",
-    "cidadeDestino",
-    "horaSaida",
-    "horaChegada",
-    "dadosEntrega",
-    "dataEntrega",
-    "urlComprovante",
-    "ocorrenciasExtras",
-    "codigoOcorrencia",
-    "dataOcorrencia",
-    "descricaoOcorrencia",
-  ]);
+  const known = new Set(alfaDiagnosticFieldNames);
   return {
     carrier: "ALFA",
     format,

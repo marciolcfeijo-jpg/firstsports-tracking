@@ -1,3 +1,5 @@
+import { recordSyncDiagnostic } from "./sync-diagnostics";
+import type { SyncDiagnostic } from "./sync-diagnostic-data";
 import { IcaroAdapter } from "../../integrations/carriers/icaro";
 import { icaroRequest } from "./icaro-request";
 import { CorreiosAdapter } from "../../integrations/carriers/correios";
@@ -82,6 +84,7 @@ export async function syncShipment(
   adapterOverride?: CarrierTrackingAdapter,
   invoiceNumber?: string,
   dueAt?: Date,
+  requestId = randomUUID(),
 ): Promise<{
   ok: boolean;
   code?: string;
@@ -111,6 +114,7 @@ export async function syncShipment(
   const started = Date.now();
   const carrierLeaseToken = randomUUID();
   let lockedCarrier: string | undefined;
+  let phase: SyncDiagnostic["phase"] = "load_shipment";
   try {
     const shipment = await db.shipment.findUniqueOrThrow({
       where: { id },
@@ -118,6 +122,7 @@ export async function syncShipment(
     });
     if (!shipment.carrier.enabled && !adapterOverride)
       throw new CarrierError("INTEGRATION_DISABLED", false);
+    phase = "claim_carrier";
     const carrierClaim = await db.carrier.updateMany({
       where: {
         id: shipment.carrierId,
@@ -132,6 +137,7 @@ export async function syncShipment(
     lockedCarrier = shipment.carrierId;
     const adapter = adapterOverride || adapters[shipment.carrier.code];
     if (!adapter) throw new CarrierError("UNSUPPORTED_CARRIER", false);
+    phase = "configuration";
     const config = adapter.validateConfiguration();
     if (!config.valid)
       throw new CarrierError(config.reason || "CONFIGURATION_ERROR", false);
@@ -143,6 +149,7 @@ export async function syncShipment(
       throw new CarrierError("AMBIGUOUS_INVOICE", false);
     const invoice = candidates[0];
     if (!invoice) throw new CarrierError("INVOICE_MISSING", false);
+    phase = "carrier_request";
     const result = await adapter.trackShipment({
       trackingCode: shipment.trackingCode || undefined,
       invoiceAccessKey: invoice.accessKey || undefined,
@@ -155,6 +162,7 @@ export async function syncShipment(
       senderDocument: shipment.senderDocument,
       payerDocument: shipment.payerDocument || undefined,
     });
+    phase = "save_tracking";
     await db.$transaction(async (tx) => {
       await persistTracking(tx, id, result);
       await tx.syncLog.create({
@@ -172,6 +180,7 @@ export async function syncShipment(
       await db.shipment.update({ where: { id }, data: { leaseUntil: null } });
       return { ok: false, code, skipped: true };
     }
+    await recordSyncDiagnostic(id, requestId, phase, e);
     const shipment = await db.shipment.findUniqueOrThrow({ where: { id } });
     await db.$transaction([
       db.shipment.update({

@@ -60,7 +60,8 @@ export function ShipmentActions(p: Props) {
       }
       if (!r.ok)
         throw new Error(
-          data.error || data.code || "Não foi possível concluir a ação",
+          (data.error || data.code || "Não foi possível concluir a ação") +
+            (data.requestId ? ` Referência: ${data.requestId}` : ""),
         );
       if (path !== "/sync") startTransition(() => router.refresh());
       if (data.linksRevoked) setLink("");
