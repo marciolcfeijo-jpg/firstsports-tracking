@@ -19,7 +19,8 @@ import {
 const scalar = z.union([z.string(), z.number()]).transform(String);
 const statusCode = z
   .union([z.number(), z.string().regex(/^\d+$/)])
-  .pipe(z.coerce.number().int());
+  .transform(Number)
+  .pipe(z.number().int());
 const shipmentSchema = z.object({
   numeroNota: scalar,
   numeroCte: scalar,
