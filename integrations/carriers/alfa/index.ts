@@ -364,7 +364,9 @@ export class AlfaAdapter implements CarrierTrackingAdapter {
       throw new CarrierError("INVOICE_MISMATCH", false);
     const events = this.normalizeEvents(raw);
     const deliveredAt = carrierDate(data.dadosEntrega?.dataEntrega);
-    const latest = events.at(-1)?.status || "UNKNOWN";
+    const latest =
+      events.findLast((event) => event.status !== "UNKNOWN")?.status ||
+      "UNKNOWN";
     return {
       carrier: "ALFA",
       trackingNumber: data.dadosCte!.numeroCte,

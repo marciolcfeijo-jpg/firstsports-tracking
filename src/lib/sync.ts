@@ -46,6 +46,19 @@ export async function persistTracking(
   raw: TrackingResult,
 ) {
   const r = resultSchema.parse(raw);
+  if (r.carrier === "ALFA") {
+    const reclassified = r.events
+      .filter((event) => event.status !== "UNKNOWN")
+      .map((event) => fingerprint({ ...event, status: "UNKNOWN" }));
+    if (reclassified.length)
+      await tx.trackingEvent.deleteMany({
+        where: {
+          shipmentId: id,
+          status: "UNKNOWN",
+          fingerprint: { in: reclassified },
+        },
+      });
+  }
   await tx.trackingEvent.createMany({
     data: r.events.map((e) => ({
       shipmentId: id,

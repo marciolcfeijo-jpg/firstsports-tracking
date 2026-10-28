@@ -200,3 +200,37 @@ it("still confirms a delivery supplied as a proper object", async () => {
   expect(result.currentStatus).toBe("DELIVERED");
   expect(result.deliveredAt).toBe("2026-10-27T18:30:00.000Z");
 });
+
+it("classifies the reported unit departure as in transit and keeps a later administrative record", async () => {
+  const result = resultSchema.parse(
+    await adapter({
+      ...alfaFixture,
+      dadosEntrega: "",
+      dadosEmbarque: null,
+      ocorrenciasExtras: [
+        {
+          codigoOcorrencia: 1,
+          dataOcorrencia: "26/10/2026 21:55",
+          descricaoOcorrencia: "PROCESSO DE TRANSPORTE INICIADO",
+        },
+        {
+          codigoOcorrencia: 2,
+          dataOcorrencia: "27/10/2026 05:44",
+          descricaoOcorrencia: "SAÍDA DA UNIDADE - DE JOINVILLE PARA GUARULHOS",
+        },
+        {
+          codigoOcorrencia: 3,
+          dataOcorrencia: "27/10/2026 05:45",
+          descricaoOcorrencia: "Comprovante digitalizado",
+        },
+      ],
+    }).trackShipment(input),
+  );
+  expect(result.currentStatus).toBe("IN_TRANSIT");
+  expect(result.events[1]).toMatchObject({
+    status: "IN_TRANSIT",
+    occurredAt: "2026-10-27T08:44:00.000Z",
+  });
+  expect(result.events[2].status).toBe("UNKNOWN");
+  expect(result.deliveredAt).toBeUndefined();
+});

@@ -104,3 +104,9 @@ it("does not infer a normal delivery type without explicit carrier evidence", ()
   expect(html).toContain("Não informado pela integração");
   expect(html).not.toContain("Normal (conforme ocorrência)");
 });
+
+it("uses the same Em viagem label in the summary and journey stage", () => {
+  const html = renderToStaticMarkup(createElement(TrackingOverview, shipment));
+  expect(html.match(/Em viagem/g)).toHaveLength(2);
+  expect(html).not.toContain("Aguardando informações");
+});
