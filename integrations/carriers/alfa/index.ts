@@ -6,6 +6,7 @@ import {
   type TrackingEvent,
   type TrackingResult,
   CarrierError,
+  type CarrierResponseDiagnostics,
 } from "../types";
 import { carrierRequest } from "../http";
 import {
@@ -16,28 +17,59 @@ import {
   proofUrl,
 } from "../normalize";
 const scalar = z.union([z.string(), z.number()]).transform(String);
+const statusCode = z
+  .union([z.number(), z.string().regex(/^\d+$/)])
+  .pipe(z.coerce.number().int());
 const shipmentSchema = z.object({
   numeroNota: scalar,
   numeroCte: scalar,
-  dataPrivista: z.string().optional(),
-  dataPrevista: z.string().optional(),
+  dataPrivista: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  dataPrevista: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
 });
 const departure = z.object({
-  cidadeOrigem: z.string().optional(),
-  cidadeDestino: z.string().optional(),
-  horaSaida: z.string().optional(),
-  horaChegada: z.string().optional(),
+  cidadeOrigem: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  cidadeDestino: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  horaSaida: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  horaChegada: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
 });
 const responseSchema = z.object({
-  status: z.coerce.number(),
-  dadosCte: shipmentSchema.optional(),
-  dadosEmbarque: z.union([departure, z.array(departure)]).optional(),
+  status: statusCode,
+  dadosCte: shipmentSchema.nullish().transform((value) => value ?? undefined),
+  dadosEmbarque: z
+    .union([departure, z.array(departure)])
+    .nullish()
+    .transform((value) => value ?? undefined),
   dadosEntrega: z
     .object({
-      dataEntrega: z.string().optional(),
-      urlComprovante: z.string().optional(),
+      dataEntrega: z
+        .string()
+        .nullish()
+        .transform((value) => value ?? undefined),
+      urlComprovante: z
+        .string()
+        .nullish()
+        .transform((value) => value ?? undefined),
     })
-    .optional(),
+    .nullish()
+    .transform((value) => value ?? undefined),
   ocorrenciasExtras: z
     .array(
       z.object({
@@ -46,7 +78,8 @@ const responseSchema = z.object({
         descricaoOcorrencia: z.string(),
       }),
     )
-    .optional(),
+    .nullish()
+    .transform((value) => value ?? undefined),
 });
 const xmlSchema = z.object({
   wsRastreamento: z.object({
@@ -56,28 +89,76 @@ const xmlSchema = z.object({
         .object({
           "@_nro": scalar,
           NFCtrc: scalar,
-          NFDataPrevista: z.string().optional(),
+          NFDataPrevista: z
+            .string()
+            .nullish()
+            .transform((value) => value ?? undefined),
         })
-        .optional(),
-      embarque: z.object({ embNF: z.unknown().optional() }).optional(),
+        .nullish()
+        .transform((value) => value ?? undefined),
+      embarque: z
+        .object({
+          embNF: z
+            .unknown()
+            .nullish()
+            .transform((value) => value ?? undefined),
+        })
+        .nullish()
+        .transform((value) => value ?? undefined),
       entrega: z
-        .object({ entS: z.unknown().optional(), entNF: z.unknown().optional() })
-        .optional(),
+        .object({
+          entS: z
+            .unknown()
+            .nullish()
+            .transform((value) => value ?? undefined),
+          entNF: z
+            .unknown()
+            .nullish()
+            .transform((value) => value ?? undefined),
+        })
+        .nullish()
+        .transform((value) => value ?? undefined),
     }),
   }),
 });
 const xmlEmb = z.object({
-  embOrigem: z.string().optional(),
-  embDestino: z.string().optional(),
-  embSaida: z.string().optional(),
-  embChegada: z.string().optional(),
+  embOrigem: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  embDestino: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  embSaida: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  embChegada: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
 });
 const xmlDelivery = z.object({
-  entData: z.string().optional(),
-  entHora: z.string().optional(),
-  entComprovante: z.string().optional(),
+  entData: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  entHora: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+  entComprovante: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
 });
-const xmlOut = z.object({ entSaida: z.string().optional() });
+const xmlOut = z.object({
+  entSaida: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined),
+});
 /** Official v1.2 POST. The table specifies tomCnpj; its interactive example uses cnpjTomador.
  * We use the table. Confirm this discrepancy with Alfa during credentialed homologation. */
 export class AlfaAdapter implements CarrierTrackingAdapter {
@@ -101,7 +182,12 @@ export class AlfaAdapter implements CarrierTrackingAdapter {
           processEntities: false,
         }).parse(raw),
       );
-      if (!xml.success) throw new CarrierError("INVALID_ALFA_XML", false);
+      if (!xml.success)
+        throw new CarrierError(
+          "INVALID_ALFA_XML",
+          false,
+          responseDiagnostics(xml.error, raw, "xml"),
+        );
       const r = xml.data.wsRastreamento.rst;
       const embs = r.embarque?.embNF;
       const deliveries = r.entrega?.entNF;
@@ -148,8 +234,21 @@ export class AlfaAdapter implements CarrierTrackingAdapter {
         outgoing: outgoing?.entSaida,
       };
     }
+    // Business failures may return null/partial data sections. Interpret their
+    // documented status before requiring a successful shipment payload.
+    const header = z.object({ status: statusCode }).safeParse(raw);
+    if (header.success && header.data.status !== 2)
+      return {
+        ...responseSchema.parse(header.data),
+        outgoing: undefined as string | undefined,
+      };
     const parsed = responseSchema.safeParse(raw);
-    if (!parsed.success) throw new CarrierError("INVALID_ALFA_RESPONSE", false);
+    if (!parsed.success)
+      throw new CarrierError(
+        "INVALID_ALFA_RESPONSE",
+        false,
+        responseDiagnostics(parsed.error, raw, "json"),
+      );
     return { ...parsed.data, outgoing: undefined as string | undefined };
   }
   private checked(raw: unknown) {
@@ -286,4 +385,78 @@ export class AlfaAdapter implements CarrierTrackingAdapter {
       reason: c.valid ? "CONFIGURED_NOT_LIVE_TESTED" : c.reason,
     };
   }
+}
+
+// Fixed schema field names/types only: no raw values, remote messages or unknown keys.
+function responseDiagnostics(
+  error: z.ZodError,
+  raw: unknown,
+  format: "json" | "xml",
+): CarrierResponseDiagnostics {
+  const known = new Set([
+    "wsRastreamento",
+    "rst",
+    "rstStatus",
+    "@_stsCd",
+    "NF",
+    "@_nro",
+    "NFCtrc",
+    "NFDataPrevista",
+    "embarque",
+    "embNF",
+    "entrega",
+    "entS",
+    "entNF",
+    "status",
+    "dadosCte",
+    "numeroNota",
+    "numeroCte",
+    "dataPrivista",
+    "dataPrevista",
+    "dadosEmbarque",
+    "cidadeOrigem",
+    "cidadeDestino",
+    "horaSaida",
+    "horaChegada",
+    "dadosEntrega",
+    "dataEntrega",
+    "urlComprovante",
+    "ocorrenciasExtras",
+    "codigoOcorrencia",
+    "dataOcorrencia",
+    "descricaoOcorrencia",
+  ]);
+  return {
+    carrier: "ALFA",
+    format,
+    issues: error.issues.slice(0, 12).map((issue) => {
+      let value: unknown = raw;
+      for (const part of issue.path) {
+        if (!value || typeof value !== "object") {
+          value = undefined;
+          break;
+        }
+        value = (value as Record<PropertyKey, unknown>)[part];
+      }
+      return {
+        field:
+          issue.path
+            .map((part) =>
+              typeof part === "number"
+                ? "[]"
+                : known.has(String(part))
+                  ? String(part)
+                  : "?",
+            )
+            .join(".") || "response",
+        code: issue.code,
+        receivedType:
+          value === null
+            ? "null"
+            : Array.isArray(value)
+              ? "array"
+              : typeof value,
+      };
+    }),
+  };
 }

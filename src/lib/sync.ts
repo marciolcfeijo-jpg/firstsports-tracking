@@ -9,6 +9,7 @@ import { AlfaAdapter } from "../../integrations/carriers/alfa";
 import {
   CarrierError,
   type CarrierTrackingAdapter,
+  type CarrierResponseDiagnostics,
   type TrackingResult,
   resultSchema,
 } from "../../integrations/carriers/types";
@@ -85,6 +86,7 @@ export async function syncShipment(
   ok: boolean;
   code?: string;
   diagnostics?: TrackingResult["diagnostics"];
+  responseDiagnostics?: CarrierResponseDiagnostics;
   skipped?: boolean;
 }> {
   const claimed = await db.shipment.updateMany({
@@ -195,7 +197,13 @@ export async function syncShipment(
         },
       }),
     ]);
-    return { ok: false, code };
+    return {
+      ok: false,
+      code,
+      ...(e instanceof CarrierError && e.responseDiagnostics
+        ? { responseDiagnostics: e.responseDiagnostics }
+        : {}),
+    };
   } finally {
     if (lockedCarrier)
       await db.carrier.updateMany({
