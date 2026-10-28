@@ -1,3 +1,5 @@
+import { DeliverySummary } from "@/components/delivery-summary";
+import { deliveryMetrics } from "@/lib/delivery-metrics";
 import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { shipmentWhere } from "@/lib/filters";
@@ -17,22 +19,7 @@ export default async function Dashboard({
     include: { carrier: true, order: true },
     orderBy: { updatedAt: "desc" },
   });
-  const delivered = base.filter((s) => s.status === "DELIVERED"),
-    open = base.filter(
-      (s) => !["DELIVERED", "RETURNED", "CANCELLED"].includes(s.status),
-    ),
-    late = open.filter(
-      (s) => s.estimatedDelivery && s.estimatedDelivery < new Date(),
-    ),
-    ontime = delivered.filter(
-      (s) =>
-        s.deliveredAt &&
-        s.estimatedDelivery &&
-        s.deliveredAt <= s.estimatedDelivery,
-    ),
-    failed = new Set(
-      base.filter((s) => s.lastSyncError).map((s) => s.carrierId),
-    ).size;
+  const metrics = deliveryMetrics(base);
   return (
     <>
       <div className="page-heading">
@@ -46,30 +33,15 @@ export default async function Dashboard({
         </Link>
       </div>
       <Filters values={p} />
-      <div className="grid-3">
-        {[
-          ["Total de remessas", base.length],
-          ["Remessas em aberto", open.length],
-          ["Entregues", delivered.length],
-          ["Em atraso", late.length],
-          [
-            "Com ocorrências",
-            base.filter((s) => s.status === "EXCEPTION").length,
-          ],
-          ["Entregues dentro do prazo", ontime.length],
-          ["Transportadoras com falha", failed],
-        ].map(([label, n]) => (
-          <div key={label} className="card metric">
-            <p>{label}</p>
-            <h2>{n}</h2>
-          </div>
-        ))}
-      </div>
+      <p className="small">
+        Os indicadores abaixo respeitam os filtros selecionados.
+      </p>
+      <DeliverySummary metrics={metrics} />
       <div className="page-heading spaced">
         <h2>Últimas atualizações</h2>
         <Link
           className="text-[var(--brand-purple-dark)] small"
-          href="/admin/remessas"
+          href={"/admin/remessas?" + new URLSearchParams(p)}
         >
           Ver todas →
         </Link>

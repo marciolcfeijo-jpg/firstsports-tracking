@@ -947,3 +947,234 @@ tr:last-child td {
   outline-offset: 4px;
   border-radius: 3px;
 }
+
+/* Delivery performance dashboard: semantic groups, text labels and responsive cards. */
+.delivery-dashboard {
+  display: grid;
+  gap: 24px;
+  margin-top: 22px;
+}
+.delivery-overview,
+.delivery-attention-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.delivery-kpi-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.delivery-kpi-heading svg {
+  color: var(--brand-purple-dark);
+  flex-shrink: 0;
+}
+.delivery-kpi > strong {
+  display: block;
+  font-size: 36px;
+  line-height: 1.2;
+  margin: 16px 0 8px;
+}
+.delivery-kpi p,
+.delivery-section-heading p,
+.delivery-attention-card p {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+.delivery-section-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.delivery-section-heading h2 {
+  font-size: 21px;
+  margin: 0 0 6px;
+}
+.delivery-section-heading > svg {
+  color: var(--brand-purple-dark);
+  flex-shrink: 0;
+}
+.delivery-performance-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+.delivery-rate {
+  border-radius: 14px;
+  padding: 24px;
+  background: #edf9f3;
+  color: #15553c;
+}
+.delivery-rate > span {
+  font-size: 14px;
+  font-weight: 600;
+}
+.delivery-rate > strong {
+  display: block;
+  font-size: 43px;
+  line-height: 1.15;
+  margin: 14px 0;
+}
+.delivery-rate p {
+  font-size: 12px;
+  margin: 0 0 10px;
+}
+.delivery-rate small {
+  display: block;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.delivery-breakdown {
+  min-width: 0;
+}
+.delivery-distribution {
+  display: flex;
+  height: 16px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #eeeaf4;
+  margin: 3px 0 20px;
+}
+.delivery-segment.early {
+  background: #177d71;
+}
+.delivery-segment.on-day {
+  background: #6a45b9;
+}
+.delivery-segment.after {
+  background: #bd3c41;
+}
+.delivery-segment.unknown {
+  background: #c8c6d0;
+}
+.delivery-timing-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.delivery-timing-card {
+  padding: 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  min-width: 0;
+}
+.delivery-timing-card dt {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+}
+.delivery-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.delivery-timing-card.early .delivery-dot {
+  background: #177d71;
+}
+.delivery-timing-card.on-day .delivery-dot {
+  background: #6a45b9;
+}
+.delivery-timing-card.after .delivery-dot {
+  background: #bd3c41;
+}
+.delivery-timing-card dd {
+  margin: 10px 0 7px;
+  font-size: 30px;
+  font-weight: 700;
+}
+.delivery-timing-card p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.delivery-comparison-note,
+.delivery-date-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 16px 0 0;
+}
+.delivery-date-note {
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.delivery-attention-grid {
+  margin: 0;
+}
+.delivery-attention-card dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.delivery-attention-card dd {
+  margin: 12px 0 8px;
+  font-size: 32px;
+  font-weight: 700;
+}
+.delivery-attention-card.late {
+  border-top: 3px solid #bd3c41;
+}
+.delivery-attention-card.late dt {
+  color: #a12a31;
+}
+.delivery-attention-card.exception {
+  border-top: 3px solid #b77b15;
+}
+.delivery-attention-card.exception dt {
+  color: #82530a;
+}
+.delivery-attention-card.no-forecast {
+  border-top: 3px solid #78628e;
+}
+.delivery-integration-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.delivery-integration-note svg {
+  flex-shrink: 0;
+  color: var(--brand-purple-dark);
+}
+.delivery-integration-note p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (max-width: 1000px) {
+  .delivery-performance-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}
+@media (max-width: 640px) {
+  .delivery-overview,
+  .delivery-attention-grid,
+  .delivery-timing-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .delivery-kpi > strong {
+    font-size: 32px;
+  }
+  .delivery-performance {
+    padding: 20px;
+  }
+  .delivery-rate > strong {
+    font-size: 38px;
+  }
+}
