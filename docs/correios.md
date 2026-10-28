@@ -33,3 +33,13 @@ Resposta: `objetos[].codObjeto`, `dtPrevista` e `eventos[]` com `codigo`, `tipo`
 O código do objeto é separado do CT-e. Após uma sincronização, não pode ser substituído por outro objeto na mesma remessa, para evitar mistura de históricos. Na planilha, a coluna opcional `codigo_rastreio` foi acrescentada ao modelo; seu preenchimento é obrigatório para linhas CORREIOS. Planilhas anteriores de Braspress/Alfa continuam válidas.
 
 Erros: CREDENTIALS_MISSING (configuração), TRACKING_CODE_REQUIRED (código ausente/inválido), AUTH_FAILED (credencial ou permissão rejeitada), NOT_FOUND (objeto não corresponde à consulta), TRACKING_UNAVAILABLE (sem eventos disponíveis). Uma configuração presente não equivale a uma consulta autenticada bem-sucedida.
+
+## Diagnóstico HTTP
+
+Falhas HTTP dos Correios incluem no diagnóstico `response.carrier: CORREIOS`, `operation: token|tracking`, `environment: production|homologacao` e `httpStatus` numérico. A operação token corresponde à geração do Bearer via cartão de postagem; tracking corresponde à consulta SRO do objeto. O painel mostra e permite copiar esses campos, e o fluxo de auditoria existente os persiste.
+
+Não são registrados URL, objeto, documentos, cartão, cabeçalhos, token nem corpo/mensagem remota. Os códigos AUTH_FAILED (401/403), RATE_LIMITED (429), NOT_FOUND (404) e UPSTREAM_HTTP_ERROR (demais erros HTTP) continuam compatíveis com as políticas existentes de tentativa. O contexto adicional é opcional e usado somente pelos Correios; não altera os demais conectores. Erros de rede/timeout sem resposta HTTP não recebem um status inventado.
+
+Após publicar, repetir a consulta e copiar o diagnóstico novo. Registros anteriores não permitem recuperar retroativamente o status HTTP descartado. HTTP 400/422 indica rejeição que exige conferir o contrato e os dados enviados; 401/403 exige verificar autenticação/permissões na operação indicada; 5xx indica erro reportado pelo serviço remoto, sem comprovar uma indisponibilidade geral.
+
+Validação com respostas simuladas; não houve teste autenticado da conta real neste ambiente. O build completo depende da geração do cliente Prisma.

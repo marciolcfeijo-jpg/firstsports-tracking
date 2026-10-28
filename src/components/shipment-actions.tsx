@@ -137,10 +137,15 @@ export function ShipmentActions(p: Props) {
         </p>
         {responseDiagnostics && (
           <details className="small spaced" open>
-            <summary>Diagnóstico do formato da resposta Alfa</summary>
+            <summary>
+              {responseDiagnostics.carrier === "CORREIOS"
+                ? "Diagnóstico HTTP dos Correios"
+                : "Diagnóstico do formato da resposta Alfa"}
+            </summary>
             <p>
-              Somente campos e tipos incompatíveis; nenhum valor da remessa ou
-              credencial é exibido.
+              {responseDiagnostics.carrier === "CORREIOS"
+                ? "Etapa, ambiente e código HTTP da chamada. Nenhum token ou credencial é exibido."
+                : "Somente campos e tipos incompatíveis; nenhum valor da remessa ou credencial é exibido."}
             </p>
             <pre className="overflow-auto !my-3">
               {JSON.stringify(responseDiagnostics, null, 2)}

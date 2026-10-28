@@ -91,6 +91,10 @@ export class CorreiosAdapter implements CarrierTrackingAdapter {
       process.env.CORREIOS_ENVIRONMENT === "homologacao"
         ? "https://apihom.correios.com.br"
         : "https://api.correios.com.br";
+    const environment =
+      process.env.CORREIOS_ENVIRONMENT === "homologacao"
+        ? ("homologacao" as const)
+        : ("production" as const);
     // Generate a fresh token server-side. No token or carrier payload is logged or persisted.
     const rawToken = await carrierRequest(
       host + "/token/v1/autentica/cartaopostagem",
@@ -110,6 +114,8 @@ export class CorreiosAdapter implements CarrierTrackingAdapter {
         body: JSON.stringify({ numero: process.env.CORREIOS_POSTING_CARD }),
       },
       this.fetcher,
+      false,
+      { carrier: "CORREIOS", operation: "token", environment },
     );
     const auth = z.object({ token: z.string().min(1) }).safeParse(rawToken);
     if (!auth.success) throw new CarrierError("INVALID_CORREIOS_TOKEN", false);
@@ -126,6 +132,8 @@ export class CorreiosAdapter implements CarrierTrackingAdapter {
         },
       },
       this.fetcher,
+      false,
+      { carrier: "CORREIOS", operation: "tracking", environment },
     );
     const parsed = payloadSchema.safeParse(raw);
     if (!parsed.success)

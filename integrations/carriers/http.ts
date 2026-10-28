@@ -1,9 +1,10 @@
-import { CarrierError } from "./types";
+import { CarrierError, type CorreiosRequestContext } from "./types";
 export async function carrierRequest(
   url: string,
   init: RequestInit,
   fetcher: typeof fetch = fetch,
   allowXml = false,
+  context?: CorreiosRequestContext,
 ): Promise<unknown> {
   try {
     const response = await fetcher(url, {
@@ -24,6 +25,7 @@ export async function carrierRequest(
         response.status === 429 ||
           response.status >= 500 ||
           response.status === 404,
+        context ? { ...context, httpStatus: response.status } : undefined,
       );
     const contentType = response.headers.get("content-type") || "";
     if (

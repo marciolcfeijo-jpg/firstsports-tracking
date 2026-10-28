@@ -162,3 +162,40 @@ it("does not confuse failed delivery attempts with confirmed delivery", () => {
     "EXCEPTION",
   );
 });
+
+it.each([
+  ["token", 400],
+  ["token", 401],
+  ["tracking", 403],
+  ["tracking", 503],
+] as const)(
+  "reports only safe HTTP context for %s failures (%i)",
+  async (operation, status) => {
+    configure();
+    const fetcher = vi.fn<typeof fetch>();
+    if (operation === "tracking")
+      fetcher.mockResolvedValueOnce(json({ token: "PRIVATE_TOKEN" }));
+    fetcher.mockResolvedValueOnce(
+      new Response("PRIVATE_REMOTE_ERROR", { status }),
+    );
+    try {
+      await new CorreiosAdapter(fetcher).trackShipment(input);
+      expect.fail("Expected carrier error");
+    } catch (error) {
+      expect(error).toMatchObject({
+        code:
+          status === 401 || status === 403
+            ? "AUTH_FAILED"
+            : "UPSTREAM_HTTP_ERROR",
+        responseDiagnostics: {
+          carrier: "CORREIOS",
+          operation,
+          environment: "production",
+          httpStatus: status,
+        },
+      });
+      expect(JSON.stringify(error)).not.toContain("PRIVATE");
+      if (operation === "token") expect(fetcher).toHaveBeenCalledTimes(1);
+    }
+  },
+);
