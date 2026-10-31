@@ -75,6 +75,57 @@ it("processes at most three sequentially and resumes the same pending run", asyn
   });
   expect(run).toHaveBeenCalledTimes(5);
 });
+it("persists a selection across pause and resume without consulting other shipments", async () => {
+  const selected = [await create(1), await create(2)];
+  const outside = await create(3);
+  const future = await create(4);
+  await db.shipment.update({
+    where: { id: future },
+    data: { nextSyncAt: new Date(Date.now() + 3600000) },
+  });
+  const start = (await startBulkSync("test", [
+    ...selected,
+    future,
+    selected[0],
+  ]))!;
+  expect(start).toMatchObject({ total: 2, selectedCount: 3 });
+  await pauseBulkSync(start.runId, "test");
+  await expect(startBulkSync("test", [outside])).rejects.toThrow(
+    "Conclua o lote atual",
+  );
+  const resumed = (await startBulkSync("another-operator"))!;
+  expect(resumed.runId).toBe(start.runId);
+  const run = vi.fn(success);
+  const done = await processBulkSync(start.runId, "test", run, noDelay);
+  expect(run.mock.calls.map(([id]) => id).sort()).toEqual([...selected].sort());
+  expect(done).toMatchObject({
+    status: "DONE",
+    processed: 2,
+    remaining: 0,
+    selectedCount: 3,
+  });
+  expect(
+    (await db.shipment.findUniqueOrThrow({ where: { id: outside } }))
+      .lastSyncedAt,
+  ).toBeNull();
+  const global = await startBulkSync("test");
+  expect(global).toMatchObject({ total: 1, selectedCount: 0 });
+});
+it("does not expand a selected run when none of its shipments is eligible", async () => {
+  const delivered = await create(1);
+  await create(2);
+  await db.shipment.update({
+    where: { id: delivered },
+    data: { status: "DELIVERED" },
+  });
+  const start = await startBulkSync("test", [delivered, "nonexistent"]);
+  expect(start).toMatchObject({
+    total: 0,
+    remaining: 0,
+    status: "DONE",
+    selectedCount: 2,
+  });
+});
 it("excludes completed, disabled and future checks and pauses for a leased shipment", async () => {
   const open = await create(1),
     delivered = await create(2),

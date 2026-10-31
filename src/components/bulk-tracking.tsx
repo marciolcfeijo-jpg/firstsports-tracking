@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RefreshCw } from "lucide-react";
 import type { BulkSummary } from "@/lib/bulk-sync";
+import { useShipmentSelection } from "./shipment-selection";
 const endpoint = "/api/admin/shipments/sync-pending";
 export function BulkTracking() {
+  const selection = useShipmentSelection();
   const [summary, setSummary] = useState<BulkSummary | null>(null);
   const [running, setRunning] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -48,18 +50,19 @@ export function BulkTracking() {
       throw new Error(data.error || "Não foi possível atualizar as remessas.");
     return data;
   }
-  async function update(retrySuspended = false) {
+  async function update(retrySuspended = false, shipmentIds?: string[]) {
     if (working.current) return;
     working.current = true;
     stop.current = false;
     setRunning(true);
+    selection?.setBusy(true);
     setStopping(false);
     setError("");
     try {
       let current = await send(
         retrySuspended && summary
           ? { action: "retry", runId: summary.runId }
-          : { action: "start" },
+          : { action: "start", ...(shipmentIds ? { shipmentIds } : {}) },
       );
       if (mounted.current) setSummary(current);
       while (!stop.current && current.status !== "DONE") {
@@ -86,6 +89,7 @@ export function BulkTracking() {
     } finally {
       working.current = false;
       if (mounted.current) {
+        selection?.setBusy(false);
         setRunning(false);
         setStopping(false);
       }
@@ -95,12 +99,33 @@ export function BulkTracking() {
     <section className="card !mb-6" aria-labelledby="bulk-tracking-title">
       <h3 id="bulk-tracking-title">Atualização de rastreamento em massa</h3>
       <p className="small">
-        Consulta todas as remessas abertas com checagem vencida e transportadora
-        habilitada, independentemente dos filtros abaixo. Respeita os intervalos
-        de nova tentativa e os bloqueios de consultas em andamento. A ordem é da
-        data de emissão mais antiga para a mais recente.
+        Atualize as remessas selecionadas nesta página ou todas as pendentes,
+        independentemente dos filtros abaixo. São consultadas apenas remessas
+        abertas com checagem vencida e transportadora habilitada. Os intervalos
+        de nova tentativa e os bloqueios de consultas em andamento são
+        respeitados, da emissão mais antiga para a mais recente.
       </p>
       <div className="actions">
+        {selection && (
+          <>
+            <button
+              className="button"
+              disabled={
+                !selection.selected.length ||
+                running ||
+                !!summary?.busy ||
+                !!(summary && summary.status !== "DONE")
+              }
+              onClick={() => update(false, [...selection.selected])}
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              Atualizar selecionadas
+            </button>
+            <span className="small" role="status">
+              {selection.selected.length} remessa(s) selecionada(s) nesta página
+            </span>
+          </>
+        )}
         <button
           className="button"
           disabled={
@@ -119,7 +144,7 @@ export function BulkTracking() {
           {running
             ? "Atualizando remessas…"
             : summary && summary.status !== "DONE"
-              ? "Retomar atualização de pendentes"
+              ? "Retomar atualização do lote"
               : "Atualizar pendentes em massa"}
         </button>
         {!running &&
@@ -147,9 +172,23 @@ export function BulkTracking() {
           </button>
         )}
       </div>
+      {selection && (
+        <p className="small !mt-3 !mb-0">
+          A seleção vale apenas para esta página. Apenas remessas abertas com
+          checagem vencida e transportadora habilitada serão consultadas,
+          respeitando os mesmos limites da atualização de pendentes.
+          {summary && summary.status !== "DONE"
+            ? " Conclua o lote atual antes de iniciar outra seleção."
+            : ""}
+        </p>
+      )}
       {summary && (
         <div role="status" aria-live="polite" className="small spaced">
           <p className="!mb-1">
+            Escopo:{" "}
+            {summary.selectedCount
+              ? `${summary.selectedCount} remessa(s) selecionada(s).`
+              : "Todas as pendentes."}{" "}
             {summary.status === "DONE"
               ? "Atualização encerrada."
               : summary.status === "PAUSED"
@@ -184,7 +223,7 @@ export function BulkTracking() {
           </p>
           {summary.status === "DONE" && summary.total === 0 && (
             <p className="!mb-1">
-              Nenhuma remessa pendente de checagem neste momento.
+              Nenhuma remessa elegível para checagem neste lote.
             </p>
           )}
           {summary.remaining > 0 && (

@@ -4,6 +4,8 @@ JSON UTF-8, erros `{ "error": "mensagem" }`, status HTTP 400 (validação), 401 
 
 Mutações de navegador exigem `Origin` igual à origem de `APP_URL`, além do cookie Supabase para a área administrativa. Os handlers conferem identidade e papel no servidor. GETs são apenas leitura. CLI do scheduler usa Bearer e não cookies.
 
+`POST /api/admin/shipments/sync-pending` aceita `{action:"start", shipmentIds:["id1","id2"]}` para um lote restrito a 1–50 IDs (duplicados são deduplicados). Omitir `shipmentIds` mantém a atualização global de pendentes ou retoma o lote existente; uma lista vazia é inválida. Uma seleção diferente durante um lote ativo/pausado retorna 409. Os comandos `next`, `pause` e `retry` continuam usando apenas `runId` e preservam o escopo salvo. `GET` e as respostas de progresso incluem `selectedCount` (zero para o lote global). Apenas ADMIN/OPERATOR podem iniciar ou processar lotes; permanecem os limites e critérios de elegibilidade existentes.
+
 | Método e caminho                         | Entrada / retorno                                                                                            | Permissão                               |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- |
 | POST `/api/tracking/lookup`              | `{number,document}`; `{links:[{url}]}` após validar NF e CPF/CNPJ completo                                   | Pública, quotas globais e por documento |
