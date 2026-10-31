@@ -363,18 +363,16 @@ export class AlfaAdapter implements CarrierTrackingAdapter {
     if (Number(data.dadosCte!.numeroNota) !== Number(input.invoiceNumber))
       throw new CarrierError("INVOICE_MISMATCH", false);
     const events = this.normalizeEvents(raw);
-    const deliveredAt = carrierDate(data.dadosEntrega?.dataEntrega);
-    const latest =
-      events.findLast((event) => event.status !== "UNKNOWN")?.status ||
-      "UNKNOWN";
+    const latest = events.findLast((event) => event.status !== "UNKNOWN");
+    // Alfa can confirm delivery only in ocorrenciasExtras. Its dated event is
+    // sufficient, but an older delivery must not override a later return.
+    const deliveredAt =
+      carrierDate(data.dadosEntrega?.dataEntrega) ||
+      (latest?.status === "DELIVERED" ? latest.occurredAt : undefined);
     return {
       carrier: "ALFA",
       trackingNumber: data.dadosCte!.numeroCte,
-      currentStatus: deliveredAt
-        ? "DELIVERED"
-        : latest === "DELIVERED"
-          ? "UNKNOWN"
-          : latest,
+      currentStatus: deliveredAt ? "DELIVERED" : latest?.status || "UNKNOWN",
       estimatedDelivery: carrierDate(
         data.dadosCte!.dataPrivista || data.dadosCte!.dataPrevista,
         true,
