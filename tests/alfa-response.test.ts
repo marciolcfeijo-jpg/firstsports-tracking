@@ -201,6 +201,141 @@ it("still confirms a delivery supplied as a proper object", async () => {
   expect(result.deliveredAt).toBe("2026-10-27T18:30:00.000Z");
 });
 
+it.each(
+  [undefined, null, "", {}, { dataEntrega: null }, { dataEntrega: "" }].map(
+    (dadosEntrega) => ({ dadosEntrega }),
+  ),
+)(
+  "confirms a dated delivery occurrence when the delivery section is missing ($dadosEntrega)",
+  async ({ dadosEntrega }) => {
+    const result = resultSchema.parse(
+      await adapter({
+        ...alfaFixture,
+        dadosEmbarque: null,
+        dadosEntrega,
+        ocorrenciasExtras: [
+          {
+            codigoOcorrencia: 3,
+            dataOcorrencia: "26/09/2026 08:00",
+            descricaoOcorrencia: "Comprovante digitalizado",
+          },
+          {
+            codigoOcorrencia: 2,
+            dataOcorrencia: "25/09/2026 20:08",
+            descricaoOcorrencia: "ENTREGA REALIZADA",
+          },
+          {
+            codigoOcorrencia: 1,
+            dataOcorrencia: "25/09/2026 09:20",
+            descricaoOcorrencia: "MERCADORIA EM ROTA DE ENTREGA",
+          },
+        ],
+      }).trackShipment(input),
+    );
+    expect(result).toMatchObject({
+      currentStatus: "DELIVERED",
+      deliveredAt: "2026-09-25T23:08:00.000Z",
+    });
+    expect(result.events[1]).toMatchObject({
+      status: "DELIVERED",
+      occurredAt: result.deliveredAt,
+      dateOnly: false,
+    });
+    expect(result.events[2].status).toBe("UNKNOWN");
+  },
+);
+
+it("preserves date-only precision when delivery is confirmed by an occurrence", async () => {
+  const result = resultSchema.parse(
+    await adapter({
+      ...alfaFixture,
+      dadosEmbarque: null,
+      dadosEntrega: null,
+      ocorrenciasExtras: [
+        {
+          codigoOcorrencia: 1,
+          dataOcorrencia: "25/09/2026",
+          descricaoOcorrencia: "ENTREGA REALIZADA",
+        },
+      ],
+    }).trackShipment(input),
+  );
+  expect(result).toMatchObject({
+    currentStatus: "DELIVERED",
+    deliveredAt: "2026-09-25T03:00:00.000Z",
+  });
+  expect(
+    result.events.find((event) => event.status === "DELIVERED"),
+  ).toMatchObject({ dateOnly: true, occurredAt: result.deliveredAt });
+});
+
+it("prefers the explicit delivery date when it differs from the occurrence", async () => {
+  const result = resultSchema.parse(
+    await adapter({
+      ...alfaFixture,
+      dadosEmbarque: null,
+      dadosEntrega: { dataEntrega: "25/09/2026 20:08" },
+      ocorrenciasExtras: [
+        {
+          codigoOcorrencia: 1,
+          dataOcorrencia: "25/09/2026 20:10",
+          descricaoOcorrencia: "ENTREGA REALIZADA",
+        },
+      ],
+    }).trackShipment(input),
+  );
+  expect(result).toMatchObject({
+    currentStatus: "DELIVERED",
+    deliveredAt: "2026-09-25T23:08:00.000Z",
+  });
+});
+
+it.each([
+  ["NÃO ENTREGUE - DESTINATÁRIO AUSENTE", "EXCEPTION"],
+  ["MERCADORIA EM ROTA DE ENTREGA", "OUT_FOR_DELIVERY"],
+])("does not infer delivery from %s", async (description, status) => {
+  const result = resultSchema.parse(
+    await adapter({
+      ...alfaFixture,
+      dadosEmbarque: null,
+      dadosEntrega: null,
+      ocorrenciasExtras: [
+        {
+          codigoOcorrencia: 1,
+          dataOcorrencia: "25/09/2026 20:08",
+          descricaoOcorrencia: description,
+        },
+      ],
+    }).trackShipment(input),
+  );
+  expect(result.currentStatus).toBe(status);
+  expect(result.deliveredAt).toBeUndefined();
+});
+
+it("keeps a later return status instead of restoring an earlier delivery occurrence", async () => {
+  const result = resultSchema.parse(
+    await adapter({
+      ...alfaFixture,
+      dadosEmbarque: null,
+      dadosEntrega: null,
+      ocorrenciasExtras: [
+        {
+          codigoOcorrencia: 1,
+          dataOcorrencia: "25/09/2026 20:08",
+          descricaoOcorrencia: "ENTREGA REALIZADA",
+        },
+        {
+          codigoOcorrencia: 2,
+          dataOcorrencia: "26/09/2026 09:00",
+          descricaoOcorrencia: "DEVOLVIDO AO REMETENTE",
+        },
+      ],
+    }).trackShipment(input),
+  );
+  expect(result.currentStatus).toBe("RETURNED");
+  expect(result.deliveredAt).toBeUndefined();
+});
+
 it("classifies the reported unit departure as in transit and keeps a later administrative record", async () => {
   const result = resultSchema.parse(
     await adapter({
