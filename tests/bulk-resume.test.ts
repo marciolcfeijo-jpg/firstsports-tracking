@@ -10,6 +10,7 @@ const mock = vi.hoisted(() => ({
     succeeded: 0,
     failed: 0,
     blockedCarriers: [] as string[],
+    shipmentIds: [] as string[],
     errors: {} as Record<string, string>,
     leaseUntil: null as Date | null,
     leaseToken: null as string | null,
@@ -23,6 +24,15 @@ const mock = vi.hoisted(() => ({
 vi.mock("../src/lib/sync", () => ({ syncShipment: vi.fn() }));
 vi.mock("../src/lib/db", () => ({
   db: {
+    $transaction: async (callback: (tx: unknown) => Promise<void>) =>
+      callback({
+        bulkSync: {
+          upsert: async () => ({ ...mock.batch }),
+          updateMany: mock.update,
+        },
+        shipment: { count: mock.count },
+        auditLog: { create: mock.audit },
+      }),
     bulkSync: {
       updateMany: mock.update,
       findUnique: async () => ({ ...mock.batch }),
@@ -36,7 +46,11 @@ vi.mock("../src/lib/db", () => ({
     auditLog: { create: mock.audit },
   },
 }));
-import { processBulkSync, retryBlockedCarriers } from "../src/lib/bulk-sync";
+import {
+  processBulkSync,
+  retryBlockedCarriers,
+  startBulkSync,
+} from "../src/lib/bulk-sync";
 beforeEach(() => {
   vi.resetAllMocks();
   Object.assign(mock.batch, {
@@ -47,6 +61,7 @@ beforeEach(() => {
     succeeded: 0,
     failed: 0,
     blockedCarriers: [],
+    shipmentIds: [],
     errors: {},
     leaseUntil: null,
     leaseToken: null,
@@ -180,4 +195,75 @@ it("does not count a shipment leased by another process as a failure", async () 
   );
   expect(run).not.toHaveBeenCalled();
   expect(summary).toMatchObject({ status: "PAUSED", processed: 0, failed: 0 });
+});
+it("keeps selection scope and carrier circuit breakers in every query after resume and retry", async () => {
+  mock.batch.shipmentIds = ["selected-one", "selected-two"];
+  mock.batch.blockedCarriers = ["ALFA"];
+  mock.find.mockResolvedValue(null);
+  const run = vi.fn(async () => ({ ok: true }));
+  const summary = await processBulkSync(
+    mock.batch.runId,
+    "operator",
+    run,
+    async () => {},
+  );
+  expect(summary?.selectedCount).toBe(2);
+  expect(mock.find).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: {
+        AND: expect.arrayContaining([
+          expect.objectContaining({
+            id: { in: mock.batch.shipmentIds },
+            nextSyncAt: { lte: mock.batch.cutoff },
+            carrier: { enabled: true, code: { notIn: ["ALFA"] } },
+          }),
+        ]),
+      },
+    }),
+  );
+  for (const [query] of mock.count.mock.calls)
+    expect(query.where.id).toEqual({ in: mock.batch.shipmentIds });
+  await retryBlockedCarriers(mock.batch.runId, "operator");
+  expect(mock.batch.shipmentIds).toEqual(["selected-one", "selected-two"]);
+  expect(mock.shipmentUpdate).not.toHaveBeenCalled();
+  expect(run).not.toHaveBeenCalled();
+});
+it("stores a deduplicated selection and counts only eligible selected shipments", async () => {
+  mock.batch.status = "DONE";
+  await startBulkSync("operator", ["two", "one", "two"]);
+  expect(mock.batch.shipmentIds).toEqual(["one", "two"]);
+  expect(mock.count).toHaveBeenCalledWith({
+    where: expect.objectContaining({
+      id: { in: ["one", "two"] },
+      status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] },
+      nextSyncAt: { lte: expect.any(Date) },
+      carrier: { enabled: true, code: { notIn: [] } },
+    }),
+  });
+});
+it("rejects a new selection during another run and resumes the persisted selection", async () => {
+  mock.batch.shipmentIds = ["one", "two"];
+  await expect(startBulkSync("operator", ["outside"])).rejects.toThrow(
+    "Conclua o lote atual",
+  );
+  expect(mock.update).not.toHaveBeenCalled();
+  expect((await startBulkSync("operator"))?.selectedCount).toBe(2);
+  expect((await startBulkSync("operator", ["two", "one"]))?.runId).toBe(
+    mock.batch.runId,
+  );
+});
+it("does not turn an explicit empty selection into a global update", async () => {
+  await expect(startBulkSync("operator", [])).rejects.toThrow(
+    "Selecione entre 1 e 50",
+  );
+  expect(mock.update).not.toHaveBeenCalled();
+});
+it("clears the previous selection when starting a new global queue after completion", async () => {
+  mock.batch.status = "DONE";
+  mock.batch.shipmentIds = ["old-selection"];
+  const summary = await startBulkSync("operator");
+  expect(mock.batch.shipmentIds).toEqual([]);
+  expect(summary?.selectedCount).toBe(0);
+  for (const [query] of mock.count.mock.calls)
+    expect(query.where).not.toHaveProperty("id");
 });

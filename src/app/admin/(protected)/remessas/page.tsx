@@ -1,6 +1,11 @@
 import { TrackingAvailability } from "@/components/tracking-availability";
 import { ShipmentRow } from "@/components/shipment-row";
 import { BulkTracking } from "@/components/bulk-tracking";
+import {
+  ShipmentSelection,
+  ShipmentCheckbox,
+  SelectPageCheckbox,
+} from "@/components/shipment-selection";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
 import { shipmentWhere } from "@/lib/filters";
@@ -50,72 +55,95 @@ export default async function Shipments({
           </Link>
         </div>
       </div>
-      {user.role !== "VIEWER" && <BulkTracking />}
-      <Filters values={p} />
-      <p className="small">Clique em uma remessa para abrir os detalhes.</p>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              {[
-                "Pedido / NF",
-                "Cliente",
-                "Transportadora",
-                "Vendedor / representante",
-                "Emissão",
-                "Previsão",
-                "Status",
-                "Última consulta",
-                "Ações",
-              ].map((h) => (
-                <th key={h}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((s) => (
-              <ShipmentRow key={s.id} href={"/admin/remessas/" + s.id}>
-                <td>
-                  <Link
-                    className="shipment-order-link"
-                    href={"/admin/remessas/" + s.id}
-                    aria-label={"Abrir detalhes do pedido " + s.order.number}
-                  >
-                    <strong>{s.order.number}</strong>
-                    <span className="muted">
-                      NF {s.invoices.map((i) => i.number).join(", ")}
+      <ShipmentSelection
+        key={JSON.stringify([p, items.map((s) => s.id)])}
+        ids={items.map((s) => s.id)}
+      >
+        {user.role !== "VIEWER" && <BulkTracking />}
+        <Filters values={p} />
+        <p className="small">Clique em uma remessa para abrir os detalhes.</p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {user.role !== "VIEWER" && (
+                  <th>
+                    <SelectPageCheckbox />
+                  </th>
+                )}
+                {[
+                  "Pedido / NF",
+                  "Cliente",
+                  "Transportadora",
+                  "Vendedor / representante",
+                  "Emissão",
+                  "Previsão",
+                  "Status",
+                  "Última consulta",
+                  "Ações",
+                ].map((h) => (
+                  <th key={h}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((s) => (
+                <ShipmentRow key={s.id} href={"/admin/remessas/" + s.id}>
+                  {user.role !== "VIEWER" && (
+                    <td>
+                      <ShipmentCheckbox
+                        id={s.id}
+                        label={
+                          "Selecionar pedido " +
+                          s.order.number +
+                          ", NF " +
+                          s.invoices.map((i) => i.number).join(", ")
+                        }
+                      />
+                    </td>
+                  )}
+                  <td>
+                    <Link
+                      className="shipment-order-link"
+                      href={"/admin/remessas/" + s.id}
+                      aria-label={"Abrir detalhes do pedido " + s.order.number}
+                    >
+                      <strong>{s.order.number}</strong>
+                      <span className="muted">
+                        NF {s.invoices.map((i) => i.number).join(", ")}
+                      </span>
+                      <span className="shipment-open-hint">Ver detalhes →</span>
+                    </Link>
+                  </td>
+                  <td>{s.order.customer.name}</td>
+                  <td>{s.carrier.name}</td>
+                  <td>{s.seller?.email || "Sem vendedor"}</td>
+                  <td>{dateOnly(s.issuedAt)}</td>
+                  <td>{dateOnly(s.estimatedDelivery)}</td>
+                  <td>
+                    <span className={"badge " + s.status}>
+                      {statusLabels[s.status]}
                     </span>
-                    <span className="shipment-open-hint">Ver detalhes →</span>
-                  </Link>
-                </td>
-                <td>{s.order.customer.name}</td>
-                <td>{s.carrier.name}</td>
-                <td>{s.seller?.email || "Sem vendedor"}</td>
-                <td>{dateOnly(s.issuedAt)}</td>
-                <td>{dateOnly(s.estimatedDelivery)}</td>
-                <td>
-                  <span className={"badge " + s.status}>
-                    {statusLabels[s.status]}
-                  </span>
-                  <TrackingAvailability error={s.lastSyncError} />
-                </td>
-                <td>{dateTime(s.lastSyncedAt)}</td>
-                <td>
-                  <Link
-                    className="text-[var(--brand-purple-dark)]"
-                    href={"/admin/remessas/" + s.id}
-                  >
-                    Visualizar →
-                  </Link>
-                </td>
-              </ShipmentRow>
-            ))}
-          </tbody>
-        </table>
-        {!items.length && (
-          <div className="empty">Nenhuma remessa encontrada.</div>
-        )}
-      </div>
+                    <TrackingAvailability error={s.lastSyncError} />
+                  </td>
+                  <td>{dateTime(s.lastSyncedAt)}</td>
+                  <td>
+                    <Link
+                      className="text-[var(--brand-purple-dark)]"
+                      href={"/admin/remessas/" + s.id}
+                    >
+                      Visualizar →
+                    </Link>
+                  </td>
+                </ShipmentRow>
+              ))}
+            </tbody>
+          </table>
+          {!items.length && (
+            <div className="empty">Nenhuma remessa encontrada.</div>
+          )}
+        </div>
+      </ShipmentSelection>
       <div className="actions spaced">
         {page > 1 && (
           <Link

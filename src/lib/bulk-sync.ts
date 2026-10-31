@@ -35,6 +35,7 @@ const STOP_CARRIER = new Set([
   "SYNC_FAILED",
 ]);
 export type BulkSummary = {
+  selectedCount: number;
   runId: string;
   status: string;
   total: number;
@@ -49,8 +50,10 @@ export type BulkSummary = {
 function pendingWhere(
   cutoff: Date,
   blocked: string[] = [],
+  shipmentIds: string[] = [],
 ): Prisma.ShipmentWhereInput {
   return {
+    ...(shipmentIds.length ? { id: { in: shipmentIds } } : {}),
     status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] },
     nextSyncAt: { lte: cutoff },
     carrier: { enabled: true, code: { notIn: blocked } },
@@ -67,12 +70,19 @@ export async function bulkSummary(
       "O lote anterior foi encerrado e uma nova atualização já começou. Confira o progresso atual.",
     );
   const [remaining, eligible] = await Promise.all([
-    db.shipment.count({ where: pendingWhere(batch.cutoff) }),
     db.shipment.count({
-      where: pendingWhere(batch.cutoff, batch.blockedCarriers),
+      where: pendingWhere(batch.cutoff, [], batch.shipmentIds),
+    }),
+    db.shipment.count({
+      where: pendingWhere(
+        batch.cutoff,
+        batch.blockedCarriers,
+        batch.shipmentIds,
+      ),
     }),
   ]);
   return {
+    selectedCount: batch.shipmentIds?.length ?? 0,
     runId: batch.runId,
     status: batch.status,
     total: batch.total,
@@ -85,7 +95,10 @@ export async function bulkSummary(
     errors: batch.errors as Record<string, string>,
   };
 }
-export async function startBulkSync(actorId: string) {
+export async function startBulkSync(actorId: string, selection?: string[]) {
+  const shipmentIds = selection ? [...new Set(selection)].sort() : [];
+  if (selection && (!shipmentIds.length || selection.length > 50))
+    throw new HttpError(400, "Selecione entre 1 e 50 remessas da página.");
   await db.$transaction(async (tx) => {
     const now = new Date();
     const current = await tx.bulkSync.upsert({
@@ -93,13 +106,27 @@ export async function startBulkSync(actorId: string) {
       create: { id: ID, runId: randomUUID(), cutoff: now },
       update: {},
     });
-    if (["ACTIVE", "PAUSED"].includes(current.status)) return;
-    const total = await tx.shipment.count({ where: pendingWhere(now) });
+    if (["ACTIVE", "PAUSED"].includes(current.status)) {
+      if (
+        selection &&
+        JSON.stringify([...(current.shipmentIds ?? [])].sort()) !==
+          JSON.stringify(shipmentIds)
+      )
+        throw new HttpError(
+          409,
+          "Conclua o lote atual antes de atualizar outra seleção.",
+        );
+      return;
+    }
+    const total = await tx.shipment.count({
+      where: pendingWhere(now, [], shipmentIds),
+    });
     const runId = randomUUID();
     const claim = await tx.bulkSync.updateMany({
       where: { id: ID, runId: current.runId, status: "DONE" },
       data: {
         runId,
+        shipmentIds,
         cutoff: now,
         total,
         status: total ? "ACTIVE" : "DONE",
@@ -179,7 +206,7 @@ export async function processBulkSync(
       const shipment = await db.shipment.findFirst({
         where: {
           AND: [
-            pendingWhere(batch.cutoff, [...blocked]),
+            pendingWhere(batch.cutoff, [...blocked], batch.shipmentIds),
             { id: { notIn: seen } },
             { OR: [{ leaseUntil: null }, { leaseUntil: { lt: now } }] },
             {
@@ -221,8 +248,12 @@ export async function processBulkSync(
       });
     }
     const [remaining, eligible] = await Promise.all([
-      db.shipment.count({ where: pendingWhere(batch.cutoff) }),
-      db.shipment.count({ where: pendingWhere(batch.cutoff, [...blocked]) }),
+      db.shipment.count({
+        where: pendingWhere(batch.cutoff, [], batch.shipmentIds),
+      }),
+      db.shipment.count({
+        where: pendingWhere(batch.cutoff, [...blocked], batch.shipmentIds),
+      }),
     ]);
     await db.bulkSync.updateMany({
       where: { id: ID, runId, leaseToken: token },

@@ -11,7 +11,14 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 120;
 const actionSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("start") }),
+  z.object({
+    action: z.literal("start"),
+    shipmentIds: z
+      .array(z.string().trim().min(1).max(128))
+      .min(1)
+      .max(50)
+      .optional(),
+  }),
   z.object({ action: z.literal("next"), runId: z.uuid() }),
   z.object({ action: z.literal("pause"), runId: z.uuid() }),
   z.object({ action: z.literal("retry"), runId: z.uuid() }),
@@ -31,7 +38,9 @@ export async function POST(request: Request) {
     const body = actionSchema.parse(await request.json());
     if (body.action === "start") {
       await rateLimit("bulk-sync:start:" + actor.id, 3, 60);
-      return Response.json(await startBulkSync(actor.id), { headers: noStore });
+      return Response.json(await startBulkSync(actor.id, body.shipmentIds), {
+        headers: noStore,
+      });
     }
     if (body.action === "retry") {
       await rateLimit("bulk-sync:retry:" + actor.id, 3, 60);

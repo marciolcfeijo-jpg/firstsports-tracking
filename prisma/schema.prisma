@@ -208,6 +208,7 @@ model RateLimit {
 
 model BulkSync {
   id              String   @id
+  shipmentIds     String[] @default([])
   runId           String
   status          String   @default("DONE")
   cutoff          DateTime
