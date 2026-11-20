@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { LookupForm } from "@/components/lookup-form";
 import { ShieldCheck, Truck, Link as LinkIcon } from "lucide-react";
@@ -17,11 +16,6 @@ export default function Home() {
               </h1>
               <p>
                 Acompanhe seu pedido de forma rápida e segura, em um só lugar.
-              </p>
-              <p>
-                <Link className="button" href="/pedido">
-                  Consultar por número do pedido
-                </Link>
               </p>
               <div className="chips">
                 <span>
@@ -44,8 +38,8 @@ export default function Home() {
             <div className="steps">
               <article className="step">
                 <small>01 · IDENTIFIQUE</small>
-                <h3>Informe sua nota fiscal</h3>
-                <p>Use o número da nota fiscal e o CPF/CNPJ do destinatário.</p>
+                <h3>Informe o pedido ou a nota fiscal</h3>
+                <p>Tenha em mãos o CPF/CNPJ do destinatário.</p>
               </article>
               <article className="step">
                 <small>02 · ACOMPANHE</small>
@@ -58,10 +52,7 @@ export default function Home() {
               <article className="step">
                 <small>03 · FIQUE POR DENTRO</small>
                 <h3>Tudo em um só lugar</h3>
-                <p>
-                  Da coleta à entrega, acompanhe suas remessas sem trocar de
-                  site.
-                </p>
+                <p>Do pedido à entrega, acompanhe as etapas no mesmo lugar.</p>
               </article>
             </div>
             <div className="notice flex gap-3 items-start !mt-6">

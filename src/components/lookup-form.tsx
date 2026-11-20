@@ -1,39 +1,68 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { trackingLookupSchema } from "@/lib/validation";
+import { orderLookupSchema, trackingLookupSchema } from "@/lib/validation";
 import { Search, LockKeyhole, ArrowRight, PackageSearch } from "lucide-react";
-import { LookupResults, type LookupRow } from "./lookup-results";
-const schema = trackingLookupSchema;
-export function LookupForm() {
+import {
+  LookupResults,
+  OrderLookupResult,
+  type LookupRow,
+  type OrderResult,
+} from "./lookup-results";
+const schema = z.discriminatedUnion("mode", [
+  trackingLookupSchema.extend({ mode: z.literal("invoice") }),
+  orderLookupSchema.extend({ mode: z.literal("order") }),
+]);
+type LookupData = z.infer<typeof schema>;
+type LookupResult =
+  | { mode: "invoice"; links: LookupRow[] }
+  | { mode: "order"; order: OrderResult };
+
+export function LookupForm({
+  initialMode = "invoice",
+}: {
+  initialMode?: LookupData["mode"];
+}) {
   const [error, setError] = useState("");
-  const [links, setLinks] = useState<LookupRow[]>([]);
+  const [result, setResult] = useState<LookupResult | null>(null);
   useEffect(() => {
-    if (links.length) {
+    if (result) {
       const heading = document.getElementById("lookup-results-heading");
       heading?.focus({ preventScroll: true });
       heading?.scrollIntoView({ block: "start", behavior: "auto" });
     }
-  }, [links]);
+  }, [result]);
   const {
     register,
     handleSubmit,
+    control,
+    resetField,
     formState: { errors, isSubmitting },
-  } = useForm<z.infer<typeof schema>>({ resolver: zodResolver(schema) });
-  async function submit(data: z.infer<typeof schema>) {
+  } = useForm<LookupData>({
+    resolver: zodResolver(schema),
+    defaultValues: { mode: initialMode, number: "", document: "" },
+  });
+  const mode = useWatch({ control, name: "mode" });
+  const byOrder = mode === "order";
+  async function submit({ mode, ...data }: LookupData) {
     setError("");
-    setLinks([]);
+    setResult(null);
     try {
-      const response = await fetch("/api/tracking/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+      const response = await fetch(
+        mode === "order" ? "/api/tracking/order" : "/api/tracking/lookup",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        },
+      );
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
-      setLinks(body.links);
+      setResult(
+        mode === "order" ? { mode, order: body } : { mode, links: body.links },
+      );
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Falha na consulta. Tente novamente.",
@@ -51,20 +80,32 @@ export function LookupForm() {
           Informe os dados abaixo para acompanhar a entrega.
         </p>
         <form
+          method="post"
           onSubmit={handleSubmit(submit)}
           onChange={() => {
-            setLinks([]);
+            setResult(null);
             setError("");
           }}
           noValidate
         >
           <label className="field">
-            Número da nota fiscal
+            Buscar por
+            <select
+              {...register("mode", { onChange: () => resetField("number") })}
+              disabled={isSubmitting}
+            >
+              <option value="invoice">Nota fiscal</option>
+              <option value="order">Pedido</option>
+            </select>
+          </label>
+          <label className="field">
+            {byOrder ? "Número do pedido" : "Número da nota fiscal"}
             <input
               {...register("number")}
-              placeholder="Ex.: 33541"
-              inputMode="numeric"
-              maxLength={12}
+              placeholder={byOrder ? "Ex.: PED-33541" : "Ex.: 33541"}
+              inputMode={byOrder ? "text" : "numeric"}
+              maxLength={byOrder ? 120 : 12}
+              disabled={isSubmitting}
               autoComplete="off"
               aria-invalid={!!errors.number}
             />
@@ -76,6 +117,8 @@ export function LookupForm() {
             CPF ou CNPJ do destinatário
             <input
               {...register("document")}
+              maxLength={25}
+              disabled={isSubmitting}
               placeholder="Somente os números do documento"
               inputMode="numeric"
               autoComplete="off"
@@ -101,7 +144,8 @@ export function LookupForm() {
           </div>
         )}
       </div>
-      {links.length > 0 && <LookupResults rows={links} />}
+      {result?.mode === "invoice" && <LookupResults rows={result.links} />}
+      {result?.mode === "order" && <OrderLookupResult order={result.order} />}
     </>
   );
 }

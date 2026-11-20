@@ -1,3 +1,8 @@
+import {
+  publicEventSelect,
+  publicOrderTimelines,
+  publicShipmentTimeline,
+} from "./public-tracking-timeline";
 import { db } from "./db";
 import { documentHash, HttpError } from "./security";
 import { issueLink } from "./shipments";
@@ -60,14 +65,18 @@ export async function lookupInvoice(
     include: {
       order: { include: { customer: { select: { name: true } } } },
       carrier: { select: { name: true } },
+      events: { select: publicEventSelect },
     },
     orderBy: { createdAt: "asc" },
   });
+  const timelines = await publicOrderTimelines(rows.map((row) => row.orderId));
   const links = [];
   for (const shipment of rows)
     links.push({
       url: "/rastreio/" + (await issueLink(shipment.id, "PUBLIC_LOOKUP")),
       carrier: shipment.carrier.name,
+      orderTimeline: timelines.get(shipment.orderId) ?? [],
+      shipmentTimeline: publicShipmentTimeline(shipment),
       invoiceNumber: String(Number(body.number)),
       orderNumber: shipment.order.number,
       customerName: shipment.order.customer.name,

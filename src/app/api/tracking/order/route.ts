@@ -1,3 +1,8 @@
+import {
+  publicEventSelect,
+  publicOrderTimelines,
+  publicShipmentTimeline,
+} from "@/lib/public-tracking-timeline";
 import { db } from "@/lib/db";
 import { orderStatus } from "@/lib/order-status";
 import {
@@ -20,6 +25,7 @@ export async function POST(request: Request) {
     const order = await db.order.findFirst({
       where: { number, customer: { documentHash: hash } },
       select: {
+        id: true,
         number: true,
         stage: true,
         shipments: {
@@ -29,6 +35,8 @@ export async function POST(request: Request) {
             status: true,
             estimatedDelivery: true,
             deliveredAt: true,
+            issuedAt: true,
+            events: { select: publicEventSelect },
             carrier: { select: { name: true } },
             invoices: { select: { number: true } },
           },
@@ -40,11 +48,16 @@ export async function POST(request: Request) {
         404,
         "Confira o número do pedido e o CPF/CNPJ do destinatário.",
       );
+    const timelines = await publicOrderTimelines([order.id]);
     return Response.json(
       {
         number: order.number,
         status: orderStatus(order.stage, order.shipments),
-        shipments: order.shipments,
+        orderTimeline: timelines.get(order.id) ?? [],
+        shipments: order.shipments.map(({ events, issuedAt, ...shipment }) => ({
+          ...shipment,
+          timeline: publicShipmentTimeline({ ...shipment, events, issuedAt }),
+        })),
       },
       { headers: noStore },
     );
