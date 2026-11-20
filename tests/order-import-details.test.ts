@@ -134,3 +134,91 @@ it("rejeita o lote e informa a linha quando a transportadora não existe", async
     }),
   ).toBe(0);
 });
+
+it("define a etapa de pedidos novos e atualiza a de pedidos existentes pela planilha", async () => {
+  const actor = "order-import-status";
+  const row = { ...order, numero_pedido: "STATUS-PLANILHA" };
+  const load = (status_pedido?: string) =>
+    importOrders(file({ ...row, status_pedido }), "pedidos.csv", actor);
+
+  expect(await load("Pronto para faturar")).toMatchObject({
+    created: 1,
+    statusesUpdated: 0,
+  });
+  const saved = await db.order.findFirstOrThrow({
+    where: { number: row.numero_pedido },
+  });
+  expect(saved.stage).toBe("READY_TO_INVOICE");
+  expect(await load("em preparacao")).toMatchObject({
+    created: 0,
+    statusesUpdated: 1,
+  });
+  expect(await load("PREPARING")).toMatchObject({
+    statusesUpdated: 0,
+    skipped: 1,
+  });
+  expect(await load()).toMatchObject({ statusesUpdated: 0, skipped: 1 });
+  expect(await load("Entregue")).toMatchObject({
+    errors: [{ line: 2, messages: [expect.stringContaining("status_pedido")] }],
+  });
+  expect(
+    (await db.order.findUniqueOrThrow({ where: { id: saved.id } })).stage,
+  ).toBe("PREPARING");
+  expect(
+    await db.auditLog.findMany({
+      where: { entityId: saved.id },
+      select: { action: true, snapshot: true },
+    }),
+  ).toEqual(
+    expect.arrayContaining([
+      {
+        action: "ORDER_CREATE",
+        snapshot: { stage: "READY_TO_INVOICE", source: "IMPORT" },
+      },
+      {
+        action: "ORDER_STAGE_UPDATE",
+        snapshot: {
+          from: "READY_TO_INVOICE",
+          stage: "PREPARING",
+          source: "IMPORT",
+        },
+      },
+    ]),
+  );
+});
+
+it("atualiza a etapa interna de um pedido faturado e impede que a planilha cancele a remessa", async () => {
+  const row = {
+    ...order,
+    ...invoice,
+    numero_pedido: "STATUS-COM-NF",
+    numero_nf: "984",
+    chave_acesso_nf: "",
+  };
+  const actor = "order-import-status";
+  expect(await importOrders(file(row), "pedidos.csv", actor)).toMatchObject({
+    shipmentsCreated: 1,
+  });
+  expect(
+    await importOrders(
+      file({ ...row, status_pedido: "Pronto para faturar" }),
+      "pedidos.csv",
+      actor,
+    ),
+  ).toMatchObject({ shipmentsCreated: 0, statusesUpdated: 1 });
+  expect(
+    await importOrders(
+      file({ ...row, status_pedido: "Cancelado" }),
+      "pedidos.csv",
+      actor,
+    ),
+  ).toMatchObject({ errors: [{ line: 2 }] });
+  const saved = await db.order.findFirstOrThrow({
+    where: { number: row.numero_pedido },
+    include: { shipments: true },
+  });
+  expect(saved).toMatchObject({
+    stage: "READY_TO_INVOICE",
+    shipments: [{ status: "INVOICED" }],
+  });
+});

@@ -7,6 +7,7 @@ import { orderImportColumns } from "@/lib/validation";
 type ImportResult = {
   created: number;
   shipmentsCreated: number;
+  statusesUpdated: number;
   skipped: number;
   errors: { line: number; messages: string[] }[];
 };
@@ -52,6 +53,10 @@ export function OrderImport() {
         Depois da emissão, use uma linha por NF. Informe o e-mail do vendedor
         conforme o cadastro de usuários ativos.
       </p>
+      <p className="small">
+        Preencha status_pedido para definir ou atualizar a etapa. Deixe em
+        branco para manter a etapa de pedidos existentes.
+      </p>
       <a href="/api/admin/orders/template" className="button secondary mr-3">
         Baixar modelo Excel
       </a>
@@ -94,7 +99,8 @@ export function OrderImport() {
           ) : (
             <p>
               {result.created} pedidos cadastrados. {result.shipmentsCreated}{" "}
-              remessas cadastradas. {result.skipped} linhas sem alterações.{" "}
+              remessas cadastradas. {result.statusesUpdated} status de pedidos
+              atualizados. {result.skipped} linhas sem alterações.{" "}
               <Link href="/admin/pedidos">Ver pedidos</Link>
             </p>
           )}

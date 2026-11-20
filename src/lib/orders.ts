@@ -1,8 +1,8 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type OrderStage } from "@prisma/client";
 import { z } from "zod";
 import { readSpreadsheet } from "./imports";
 import { db } from "./db";
-import { orderTransitions } from "./order-status";
+import { orderStageLabels, orderTransitions } from "./order-status";
 import { documentHash, HttpError } from "./security";
 import { createShipment } from "./shipments";
 import {
@@ -12,7 +12,37 @@ import {
   type ShipmentInput,
 } from "./validation";
 
+const normalizeStage = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s_-]+/g, "_");
+const importStages = new Map(
+  Object.entries(orderStageLabels).flatMap(([code, label]) => [
+    [code, code as OrderStage] as const,
+    [normalizeStage(label), code as OrderStage] as const,
+    [
+      normalizeStage(label.replace(/^Pedido /, "")),
+      code as OrderStage,
+    ] as const,
+  ]),
+);
+
 const orderRowSchema = orderSchema.extend({
+  status_pedido: z
+    .string()
+    .transform((value, ctx) => {
+      const stage = importStages.get(normalizeStage(value));
+      if (stage) return stage;
+      ctx.addIssue({
+        code: "custom",
+        message: `Use: ${Object.values(orderStageLabels).join(", ")}.`,
+      });
+      return z.NEVER;
+    })
+    .optional(),
   data_emissao_pedido: issueDateSchema.optional(),
   email_vendedor: z.email().toLowerCase().optional(),
   email_cliente: z.email().optional(),
@@ -54,6 +84,7 @@ export async function importOrders(
     errors,
     created: 0,
     shipmentsCreated: 0,
+    statusesUpdated: 0,
     skipped: 0,
   });
   const customers = new Map<string, Prisma.CustomerCreateManyInput>();
@@ -65,6 +96,7 @@ export async function importOrders(
       hash: string;
       issuedAt: Date | null;
       sellerEmail?: string;
+      stage?: { value: OrderStage; line: number };
       city: string;
       state: string;
     }
@@ -76,6 +108,7 @@ export async function importOrders(
     const parsed = orderRowSchema.safeParse({
       ...data,
       data_emissao_pedido: data.data_emissao_pedido || undefined,
+      status_pedido: data.status_pedido || undefined,
       email_vendedor: data.email_vendedor || undefined,
       email_cliente: data.email_cliente || undefined,
     });
@@ -124,8 +157,19 @@ export async function importOrders(
     const issuedAt = order.data_emissao_pedido
       ? new Date(order.data_emissao_pedido)
       : null;
+    const stage = order.status_pedido
+      ? { value: order.status_pedido, line }
+      : undefined;
     const previous = orders.get(key);
     if (previous) {
+      if (previous.stage && stage && previous.stage.value !== stage.value) {
+        errors.push({
+          line,
+          messages: ["Use o mesmo status_pedido nas linhas do mesmo pedido."],
+        });
+        continue;
+      }
+      previous.stage ||= stage;
       if (
         (previous.issuedAt && issuedAt && +previous.issuedAt !== +issuedAt) ||
         (previous.sellerEmail &&
@@ -149,6 +193,7 @@ export async function importOrders(
         hash,
         issuedAt,
         sellerEmail: order.email_vendedor,
+        stage,
         city: order.cidade_destino,
         state: order.uf_destino,
       });
@@ -171,7 +216,13 @@ export async function importOrders(
     if (shipment) shipments.push({ line, data: shipment, key });
   }
   for (const shipment of shipments) {
-    const issuedAt = orders.get(shipment.key)?.issuedAt;
+    const order = orders.get(shipment.key);
+    if (order?.stage?.value === "CANCELLED")
+      errors.push({
+        line: shipment.line,
+        messages: ["Pedido cancelado não pode receber uma NF."],
+      });
+    const issuedAt = order?.issuedAt;
     if (issuedAt && issuedAt > new Date(shipment.data.data_emissao))
       errors.push({
         line: shipment.line,
@@ -243,7 +294,7 @@ export async function importOrders(
           return {
             number: order.number,
             customerId,
-            stage: "RECEIVED" as const,
+            stage: order.stage?.value ?? ("RECEIVED" as const),
             issuedAt: order.issuedAt,
             sellerId: order.sellerEmail
               ? sellers.get(order.sellerEmail)
@@ -255,7 +306,7 @@ export async function importOrders(
         const created = await tx.order.createManyAndReturn({
           data,
           skipDuplicates: true,
-          select: { id: true, number: true, customerId: true },
+          select: { id: true, number: true, customerId: true, stage: true },
         });
         const appliedLines = new Set<number>();
         const createdKeys = new Set(
@@ -263,6 +314,7 @@ export async function importOrders(
             JSON.stringify([number, customerId]),
           ),
         );
+        const stageChanges: Prisma.AuditLogCreateManyInput[] = [];
         for (const [index, order] of data.entries()) {
           const input = orderRows[index];
           const identity = {
@@ -274,6 +326,50 @@ export async function importOrders(
           ) {
             appliedLines.add(input.line);
             continue;
+          }
+          if (input.stage) {
+            const { value, line } = input.stage;
+            const [current] = await tx.$queryRaw<
+              { id: string; stage: OrderStage | null }[]
+            >`SELECT id, stage FROM "Order" WHERE number = ${identity.number} AND "customerId" = ${identity.customerId} FOR UPDATE`;
+            if (!current)
+              throw new OrderImportRowError(
+                line,
+                "Pedido não encontrado durante a atualização.",
+              );
+            if (current.stage !== value) {
+              if (current.stage === "CANCELLED")
+                throw new OrderImportRowError(
+                  line,
+                  "Pedido cancelado não pode ser reaberto pela planilha.",
+                );
+              if (
+                value === "CANCELLED" &&
+                (await tx.shipment.findFirst({
+                  where: { orderId: current.id },
+                  select: { id: true },
+                }))
+              )
+                throw new OrderImportRowError(
+                  line,
+                  "Pedido com remessa vinculada não pode ser cancelado pela planilha.",
+                );
+              await tx.order.update({
+                where: { id: current.id },
+                data: { stage: value },
+              });
+              stageChanges.push({
+                actorId,
+                action: "ORDER_STAGE_UPDATE",
+                entityId: current.id,
+                snapshot: {
+                  from: current.stage,
+                  stage: value,
+                  source: "IMPORT",
+                },
+              });
+              appliedLines.add(line);
+            }
           }
           if (order.issuedAt) {
             const result = await tx.order.updateMany({
@@ -292,12 +388,16 @@ export async function importOrders(
         }
         if (created.length)
           await tx.auditLog.createMany({
-            data: created.map(({ id }) => ({
+            data: created.map(({ id, stage }) => ({
               actorId,
               action: "ORDER_CREATE",
               entityId: id,
+              snapshot: { stage, source: "IMPORT" },
             })),
           });
+
+        if (stageChanges.length)
+          await tx.auditLog.createMany({ data: stageChanges });
 
         let shipmentsCreated = 0;
         for (const row of shipments) {
@@ -334,6 +434,7 @@ export async function importOrders(
           errors,
           created: created.length,
           shipmentsCreated,
+          statusesUpdated: stageChanges.length,
           skipped: rows.length - appliedLines.size,
         };
       },

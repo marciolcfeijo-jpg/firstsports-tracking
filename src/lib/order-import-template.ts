@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { orderStageLabels } from "./order-status";
 import { orderImportColumns } from "./validation";
 
 export async function orderImportTemplate() {
@@ -20,6 +21,13 @@ export async function orderImportTemplate() {
     ],
     [
       "Campos básicos: numero_pedido, nome_cliente, cpf_cnpj_destinatario, cidade_destino e uf_destino.",
+    ],
+    [`status_pedido: ${Object.values(orderStageLabels).join(", ")}.`],
+    [
+      "Em branco, status_pedido mantém a etapa existente. Para pedidos novos, o padrão é Pedido recebido.",
+    ],
+    [
+      "A planilha atualiza a etapa interna do pedido. O status de entrega vem das remessas.",
     ],
     ["Use AAAA-MM-DD para data_emissao_pedido e data_emissao_nf."],
     ["Informe email_vendedor com o e-mail de um usuário ativo cadastrado."],

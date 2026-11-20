@@ -144,6 +144,7 @@ export const orderLookupSchema = trackingLookupSchema.extend({
 
 export const orderImportColumns = [
   "numero_pedido",
+  "status_pedido",
   "data_emissao_pedido",
   "nome_cliente",
   "cpf_cnpj_destinatario",
