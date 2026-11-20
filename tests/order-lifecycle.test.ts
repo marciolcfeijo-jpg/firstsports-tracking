@@ -64,6 +64,40 @@ describe("ciclo do pedido importado", () => {
     ).toBe(0);
   });
 
+  it("registra a primeira etapa para pedidos antigos sem remessa", async () => {
+    const customer = await db.customer.upsert({
+      where: { documentHash: "legacy-order-fixture" },
+      update: {},
+      create: {
+        documentHash: "legacy-order-fixture",
+        name: "Cliente de teste",
+        city: "São Paulo",
+        state: "SP",
+      },
+    });
+    const order = await db.order.create({
+      data: { number: "LEGACY-ORDER", customerId: customer.id },
+    });
+    await expect(
+      updateOrderStage({ id: order.id, from: null, stage: "PREPARING" }, actor),
+    ).rejects.toMatchObject({ status: 400 });
+    await updateOrderStage(
+      { id: order.id, from: null, stage: "RECEIVED" },
+      actor,
+    );
+    await expect(
+      updateOrderStage({ id: order.id, from: null, stage: "RECEIVED" }, actor),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: order.id } })).stage,
+    ).toBe("RECEIVED");
+    expect(
+      await db.auditLog.count({
+        where: { entityId: order.id, action: "ORDER_STAGE_UPDATE" },
+      }),
+    ).toBe(1);
+  });
+
   it("acompanha o pedido antes da NF, preserva etapas na reimportação e vincula a entrega", async () => {
     expect(
       await importOrders(spreadsheet(number, number), "pedidos.csv", actor),

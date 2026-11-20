@@ -99,14 +99,18 @@ export async function importOrders(
 
 const stageUpdate = z.object({
   id: z.string().min(1).max(120),
-  from: z.enum(["RECEIVED", "PREPARING", "READY_TO_INVOICE", "CANCELLED"]),
-  stage: z.enum(["PREPARING", "READY_TO_INVOICE", "CANCELLED"]),
+  from: z
+    .enum(["RECEIVED", "PREPARING", "READY_TO_INVOICE", "CANCELLED"])
+    .nullable(),
+  stage: z.enum(["RECEIVED", "PREPARING", "READY_TO_INVOICE", "CANCELLED"]),
 });
 
 export async function updateOrderStage(raw: unknown, actorId: string) {
   const { id, from, stage } = stageUpdate.parse(raw);
-  if (!orderTransitions[from].some((next) => next === stage))
-    throw new HttpError(400, "Etapa inválida para este pedido.");
+  const allowed = from
+    ? orderTransitions[from].some((next) => next === stage)
+    : stage === "RECEIVED";
+  if (!allowed) throw new HttpError(400, "Etapa inválida para este pedido.");
   await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} FOR UPDATE`;
     const result = await tx.order.updateMany({

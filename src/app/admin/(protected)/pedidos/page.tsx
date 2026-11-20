@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShipmentRow } from "@/components/shipment-row";
 import { db } from "@/lib/db";
 import { orderStatus } from "@/lib/order-status";
 import { requirePageAdmin } from "@/lib/page-auth";
@@ -56,16 +57,19 @@ export default async function Orders({
             </thead>
             <tbody>
               {orders.slice(0, 50).map((order) => (
-                <tr key={order.id}>
+                <ShipmentRow key={order.id} href={`/admin/pedidos/${order.id}`}>
                   <td>
-                    <Link href={`/admin/pedidos/${order.id}`}>
+                    <Link
+                      className="shipment-order-link"
+                      href={`/admin/pedidos/${order.id}`}
+                    >
                       {order.number}
                     </Link>
                   </td>
                   <td>{order.customer.name}</td>
                   <td>{orderStatus(order.stage, order.shipments)}</td>
                   <td>{dateTime(order.createdAt)}</td>
-                </tr>
+                </ShipmentRow>
               ))}
             </tbody>
           </table>
