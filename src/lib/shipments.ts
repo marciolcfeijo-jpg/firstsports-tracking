@@ -6,8 +6,24 @@ export async function createShipment(
   raw: unknown,
   actorId: string,
   tx: Prisma.TransactionClient = db,
+  expectedOrderId?: string,
 ) {
   const data = shipmentSchema.parse(raw);
+  if (expectedOrderId) {
+    const order = await tx.order.findFirst({
+      where: {
+        id: expectedOrderId,
+        number: data.numero_pedido,
+        customer: { documentHash: documentHash(data.cpf_cnpj_destinatario) },
+      },
+      select: { id: true },
+    });
+    if (!order)
+      throw new HttpError(
+        409,
+        "Confira o número e o CPF/CNPJ do pedido selecionado.",
+      );
+  }
   if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)
     throw new HttpError(400, "Informe o código de rastreamento dos Correios");
   const issuerDocument = data.cnpj_remetente,
@@ -68,8 +84,10 @@ export async function createShipment(
       },
     },
     create: { number: data.numero_pedido, customerId: customer.id },
-    update: {},
+    update: { number: data.numero_pedido },
   });
+  if (order.stage === "CANCELLED")
+    throw new HttpError(409, "Pedido cancelado. Confira o número do pedido.");
   const shipment = await tx.shipment.create({
     data: {
       orderId: order.id,
@@ -103,8 +121,9 @@ export async function createShipment(
 export async function createShipmentTransaction(
   data: ShipmentInput,
   actor: string,
+  orderId?: string,
 ) {
-  return db.$transaction((tx) => createShipment(data, actor, tx));
+  return db.$transaction((tx) => createShipment(data, actor, tx, orderId));
 }
 export async function issueLink(shipmentId: string, actorId: string) {
   const token = newToken();

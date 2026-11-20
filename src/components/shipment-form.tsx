@@ -25,7 +25,9 @@ type Input = z.input<typeof shipmentSchema>;
 export function ShipmentForm({
   carriers,
   sellers = [],
+  order,
 }: {
+  order?: { id: string; number: string };
   carriers: { code: string; name: string }[];
   sellers?: { id: string; name: string }[];
 }) {
@@ -37,7 +39,11 @@ export function ShipmentForm({
     formState: { errors, isSubmitting },
   } = useForm<Input>({
     resolver: zodResolver(shipmentSchema),
-    defaultValues: { serie_nf: "1", transportadora: carriers[0]?.code || "" },
+    defaultValues: {
+      numero_pedido: order?.number,
+      serie_nf: "1",
+      transportadora: carriers[0]?.code || "",
+    },
   });
   async function submit(data: Input) {
     setError("");
@@ -45,7 +51,7 @@ export function ShipmentForm({
       const r = await fetch("/api/admin/shipments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, orderId: order?.id }),
       });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error);
@@ -85,6 +91,7 @@ export function ShipmentForm({
             ) : (
               <input
                 {...register(key as keyof Input)}
+                readOnly={key === "numero_pedido" && !!order}
                 type={
                   key === "data_emissao"
                     ? "date"

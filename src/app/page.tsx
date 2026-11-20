@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { LookupForm } from "@/components/lookup-form";
 import { ShieldCheck, Truck, Link as LinkIcon } from "lucide-react";
@@ -16,6 +17,11 @@ export default function Home() {
               </h1>
               <p>
                 Acompanhe seu pedido de forma rápida e segura, em um só lugar.
+              </p>
+              <p>
+                <Link className="button" href="/pedido">
+                  Consultar por número do pedido
+                </Link>
               </p>
               <div className="chips">
                 <span>

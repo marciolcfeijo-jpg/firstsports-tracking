@@ -21,6 +21,13 @@ enum ShipmentStatus {
   UNKNOWN
 }
 
+enum OrderStage {
+  RECEIVED
+  PREPARING
+  READY_TO_INVOICE
+  CANCELLED
+}
+
 enum Role {
   ADMIN
   OPERATOR
@@ -54,6 +61,7 @@ model Order {
   customerId String
   customer   Customer   @relation(fields: [customerId], references: [id])
   shipments  Shipment[]
+  stage      OrderStage?
   createdAt  DateTime   @default(now())
 
   @@unique([number, customerId])
