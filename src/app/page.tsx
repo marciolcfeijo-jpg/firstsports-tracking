@@ -1,3 +1,4 @@
+import { PartnerLogos } from "@/components/brand-logos";
 import { PublicShell } from "@/components/public-shell";
 import { LookupForm } from "@/components/lookup-form";
 import { ShieldCheck, Truck, Link as LinkIcon } from "lucide-react";
@@ -70,12 +71,7 @@ export default function Home() {
           <span className="text-xs">
             ESPORTE QUE CONECTA. MARCAS QUE INSPIRAM.
           </span>
-          <div>
-            <span>Joma</span>
-            <span>uhlsport</span>
-            <span>Kempa</span>
-            <span>Spalding</span>
-          </div>
+          <PartnerLogos />
           <p className="text-xs !mt-3 !mb-0">
             Marcas distribuídas pelo grupo First Sports
           </p>

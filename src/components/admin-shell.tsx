@@ -25,10 +25,12 @@ export function AdminShell({
   children,
   email,
   role,
+  brand,
 }: {
   children: React.ReactNode;
   email: string;
   role: string;
+  brand: React.ReactNode;
 }) {
   const path = usePathname();
   const router = useRouter();
@@ -40,10 +42,7 @@ export function AdminShell({
   return (
     <div className="admin-shell">
       <aside className="sidebar">
-        <Link href="/admin" className="brand">
-          FIRST <span>SPORTS</span>
-          <small>GESTÃO DE ENTREGAS</small>
-        </Link>
+        {brand}
         <nav>
           {entries
             .filter(([href]) => role === "ADMIN" || href !== "/admin/usuarios")

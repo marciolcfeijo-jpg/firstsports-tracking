@@ -1,13 +1,6 @@
 import Link from "next/link";
 import { CircleHelp, ArrowUpRight } from "lucide-react";
-export function Brand() {
-  return (
-    <Link className="brand" href="/" aria-label="First Sports — início">
-      FIRST <span>SPORTS</span>
-      <small>PORTAL DE RASTREAMENTO</small>
-    </Link>
-  );
-}
+import { Brand } from "./brand-logos";
 export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <>
