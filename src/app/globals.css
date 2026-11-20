@@ -97,8 +97,25 @@ p {
   letter-spacing: -1px;
   line-height: 1;
 }
-.brand span {
-  color: var(--blue);
+.brand-logo {
+  width: clamp(114px, 29vw, 151px);
+  padding: 6px;
+  isolation: isolate;
+  background: var(--brand-orange);
+  border-radius: 6px;
+}
+.logo-art {
+  position: relative;
+  overflow: hidden;
+}
+.logo-art img {
+  position: absolute;
+  max-width: none;
+  height: auto;
+}
+.brand-logo img {
+  filter: grayscale(1) invert(1) brightness(83) contrast(1.6);
+  mix-blend-mode: screen;
 }
 .brand small {
   display: block;
@@ -294,15 +311,28 @@ input::placeholder {
   padding: 30px 20px;
   color: var(--muted);
 }
-.partners div {
-  display: flex;
+.partner-logos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 144px));
   justify-content: center;
-  gap: 42px;
-  flex-wrap: wrap;
-  color: #6542a6;
-  font-size: 19px;
-  font-weight: 700;
-  margin-top: 14px;
+  gap: 12px;
+  max-width: 612px;
+  margin: 18px auto;
+  padding: 0;
+  list-style: none;
+}
+.partner-logo {
+  display: grid;
+  place-items: center;
+  height: 70px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fff;
+}
+@media (max-width: 550px) {
+  .partner-logos {
+    grid-template-columns: repeat(2, minmax(0, 144px));
+  }
 }
 .footer {
   background: #fff;
@@ -778,7 +808,6 @@ tr:last-child td {
   color: #fff;
   padding: 40px 20px;
 }
-.partners div,
 .partners p {
   color: #fff;
 }
