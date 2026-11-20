@@ -98,11 +98,9 @@ p {
   line-height: 1;
 }
 .brand-logo {
+  display: block;
   width: clamp(114px, 29vw, 151px);
-  padding: 6px;
-  isolation: isolate;
-  background: var(--brand-orange);
-  border-radius: 6px;
+  height: auto;
 }
 .logo-art {
   position: relative;
@@ -112,10 +110,6 @@ p {
   position: absolute;
   max-width: none;
   height: auto;
-}
-.brand-logo img {
-  filter: grayscale(1) invert(1) brightness(83) contrast(1.6);
-  mix-blend-mode: screen;
 }
 .brand small {
   display: block;

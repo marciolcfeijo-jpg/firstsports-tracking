@@ -10,14 +10,6 @@ type LogoArtwork = {
   frame: [left: number, top: number, width: number, height: number];
 };
 
-const firstSports: LogoArtwork = {
-  name: "First Sports",
-  file: "first-sports",
-  width: 246,
-  height: 104,
-  frame: [28, 19, 196, 68],
-};
-
 const partners: LogoArtwork[] = [
   {
     name: "Joma",
@@ -49,22 +41,14 @@ const partners: LogoArtwork[] = [
   },
 ];
 
-function LogoArt({
-  artwork,
-  main = false,
-}: {
-  artwork: LogoArtwork;
-  main?: boolean;
-}) {
+function LogoArt({ artwork }: { artwork: LogoArtwork }) {
   const [left, top, width, height] = artwork.frame;
   return (
     <div
       className="logo-art"
       style={{
         aspectRatio: width / height,
-        width: main
-          ? "100%"
-          : `min(100%, ${Math.min(114, (width / height) * 46)}px)`,
+        width: `min(100%, ${Math.min(114, (width / height) * 46)}px)`,
       }}
     >
       <Image
@@ -72,7 +56,6 @@ function LogoArt({
         alt={artwork.name}
         width={artwork.width}
         height={artwork.height}
-        loading={main ? "eager" : undefined}
         unoptimized
         style={{
           width: `${(artwork.width / width) * 100}%`,
@@ -91,9 +74,15 @@ export function Brand({ admin = false }: { admin?: boolean }) {
       href={admin ? "/admin" : "/"}
       aria-label={admin ? "First Sports — painel" : "First Sports — início"}
     >
-      <div className="brand-logo">
-        <LogoArt artwork={firstSports} main />
-      </div>
+      <Image
+        className="brand-logo"
+        src="/brands/first-sports.jpg"
+        alt="First Sports"
+        width={227}
+        height={97}
+        loading="eager"
+        unoptimized
+      />
       <small>{admin ? "GESTÃO DE ENTREGAS" : "PORTAL DE RASTREAMENTO"}</small>
     </Link>
   );
