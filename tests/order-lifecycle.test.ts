@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as lookupOrder } from "../src/app/api/tracking/order/route";
+import { lookupInvoice } from "../src/lib/tracking-lookup";
 import { db } from "../src/lib/db";
 import { importOrders, updateOrderStage } from "../src/lib/orders";
 import { createShipmentTransaction } from "../src/lib/shipments";
@@ -8,6 +9,7 @@ import { shipmentFixture } from "./fixtures";
 
 const actor = "order-lifecycle-fixture";
 const number = "000-LIFECYCLE";
+const document = "11222333000181";
 const columns = Object.keys(
   orderSchema.shape,
 ) as (keyof typeof orderSchema.shape)[];
@@ -16,7 +18,11 @@ const spreadsheet = (...numbers: string[]) =>
     [
       columns.join(";"),
       ...numbers.map((numero_pedido) => {
-        const row = { ...shipmentFixture, numero_pedido };
+        const row = {
+          ...shipmentFixture,
+          numero_pedido,
+          cpf_cnpj_destinatario: document,
+        };
         return columns.map((column) => row[column]).join(";");
       }),
     ].join("\n"),
@@ -63,17 +69,17 @@ describe("ciclo do pedido importado", () => {
       await importOrders(spreadsheet(number, number), "pedidos.csv", actor),
     ).toMatchObject({ created: 1, skipped: 1 });
     const order = await db.order.findFirstOrThrow({ where: { number } });
-    const beforeInvoice = await lookup(
-      number,
-      shipmentFixture.cpf_cnpj_destinatario,
-    );
+    const beforeInvoice = await lookup(number, document);
     expect(beforeInvoice.status).toBe(200);
     expect(await beforeInvoice.json()).toMatchObject({
       number,
       status: "Pedido recebido",
       shipments: [],
+      orderTimeline: [{ label: "Pedido recebido" }],
     });
-    expect((await lookup(number, "11222333000181")).status).toBe(404);
+    expect(
+      (await lookup(number, shipmentFixture.cpf_cnpj_destinatario)).status,
+    ).toBe(404);
 
     await updateOrderStage(
       { id: order.id, from: "RECEIVED", stage: "PREPARING" },
@@ -92,7 +98,12 @@ describe("ciclo do pedido importado", () => {
       create: { code: shipmentFixture.transportadora, name: "Braspress" },
     });
     const shipment = await createShipmentTransaction(
-      { ...shipmentFixture, numero_pedido: number, numero_nf: "987654321" },
+      {
+        ...shipmentFixture,
+        numero_pedido: number,
+        cpf_cnpj_destinatario: document,
+        numero_nf: "987654321",
+      },
       actor,
       order.id,
     );
@@ -104,18 +115,51 @@ describe("ciclo do pedido importado", () => {
     ).rejects.toMatchObject({ status: 409 });
     await db.shipment.update({
       where: { id: shipment.id },
-      data: { status: "DELIVERED", deliveredAt: new Date() },
+      data: {
+        status: "DELIVERED",
+        deliveredAt: new Date(),
+        events: {
+          create: {
+            fingerprint: "dispatch",
+            status: "IN_TRANSIT",
+            description: "Em trânsito",
+            occurredAt: new Date("2026-11-10T15:00:00Z"),
+            dateOnly: true,
+          },
+        },
+      },
     });
 
-    const delivered = await lookup(
-      number,
-      shipmentFixture.cpf_cnpj_destinatario,
-    );
+    const delivered = await lookup(number, document);
     expect(delivered.status).toBe(200);
     expect(await delivered.json()).toMatchObject({
       number,
       status: "Entregue",
-      shipments: [{ status: "DELIVERED" }],
+      orderTimeline: [{ label: "Pedido recebido" }, { label: "Em preparação" }],
+      shipments: [
+        {
+          status: "DELIVERED",
+          timeline: [
+            { label: "Nota fiscal emitida", dateOnly: true },
+            { label: "Em viagem", dateOnly: true },
+            { label: "Entregue", dateOnly: true },
+          ],
+        },
+      ],
     });
+    const invoice = await lookupInvoice({ number: "987654321", document });
+    expect(invoice.links).toMatchObject([
+      {
+        orderTimeline: [
+          { label: "Pedido recebido" },
+          { label: "Em preparação" },
+        ],
+        shipmentTimeline: [
+          { label: "Nota fiscal emitida" },
+          { label: "Em viagem" },
+          { label: "Entregue" },
+        ],
+      },
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { OrderLookup } from "@/components/order-lookup";
+import { LookupForm } from "@/components/lookup-form";
 import { PublicShell } from "@/components/public-shell";
 
 export default function OrderTrackingPage() {
@@ -14,7 +14,9 @@ export default function OrderTrackingPage() {
             </p>
             <Link href="/">Consultar por nota fiscal</Link>
           </div>
-          <OrderLookup />
+          <div className="grid gap-6">
+            <LookupForm initialMode="order" />
+          </div>
         </div>
       </main>
     </PublicShell>

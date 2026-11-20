@@ -901,6 +901,17 @@ tr:last-child td {
 .lookup-results h2 {
   margin-bottom: 6px;
 }
+.lookup-timeline li:first-child:not(:last-child)::before {
+  background: #c7afe9;
+  box-shadow: 0 0 0 1px #c7afe9;
+}
+.lookup-timeline li:last-child::before {
+  background: var(--blue);
+  box-shadow: 0 0 0 1px var(--blue);
+}
+.lookup-timeline time {
+  display: block;
+}
 .lookup-results .table-wrap {
   margin: 18px 0 12px;
 }
