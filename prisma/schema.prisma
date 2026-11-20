@@ -41,6 +41,7 @@ model AdminUser {
   active         Boolean    @default(true)
   createdAt      DateTime   @default(now())
   salesShipments Shipment[] @relation("ShipmentSeller")
+  salesOrders    Order[]    @relation("OrderSeller")
 }
 
 model Customer {
@@ -56,16 +57,22 @@ model Customer {
 }
 
 model Order {
-  id         String     @id @default(cuid())
-  number     String
-  customerId String
-  customer   Customer   @relation(fields: [customerId], references: [id])
-  shipments  Shipment[]
-  stage      OrderStage?
-  createdAt  DateTime   @default(now())
+  id               String      @id @default(cuid())
+  number           String
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  shipments        Shipment[]
+  stage            OrderStage?
+  issuedAt         DateTime?   @db.Date
+  sellerId         String?
+  seller           AdminUser?  @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  destinationCity  String?
+  destinationState String?
+  createdAt        DateTime    @default(now())
 
   @@unique([number, customerId])
   @@index([number])
+  @@index([sellerId])
 }
 
 model Carrier {

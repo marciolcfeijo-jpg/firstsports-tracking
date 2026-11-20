@@ -37,6 +37,7 @@ export default async function OrderDetails({
   const order = await db.order.findUnique({
     where: { id },
     include: {
+      seller: { select: { email: true } },
       customer: {
         select: { name: true, email: true, city: true, state: true },
       },
@@ -88,10 +89,19 @@ export default async function OrderDetails({
             fields={[
               ["Número", order.number],
               ["Cadastro", dateTime(order.createdAt)],
+              [
+                "Emissão do pedido",
+                order.issuedAt
+                  ? new Intl.DateTimeFormat("pt-BR", {
+                      timeZone: "UTC",
+                    }).format(order.issuedAt)
+                  : null,
+              ],
+              ["Vendedor do pedido", order.seller?.email ?? null],
               ["Cliente", order.customer.name],
               ["E-mail", order.customer.email],
-              ["Cidade", order.customer.city],
-              ["UF", order.customer.state],
+              ["Cidade", order.destinationCity ?? order.customer.city],
+              ["UF", order.destinationState ?? order.customer.state],
               ["Status atual", status],
               ["Remessas vinculadas", String(order.shipments.length)],
             ]}

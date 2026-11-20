@@ -67,8 +67,8 @@ Playwright usa `/usr/bin/chromium` neste ambiente. Para outra instalação, defi
 
 ## Acompanhamento de pedidos
 
-1. No painel, abra **Pedidos → Importar pedidos** e baixe o modelo CSV. A planilha deve conter `numero_pedido`, `cpf_cnpj_destinatario`, `nome_cliente`, `cidade_destino` e `uf_destino`. Use células de texto para preservar zeros à esquerda.
-2. A importação aceita CSV ou XLSX. Um lote com erros é rejeitado inteiro e indica as linhas a corrigir. Reimportar o mesmo número para o mesmo destinatário preserva a etapa já registrada.
+1. No painel, abra **Pedidos → Importar pedidos** e baixe o modelo Excel ou CSV. Os campos básicos são `numero_pedido`, `cpf_cnpj_destinatario`, `nome_cliente`, `cidade_destino` e `uf_destino`. Informe `data_emissao_pedido` no formato AAAA-MM-DD e, se disponível, o e-mail do vendedor cadastrado em `email_vendedor`. Use células de texto para preservar zeros à esquerda.
+2. Antes do faturamento, deixe as colunas fiscais e de transporte vazias. Se já houver NF, use uma linha por nota com número, série, CNPJ do remetente, transportadora e `data_emissao_nf`. O CNPJ do tomador, a chave da NF, o e-mail do cliente e o CT-e são opcionais. O código de rastreio é obrigatório para Correios. O lote é gravado de forma atômica e indica linhas com erro. Reimportar a mesma NF preserva o rastreamento e a etapa já registrados.
 3. Abra o pedido para avançar de **Recebido** para **Em preparação** e **Pronto para faturar**. A partir do cadastro de uma remessa com o mesmo pedido e CPF/CNPJ, o acompanhamento incorpora os estados das transportadoras. Em pedidos com mais de uma remessa cadastrada, o status considera o conjunto.
 4. No portal, acesse **Consultar por número do pedido** e informe também o CPF/CNPJ do destinatário. A consulta por pedido lê os dados já registrados no sistema. A sincronização segue o fluxo de rastreamento das remessas.
 

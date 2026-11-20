@@ -46,6 +46,15 @@ export const trackingCodeSchema = z
     /^(?:[A-Z]{2}\d{9}[A-Z]{2})?$/,
     "Informe um código de objeto com 13 caracteres (ex.: AA123456789BR)",
   );
+export const issueDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use AAAA-MM-DD")
+  .refine(
+    (s) =>
+      !Number.isNaN(Date.parse(s)) &&
+      new Date(s).toISOString().slice(0, 10) === s,
+    "Data inválida",
+  );
 export const shipmentSchema = z.object({
   vendedor_id: z.string().trim().max(100).optional(),
   codigo_rastreio: trackingCodeSchema.optional(),
@@ -63,15 +72,11 @@ export const shipmentSchema = z.object({
     .string()
     .trim()
     .regex(/^[A-Z][A-Z0-9_]{1,31}$/, "Código de transportadora inválido"),
-  data_emissao: z
+  data_emissao: issueDateSchema,
+  chave_acesso_nf: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Use AAAA-MM-DD")
-    .refine(
-      (s) =>
-        !Number.isNaN(Date.parse(s)) &&
-        new Date(s).toISOString().slice(0, 10) === s,
-      "Data inválida",
-    ),
+    .regex(/^\d{44}$/, "Chave da NF deve ter 44 dígitos")
+    .optional(),
   numero_cte: z.string().max(60).optional(),
   cidade_destino: text,
   uf_destino: z.enum([
@@ -136,3 +141,23 @@ export const orderSchema = shipmentSchema.pick({
 export const orderLookupSchema = trackingLookupSchema.extend({
   number: orderSchema.shape.numero_pedido,
 });
+
+export const orderImportColumns = [
+  "numero_pedido",
+  "data_emissao_pedido",
+  "nome_cliente",
+  "cpf_cnpj_destinatario",
+  "email_cliente",
+  "email_vendedor",
+  "cidade_destino",
+  "uf_destino",
+  "numero_nf",
+  "serie_nf",
+  "data_emissao_nf",
+  "chave_acesso_nf",
+  "cnpj_remetente",
+  "cnpj_tomador",
+  "transportadora",
+  "numero_cte",
+  "codigo_rastreio",
+] as const;
