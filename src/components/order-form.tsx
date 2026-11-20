@@ -8,12 +8,14 @@ import { orderStageLabels, orderTransitions } from "@/lib/order-status";
 export function OrderForm({
   order,
 }: {
-  order: { id: string; stage: OrderStage };
+  order: { id: string; stage: OrderStage | null };
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const transitions = orderTransitions[order.stage];
+  const transitions = order.stage
+    ? orderTransitions[order.stage]
+    : ["RECEIVED" as const];
   if (!transitions.length) return null;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -40,9 +42,10 @@ export function OrderForm({
 
   return (
     <form method="post" className="card" onSubmit={submit}>
+      <h2>Etapa do pedido</h2>
       <label className="field">
         Nova etapa
-        <select name="stage" required defaultValue="">
+        <select name="stage" required defaultValue="" disabled={busy}>
           <option value="" disabled>
             Selecione
           </option>
@@ -59,7 +62,7 @@ export function OrderForm({
         </p>
       )}
       <button className="button" disabled={busy}>
-        {busy ? "Salvando…" : "Atualizar etapa"}
+        {busy ? "Salvando…" : "Atualizar status do pedido"}
       </button>
     </form>
   );
