@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   Package,
+  ClipboardList,
   Upload,
   Truck,
   Users,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 const entries = [
   ["/admin", "Visão geral", LayoutDashboard],
+  ["/admin/pedidos", "Pedidos", ClipboardList],
   ["/admin/remessas", "Remessas", Package],
   ["/admin/importacoes", "Importações", Upload],
   ["/admin/transportadoras", "Transportadoras", Truck],

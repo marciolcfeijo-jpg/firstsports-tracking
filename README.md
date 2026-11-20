@@ -65,6 +65,15 @@ npm start
 
 Playwright usa `/usr/bin/chromium` neste ambiente. Para outra instalação, defina `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. A suíte E2E inicia uma **fixture HTTP de Supabase exclusiva dos testes**; ela não é carregada pela aplicação de produção nem substitui a validação real do seu projeto Supabase. Os bancos de teste são truncados. Não aponte esses comandos para dados reais.
 
+## Acompanhamento de pedidos
+
+1. No painel, abra **Pedidos → Importar pedidos** e baixe o modelo CSV. A planilha deve conter `numero_pedido`, `cpf_cnpj_destinatario`, `nome_cliente`, `cidade_destino` e `uf_destino`. Use células de texto para preservar zeros à esquerda.
+2. A importação aceita CSV ou XLSX. Um lote com erros é rejeitado inteiro e indica as linhas a corrigir. Reimportar o mesmo número para o mesmo destinatário preserva a etapa já registrada.
+3. Abra o pedido para avançar de **Recebido** para **Em preparação** e **Pronto para faturar**. A partir do cadastro de uma remessa com o mesmo pedido e CPF/CNPJ, o acompanhamento incorpora os estados das transportadoras. Em pedidos com mais de uma remessa cadastrada, o status considera o conjunto.
+4. No portal, acesse **Consultar por número do pedido** e informe também o CPF/CNPJ do destinatário. A consulta por pedido lê os dados já registrados no sistema. A sincronização segue o fluxo de rastreamento das remessas.
+
+Para validar na Vercel Preview, aplique as migrações em um banco isolado de Preview antes de testar o fluxo. Em Production, o comando `build:vercel` usa a conexão de migração do ambiente conforme descrito no guia de deploy.
+
 ## Guias
 
 - [Ativar consulta por NF e Braspress](docs/ativacao-braspress.md)

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { apiError, checkOrigin, noStore } from "@/lib/security";
@@ -36,8 +37,10 @@ export async function POST(request: Request) {
   try {
     checkOrigin(request);
     const user = await requireAdmin(["ADMIN", "OPERATOR"]);
-    const data = shipmentSchema.parse(await request.json());
-    const result = await createShipmentTransaction(data, user.id);
+    const data = shipmentSchema
+      .extend({ orderId: z.string().min(1).max(120).optional() })
+      .parse(await request.json());
+    const result = await createShipmentTransaction(data, user.id, data.orderId);
     return Response.json(result, { status: result.duplicate ? 200 : 201 });
   } catch (e) {
     return apiError(e);

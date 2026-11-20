@@ -187,8 +187,13 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
           number: data.orderNumber ?? s.order.number,
           customerId: customer.id,
         },
-        update: {},
+        update: { number: data.orderNumber ?? s.order.number },
       });
+      if (order.stage === "CANCELLED")
+        throw new HttpError(
+          409,
+          "Pedido cancelado. Confira o número do pedido.",
+        );
       const issuedAt = data.issuedAt
         ? new Date(data.issuedAt + "T15:00:00Z")
         : s.issuedAt;

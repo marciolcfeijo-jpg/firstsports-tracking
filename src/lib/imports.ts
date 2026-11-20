@@ -19,6 +19,38 @@ export async function parseSpreadsheet(
       400,
       "Selecione uma transportadora cadastrada para o lote",
     );
+  const records = await readSpreadsheet(
+    bytes,
+    filename,
+    columns.filter((column) => column !== "transportadora" || !selectedCarrier),
+  );
+  const seen = new Set<string>();
+  const rows = [];
+  for (const { line, data, errors } of records) {
+    if (selectedCarrier) data.transportadora = selectedCarrier;
+    if (!knownCarrierCodes.includes(data.transportadora))
+      errors.push("Transportadora não cadastrada");
+    if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)
+      errors.push("Informe codigo_rastreio para remessas dos Correios");
+    const result = shipmentSchema.safeParse(data);
+    if (!result.success)
+      errors.push(
+        ...result.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
+      );
+    else {
+      const key = fiscalKey(result.data);
+      if (seen.has(key)) errors.push("Nota fiscal duplicada neste arquivo");
+      seen.add(key);
+    }
+    rows.push({ line, data, errors });
+  }
+  return rows;
+}
+export async function readSpreadsheet(
+  bytes: Buffer,
+  filename: string,
+  requiredColumns: readonly string[],
+) {
   if (bytes.length > MAX_BYTES) throw new HttpError(400, "Arquivo excede 5 MB");
   const book = new ExcelJS.Workbook();
   if (filename.toLowerCase().endsWith(".xlsx")) {
@@ -99,9 +131,7 @@ export async function parseSpreadsheet(
   });
   const names = headers.map((header) => header.name);
   if (
-    columns.some(
-      (c) => !(c === "transportadora" && selectedCarrier) && !names.includes(c),
-    ) ||
+    requiredColumns.some((column) => !names.includes(column)) ||
     new Set(names).size !== names.length ||
     [...populatedColumns].some(
       (column) => !headers.some((header) => header.column === column),
@@ -111,9 +141,7 @@ export async function parseSpreadsheet(
       400,
       "Cabeçalhos ausentes ou repetidos. Toda coluna com dados deve ter cabeçalho. Baixe o modelo.",
     );
-  const seen = new Set<string>();
-  const rows = [];
-  for (const row of populatedRows) {
+  return populatedRows.map((row) => {
     const line = row.number;
     const data: Record<string, string> = {};
     const errors: string[] = [];
@@ -127,25 +155,10 @@ export async function parseSpreadsheet(
           ? value.toISOString().slice(0, 10)
           : String(value ?? "").trim();
     });
-    if (selectedCarrier) data.transportadora = selectedCarrier;
-    if (!knownCarrierCodes.includes(data.transportadora))
-      errors.push("Transportadora não cadastrada");
-    if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)
-      errors.push("Informe codigo_rastreio para remessas dos Correios");
-    const result = shipmentSchema.safeParse(data);
-    if (!result.success)
-      errors.push(
-        ...result.error.issues.map((e) => `${e.path.join(".")}: ${e.message}`),
-      );
-    else {
-      const key = fiscalKey(result.data);
-      if (seen.has(key)) errors.push("Nota fiscal duplicada neste arquivo");
-      seen.add(key);
-    }
-    rows.push({ line, data, errors });
-  }
-  return rows;
+    return { line, data, errors };
+  });
 }
+
 export async function template() {
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Pedidos");

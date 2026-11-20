@@ -124,3 +124,15 @@ export const trackingLookupSchema = z.object({
     .max(25)
     .refine(validDocument, "Informe um CPF ou CNPJ válido"),
 });
+
+export const orderSchema = shipmentSchema.pick({
+  numero_pedido: true,
+  cpf_cnpj_destinatario: true,
+  nome_cliente: true,
+  cidade_destino: true,
+  uf_destino: true,
+});
+
+export const orderLookupSchema = trackingLookupSchema.extend({
+  number: orderSchema.shape.numero_pedido,
+});
