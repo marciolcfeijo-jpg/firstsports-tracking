@@ -88,10 +88,17 @@ export async function createShipment(
   });
   if (order.stage === "CANCELLED")
     throw new HttpError(409, "Pedido cancelado. Confira o número do pedido.");
+  const inheritedSeller =
+    data.vendedor_id === undefined && order.sellerId
+      ? await tx.adminUser.findFirst({
+          where: { id: order.sellerId, active: true },
+          select: { id: true },
+        })
+      : null;
   const shipment = await tx.shipment.create({
     data: {
       orderId: order.id,
-      sellerId: data.vendedor_id || null,
+      sellerId: data.vendedor_id || inheritedSeller?.id || null,
       carrierId: carrier.id,
       destinationCity: data.cidade_destino,
       destinationState: data.uf_destino,
@@ -100,7 +107,14 @@ export async function createShipment(
       cte: data.numero_cte || null,
       trackingCode: data.codigo_rastreio || null,
       issuedAt: new Date(data.data_emissao + "T15:00:00Z"),
-      invoices: { create: { issuerDocument, series, number } },
+      invoices: {
+        create: {
+          issuerDocument,
+          series,
+          number,
+          accessKey: data.chave_acesso_nf,
+        },
+      },
       events: {
         create: {
           fingerprint: "invoiced",

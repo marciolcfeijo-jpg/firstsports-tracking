@@ -2,10 +2,11 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { orderSchema } from "@/lib/validation";
+import { orderImportColumns } from "@/lib/validation";
 
 type ImportResult = {
   created: number;
+  shipmentsCreated: number;
   skipped: number;
   errors: { line: number; messages: string[] }[];
 };
@@ -38,14 +39,22 @@ export function OrderImport() {
     }
   }
 
-  const csv = Object.keys(orderSchema.shape).join(";") + "\r\n";
+  const csv = orderImportColumns.join(";") + "\r\n";
   return (
     <section className="card">
       <p>
         Use uma planilha XLSX ou CSV de até 4 MB e 2.000 linhas. Formate o
-        número do pedido e o CPF/CNPJ como texto para preservar zeros à
-        esquerda.
+        número do pedido, a NF, a chave de acesso e os documentos como texto
+        para preservar zeros à esquerda. Use AAAA-MM-DD para as datas.
       </p>
+      <p className="small">
+        Antes do faturamento, deixe os campos fiscais e de transporte vazios.
+        Depois da emissão, use uma linha por NF. Informe o e-mail do vendedor
+        conforme o cadastro de usuários ativos.
+      </p>
+      <a href="/api/admin/orders/template" className="button secondary mr-3">
+        Baixar modelo Excel
+      </a>
       <a
         href={`data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`}
         download="modelo-pedidos.csv"
@@ -84,8 +93,8 @@ export function OrderImport() {
             </>
           ) : (
             <p>
-              {result.created} pedidos cadastrados. {result.skipped} linhas
-              duplicadas ou já cadastradas.{" "}
+              {result.created} pedidos cadastrados. {result.shipmentsCreated}{" "}
+              remessas cadastradas. {result.skipped} linhas sem alterações.{" "}
               <Link href="/admin/pedidos">Ver pedidos</Link>
             </p>
           )}
