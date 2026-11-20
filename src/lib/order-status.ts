@@ -7,6 +7,17 @@ export const orderStageLabels = {
   CANCELLED: "Pedido cancelado",
 } satisfies Record<OrderStage, string>;
 
+export function orderAuditStageLabel(action: string, snapshot: unknown) {
+  const stage =
+    snapshot && typeof snapshot === "object" && "stage" in snapshot
+      ? snapshot.stage
+      : null;
+  return (
+    Object.entries(orderStageLabels).find(([code]) => code === stage)?.[1] ??
+    (action === "ORDER_CREATE" ? orderStageLabels.RECEIVED : undefined)
+  );
+}
+
 export const orderTransitions = {
   RECEIVED: ["PREPARING", "CANCELLED"],
   PREPARING: ["READY_TO_INVOICE", "CANCELLED"],

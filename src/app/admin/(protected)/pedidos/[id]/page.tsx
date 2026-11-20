@@ -5,7 +5,11 @@ import { OrderShipmentSync } from "@/components/order-shipment-sync";
 import { TrackingAvailability } from "@/components/tracking-availability";
 import { TrackingHistory } from "@/components/tracking-history";
 import { db } from "@/lib/db";
-import { orderStatus, orderStageLabels } from "@/lib/order-status";
+import {
+  orderStatus,
+  orderAuditStageLabel,
+  orderStageLabels,
+} from "@/lib/order-status";
 import { requirePageAdmin } from "@/lib/page-auth";
 import {
   dateOnly,
@@ -103,6 +107,10 @@ export default async function OrderDetails({
               ["Cidade", order.destinationCity ?? order.customer.city],
               ["UF", order.destinationState ?? order.customer.state],
               ["Status atual", status],
+              [
+                "Etapa interna",
+                order.stage ? orderStageLabels[order.stage] : null,
+              ],
               ["Remessas vinculadas", String(order.shipments.length)],
             ]}
           />
@@ -120,20 +128,10 @@ export default async function OrderDetails({
         {history.length ? (
           <ol>
             {history.map((entry) => {
-              const snapshot = entry.snapshot;
-              const stage =
-                snapshot && typeof snapshot === "object" && "stage" in snapshot
-                  ? snapshot.stage
-                  : null;
-              const label = Object.entries(orderStageLabels).find(
-                ([key]) => key === stage,
-              )?.[1];
               return (
                 <li key={entry.id}>
                   {dateTime(entry.createdAt)} ·{" "}
-                  {entry.action === "ORDER_CREATE"
-                    ? orderStageLabels.RECEIVED
-                    : label}
+                  {orderAuditStageLabel(entry.action, entry.snapshot)}
                 </li>
               );
             })}

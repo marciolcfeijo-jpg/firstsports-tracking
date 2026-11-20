@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { orderStageLabels } from "./order-status";
+import { orderAuditStageLabel } from "./order-status";
 import { statusLabels } from "./status";
 import type { ShipmentStatus } from "@prisma/client";
 
@@ -28,15 +28,7 @@ export async function publicOrderTimelines(orderIds: string[]) {
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
   for (const entry of entries) {
-    const snapshot = entry.snapshot;
-    const stage =
-      snapshot && typeof snapshot === "object" && "stage" in snapshot
-        ? snapshot.stage
-        : null;
-    const label =
-      entry.action === "ORDER_CREATE"
-        ? orderStageLabels.RECEIVED
-        : Object.entries(orderStageLabels).find(([key]) => key === stage)?.[1];
+    const label = orderAuditStageLabel(entry.action, entry.snapshot);
     if (!label) continue;
     const steps = timelines.get(entry.entityId) ?? [];
     steps.push({
