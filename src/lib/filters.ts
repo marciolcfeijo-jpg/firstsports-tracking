@@ -1,5 +1,11 @@
 import { Prisma, ShipmentStatus } from "@prisma/client";
-export function shipmentWhere(p: URLSearchParams): Prisma.ShipmentWhereInput {
+import { deliveryAttention, startOfDeliveryDay } from "./delivery-metrics";
+import { terminalStatuses } from "./status";
+
+export function shipmentWhere(
+  p: URLSearchParams,
+  now = new Date(),
+): Prisma.ShipmentWhereInput {
   const q = p.get("q")?.slice(0, 120),
     status = p.get("status"),
     carrier = p.get("carrier"),
@@ -7,7 +13,24 @@ export function shipmentWhere(p: URLSearchParams): Prisma.ShipmentWhereInput {
     state = p.get("state"),
     from = p.get("from"),
     to = p.get("to");
+  const attention = deliveryAttention(p.get("attention"));
   return {
+    ...(attention
+      ? {
+          AND: [
+            { status: { notIn: [...terminalStatuses] } },
+            ...(attention === "late"
+              ? [{ estimatedDelivery: { lt: startOfDeliveryDay(now) } }]
+              : []),
+            ...(attention === "exception"
+              ? [{ status: ShipmentStatus.EXCEPTION }]
+              : []),
+            ...(attention === "no-forecast"
+              ? [{ estimatedDelivery: null }]
+              : []),
+          ],
+        }
+      : {}),
     ...(q
       ? {
           OR: [

@@ -1143,6 +1143,26 @@ tr:last-child td {
   padding-top: 16px;
   border-top: 1px solid var(--border);
 }
+.delivery-attention-card,
+.delivery-kpi {
+  position: relative;
+}
+.delivery-details-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--brand-purple-dark);
+  font-size: 13px;
+  font-weight: 700;
+}
+.delivery-details-link::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+.delivery-details-link:hover,
+.delivery-details-link:focus-visible {
+  text-decoration: underline;
+}
 .delivery-attention-grid {
   margin: 0;
 }
