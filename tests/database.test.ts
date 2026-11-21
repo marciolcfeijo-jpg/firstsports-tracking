@@ -1,3 +1,5 @@
+import { deliveryMetrics } from "../src/lib/delivery-metrics";
+import { shipmentWhere } from "../src/lib/filters";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
 import { db } from "../src/lib/db";
 import {
@@ -145,4 +147,83 @@ describe("PostgreSQL workflow", () => {
       ),
     ).not.toThrow();
   });
+});
+
+it("keeps attention list counts in sync with dashboard categories and current filters", async () => {
+  const now = new Date("2026-11-21T03:00:00.000Z");
+  const fixtures = [
+    {
+      status: "IN_TRANSIT",
+      estimatedDelivery: new Date("2026-11-21T02:59:59Z"),
+      carrier: "BRASPRESS",
+    },
+    {
+      status: "IN_TRANSIT",
+      estimatedDelivery: new Date("2026-11-21T03:00:00Z"),
+      carrier: "BRASPRESS",
+    },
+    { status: "EXCEPTION", estimatedDelivery: null, carrier: "BRASPRESS" },
+    {
+      status: "EXCEPTION",
+      estimatedDelivery: new Date("2026-11-20T15:00:00Z"),
+      carrier: "BRASPRESS",
+    },
+    {
+      status: "CANCELLED",
+      estimatedDelivery: new Date("2026-11-20T15:00:00Z"),
+      carrier: "BRASPRESS",
+    },
+    { status: "DELIVERED", estimatedDelivery: null, carrier: "BRASPRESS" },
+    { status: "EXCEPTION", estimatedDelivery: null, carrier: "ALFA" },
+  ] as const;
+  for (const [index, fixture] of fixtures.entries()) {
+    const shipment = await createShipmentTransaction(
+      {
+        ...shipmentFixture,
+        numero_pedido: "ATENCAO-PAINEL",
+        numero_nf: String(41000 + index),
+        transportadora: fixture.carrier,
+      },
+      "fixture",
+    );
+    await db.shipment.update({
+      where: { id: shipment.id },
+      data: {
+        status: fixture.status,
+        estimatedDelivery: fixture.estimatedDelivery,
+      },
+    });
+  }
+
+  const filters = { q: "ATENCAO-PAINEL", carrier: "BRASPRESS" };
+  const shipments = await db.shipment.findMany({
+    where: shipmentWhere(new URLSearchParams(filters), now),
+  });
+  const metrics = deliveryMetrics(shipments, now);
+  const labels = {
+    open: metrics.open,
+    late: metrics.overdue,
+    exception: metrics.exceptions,
+    "no-forecast": metrics.withoutForecast,
+  };
+  expect(labels).toEqual({ open: 4, late: 2, exception: 2, "no-forecast": 1 });
+  for (const [attention, expected] of Object.entries(labels)) {
+    const where = shipmentWhere(
+      new URLSearchParams({ ...filters, attention }),
+      now,
+    );
+    expect(await db.shipment.count({ where })).toBe(expected);
+  }
+  expect(
+    await db.shipment.count({
+      where: shipmentWhere(
+        new URLSearchParams({
+          ...filters,
+          attention: "exception",
+          status: "DELIVERED",
+        }),
+        now,
+      ),
+    }),
+  ).toBe(0);
 });

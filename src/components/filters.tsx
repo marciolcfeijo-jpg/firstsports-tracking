@@ -1,6 +1,13 @@
 import { db } from "@/lib/db";
 import { statusLabels } from "@/lib/status";
-export async function Filters({ values }: { values: Record<string, string> }) {
+import { deliveryAttentionLabels } from "@/lib/delivery-metrics";
+export async function Filters({
+  values,
+  includeAttention = false,
+}: {
+  values: Record<string, string>;
+  includeAttention?: boolean;
+}) {
   const carriers = await db.carrier.findMany({
     select: { code: true, name: true },
     orderBy: { name: "asc" },
@@ -64,6 +71,20 @@ export async function Filters({ values }: { values: Record<string, string> }) {
         <option value="">Todas as situações de consulta</option>
         <option value="not_found">Não localizada na transportadora</option>
       </select>
+      {includeAttention && (
+        <select
+          name="attention"
+          defaultValue={values.attention || ""}
+          aria-label="Indicador de entrega"
+        >
+          <option value="">Todos os indicadores</option>
+          {Object.entries(deliveryAttentionLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      )}
       <input
         name="state"
         placeholder="UF"

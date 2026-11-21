@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { deliveryAttentionLabels } from "@/lib/delivery-metrics";
 import {
   Package,
   Truck,
@@ -10,7 +12,19 @@ import {
 } from "lucide-react";
 import type { DeliveryMetrics } from "@/lib/delivery-metrics";
 const number = (value: number) => value.toLocaleString("pt-BR");
-export function DeliverySummary({ metrics: m }: { metrics: DeliveryMetrics }) {
+export function DeliverySummary({
+  metrics: m,
+  filters = {},
+}: {
+  metrics: DeliveryMetrics;
+  filters?: Record<string, string>;
+}) {
+  function listHref(attention: keyof typeof deliveryAttentionLabels) {
+    const query = new URLSearchParams(filters);
+    query.delete("page");
+    query.set("attention", attention);
+    return "/admin/remessas?" + query;
+  }
   const distribution = [
     {
       label: "Antes do prazo",
@@ -44,7 +58,8 @@ export function DeliverySummary({ metrics: m }: { metrics: DeliveryMetrics }) {
               : "Todas as remessas dos filtros selecionados",
           },
           {
-            label: "Em aberto",
+            label: deliveryAttentionLabels.open,
+            href: listHref("open"),
             value: m.open,
             Icon: Truck,
             note: "Ainda aguardando a conclusão da entrega",
@@ -55,7 +70,7 @@ export function DeliverySummary({ metrics: m }: { metrics: DeliveryMetrics }) {
             Icon: PackageCheck,
             note: "Remessas com status de entrega concluída",
           },
-        ].map(({ label, value, Icon, note }) => (
+        ].map(({ label, value, Icon, note, href }) => (
           <div className="card delivery-kpi" key={label}>
             <div className="delivery-kpi-heading">
               <span>{label}</span>
@@ -63,6 +78,11 @@ export function DeliverySummary({ metrics: m }: { metrics: DeliveryMetrics }) {
             </div>
             <strong>{number(value)}</strong>
             <p>{note}</p>
+            {href && (
+              <Link className="delivery-details-link" href={href}>
+                Ver remessas em aberto →
+              </Link>
+            )}
           </div>
         ))}
       </section>
@@ -162,24 +182,24 @@ export function DeliverySummary({ metrics: m }: { metrics: DeliveryMetrics }) {
         <dl className="delivery-attention-grid">
           {[
             {
-              label: "Em atraso",
+              label: deliveryAttentionLabels.late,
               value: m.overdue,
               Icon: Clock,
-              tone: "late",
+              tone: "late" as const,
               note: "A previsão já passou e a entrega não foi concluída",
             },
             {
-              label: "Em ocorrência",
+              label: deliveryAttentionLabels.exception,
               value: m.exceptions,
               Icon: AlertTriangle,
-              tone: "exception",
+              tone: "exception" as const,
               note: "A última situação da transportadora indica uma ocorrência",
             },
             {
-              label: "Sem previsão",
+              label: deliveryAttentionLabels["no-forecast"],
               value: m.withoutForecast,
               Icon: CalendarClock,
-              tone: "no-forecast",
+              tone: "no-forecast" as const,
               note: "A transportadora ainda não informou uma data prevista",
             },
           ].map(({ label, value, Icon, tone, note }) => (
@@ -190,6 +210,13 @@ export function DeliverySummary({ metrics: m }: { metrics: DeliveryMetrics }) {
               </dt>
               <dd>{number(value)}</dd>
               <p>{note}</p>
+              <Link
+                className="delivery-details-link"
+                href={listHref(tone)}
+                aria-label={`Ver remessas · ${label}`}
+              >
+                Ver remessas →
+              </Link>
             </div>
           ))}
         </dl>

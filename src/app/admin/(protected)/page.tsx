@@ -37,7 +37,7 @@ export default async function Dashboard({
       <p className="small">
         Os indicadores abaixo respeitam os filtros selecionados.
       </p>
-      <DeliverySummary metrics={metrics} />
+      <DeliverySummary metrics={metrics} filters={p} />
       <div className="page-heading spaced">
         <h2>Últimas atualizações</h2>
         <Link

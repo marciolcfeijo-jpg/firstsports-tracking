@@ -8,6 +8,10 @@ import {
 } from "@/components/shipment-selection";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
+import {
+  deliveryAttention,
+  deliveryAttentionLabels,
+} from "@/lib/delivery-metrics";
 import { shipmentWhere } from "@/lib/filters";
 import { Filters } from "@/components/filters";
 import { dateTime, dateOnly, statusLabels } from "@/lib/status";
@@ -19,6 +23,7 @@ export default async function Shipments({
 }) {
   const user = await requirePageAdmin();
   const p = await searchParams;
+  const attention = deliveryAttention(p.attention);
   const page = Math.max(1, Number(p.page) || 1),
     where = shipmentWhere(new URLSearchParams(p));
   const [items, total] = await Promise.all([
@@ -29,6 +34,12 @@ export default async function Shipments({
         seller: { select: { email: true } },
         order: { include: { customer: true } },
         invoices: true,
+        events: {
+          where: { status: "EXCEPTION" },
+          orderBy: { occurredAt: "desc" },
+          take: 1,
+          select: { description: true },
+        },
       },
       take: 50,
       skip: (page - 1) * 50,
@@ -40,7 +51,11 @@ export default async function Shipments({
     <>
       <div className="page-heading">
         <div>
-          <h1>Remessas</h1>
+          <h1>
+            {attention
+              ? `Remessas · ${deliveryAttentionLabels[attention]}`
+              : "Remessas"}
+          </h1>
           <p>{total} remessa(s) encontrada(s)</p>
         </div>
         <div className="actions">
@@ -60,7 +75,7 @@ export default async function Shipments({
         ids={items.map((s) => s.id)}
       >
         {user.role !== "VIEWER" && <BulkTracking />}
-        <Filters values={p} />
+        <Filters values={p} includeAttention />
         <p className="small">Clique em uma remessa para abrir os detalhes.</p>
         <div className="table-wrap">
           <table>
@@ -124,6 +139,11 @@ export default async function Shipments({
                     <span className={"badge " + s.status}>
                       {statusLabels[s.status]}
                     </span>
+                    {attention && s.status === "EXCEPTION" && s.events[0] && (
+                      <p className="small mt-2 whitespace-normal min-w-40">
+                        {s.events[0].description}
+                      </p>
+                    )}
                     <TrackingAvailability error={s.lastSyncError} />
                   </td>
                   <td>{dateTime(s.lastSyncedAt)}</td>
@@ -134,6 +154,14 @@ export default async function Shipments({
                     >
                       Visualizar →
                     </Link>
+                    {attention && (
+                      <Link
+                        className="text-[var(--brand-purple-dark)] block mt-2"
+                        href={`/admin/pedidos/${s.orderId}`}
+                      >
+                        Ficha do pedido →
+                      </Link>
+                    )}
                   </td>
                 </ShipmentRow>
               ))}

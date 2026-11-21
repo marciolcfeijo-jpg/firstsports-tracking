@@ -1,3 +1,18 @@
+import { terminalStatuses } from "./status";
+
+export const deliveryAttentionLabels = {
+  open: "Em aberto",
+  late: "Em atraso",
+  exception: "Em ocorrência",
+  "no-forecast": "Sem previsão",
+} as const;
+
+export function deliveryAttention(value: string | null | undefined) {
+  return value && Object.hasOwn(deliveryAttentionLabels, value)
+    ? (value as keyof typeof deliveryAttentionLabels)
+    : null;
+}
+
 type ShipmentMetricInput = {
   status: string;
   deliveredAt: Date | string | null;
@@ -22,6 +37,20 @@ function localDay(value: Date | string | null) {
   );
   return `${parts.year}-${parts.month}-${parts.day}`;
 }
+export function startOfDeliveryDay(now: Date) {
+  const day = localDay(now)!;
+  const midnight = Date.parse(day + "T00:00:00Z");
+  // Find the first instant on the São Paulo calendar day, including historic DST changes.
+  let earlier = midnight - 12 * 60 * 60 * 1000;
+  let later = midnight + 12 * 60 * 60 * 1000;
+  while (later - earlier > 1) {
+    const middle = Math.floor((earlier + later) / 2);
+    if (localDay(new Date(middle))! < day) earlier = middle;
+    else later = middle;
+  }
+  return new Date(later);
+}
+
 export function deliveryMetrics(
   shipments: ShipmentMetricInput[],
   now = new Date(),
@@ -51,7 +80,7 @@ export function deliveryMetrics(
       else if (delivered < forecast) counts.early++;
       else if (delivered === forecast) counts.onDay++;
       else counts.after++;
-    } else if (["RETURNED", "CANCELLED"].includes(shipment.status)) {
+    } else if (terminalStatuses.some((status) => status === shipment.status)) {
       counts.closedOther++;
     } else {
       counts.open++;

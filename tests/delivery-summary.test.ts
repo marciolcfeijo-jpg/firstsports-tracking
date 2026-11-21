@@ -38,3 +38,17 @@ it("labels the on-time percentage as before plus on the promised date", () => {
   expect(html).toContain("Antes do prazo + no dia previsto");
   expect(html).toContain('role="img"');
 });
+
+it("links the open shipment cards to the same filters on the shipment list", () => {
+  const html = renderToStaticMarkup(
+    createElement(DeliverySummary, {
+      metrics: deliveryMetrics([]),
+      filters: { carrier: "BRASPRESS", state: "SP", page: "3" },
+    }),
+  );
+  for (const attention of ["open", "late", "exception", "no-forecast"])
+    expect(html).toContain(
+      `/admin/remessas?carrier=BRASPRESS&amp;state=SP&amp;attention=${attention}`,
+    );
+  expect(html).not.toContain("page=3");
+});
