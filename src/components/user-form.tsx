@@ -47,7 +47,10 @@ export function UserForm() {
         <label className="field">
           Papel
           <select name="role">
-            <option value="VIEWER">Leitura</option>
+            <option value="VIEWER">Leitura geral</option>
+            <option value="SALES">
+              Vendedor / representante · própria carteira
+            </option>
             <option value="OPERATOR">Operação</option>
             <option value="ADMIN">Administração</option>
           </select>

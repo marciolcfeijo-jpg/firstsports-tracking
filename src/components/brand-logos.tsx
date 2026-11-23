@@ -67,11 +67,17 @@ function LogoArt({ artwork }: { artwork: LogoArtwork }) {
   );
 }
 
-export function Brand({ admin = false }: { admin?: boolean }) {
+export function Brand({
+  admin = false,
+  href,
+}: {
+  admin?: boolean;
+  href?: string;
+}) {
   return (
     <Link
       className="brand"
-      href={admin ? "/admin" : "/"}
+      href={href ?? (admin ? "/admin" : "/")}
       aria-label={admin ? "First Sports — painel" : "First Sports — início"}
     >
       <Image

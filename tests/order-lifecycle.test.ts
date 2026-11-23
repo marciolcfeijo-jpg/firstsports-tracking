@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { POST as lookupOrder } from "../src/app/api/tracking/order/route";
 import { lookupInvoice } from "../src/lib/tracking-lookup";
 import { db } from "../src/lib/db";
 import { importOrders, updateOrderStage } from "../src/lib/orders";
@@ -27,19 +26,6 @@ const spreadsheet = (...numbers: string[]) =>
       }),
     ].join("\n"),
   );
-
-function lookup(number: string, document: string) {
-  return lookupOrder(
-    new Request("http://localhost:3000/api/tracking/order", {
-      method: "POST",
-      headers: {
-        origin: "http://localhost:3000",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ number, document }),
-    }),
-  );
-}
 
 beforeAll(async () => {
   await db.$executeRawUnsafe(
@@ -103,17 +89,11 @@ describe("ciclo do pedido importado", () => {
       await importOrders(spreadsheet(number, number), "pedidos.csv", actor),
     ).toMatchObject({ created: 1, skipped: 1 });
     const order = await db.order.findFirstOrThrow({ where: { number } });
-    const beforeInvoice = await lookup(number, document);
-    expect(beforeInvoice.status).toBe(200);
-    expect(await beforeInvoice.json()).toMatchObject({
-      number,
-      status: "Pedido recebido",
-      shipments: [],
-      orderTimeline: [{ label: "Pedido recebido" }],
-    });
-    expect(
-      (await lookup(number, shipmentFixture.cpf_cnpj_destinatario)).status,
-    ).toBe(404);
+    expect(order.stage).toBe("RECEIVED");
+    expect(await db.shipment.count({ where: { orderId: order.id } })).toBe(0);
+    await expect(
+      lookupInvoice({ number: "987654321", document }),
+    ).rejects.toMatchObject({ status: 404 });
 
     await updateOrderStage(
       { id: order.id, from: "RECEIVED", stage: "PREPARING" },
@@ -164,30 +144,26 @@ describe("ciclo do pedido importado", () => {
       },
     });
 
-    const delivered = await lookup(number, document);
-    expect(delivered.status).toBe(200);
-    expect(await delivered.json()).toMatchObject({
-      number,
-      status: "Entregue",
-      orderTimeline: [{ label: "Pedido recebido" }, { label: "Em preparação" }],
-      shipments: [
-        {
-          status: "DELIVERED",
-          timeline: [
-            { label: "Nota fiscal emitida", dateOnly: true },
-            { label: "Em viagem", dateOnly: true },
-            { label: "Entregue", dateOnly: true },
-          ],
-        },
-      ],
+    const internalHistory = await db.auditLog.findMany({
+      where: { entityId: order.id },
+      select: { action: true, snapshot: true },
     });
+    expect(internalHistory).toEqual(
+      expect.arrayContaining([
+        {
+          action: "ORDER_CREATE",
+          snapshot: expect.objectContaining({ stage: "RECEIVED" }),
+        },
+        {
+          action: "ORDER_STAGE_UPDATE",
+          snapshot: expect.objectContaining({ stage: "PREPARING" }),
+        },
+      ]),
+    );
     const invoice = await lookupInvoice({ number: "987654321", document });
+    expect(invoice.links[0]).not.toHaveProperty("orderTimeline");
     expect(invoice.links).toMatchObject([
       {
-        orderTimeline: [
-          { label: "Pedido recebido" },
-          { label: "Em preparação" },
-        ],
         shipmentTimeline: [
           { label: "Nota fiscal emitida" },
           { label: "Em viagem" },

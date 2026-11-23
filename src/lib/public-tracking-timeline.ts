@@ -1,5 +1,3 @@
-import { db } from "./db";
-import { orderAuditStageLabel } from "./order-status";
 import { statusLabels } from "./status";
 import type { ShipmentStatus } from "@prisma/client";
 
@@ -9,38 +7,6 @@ export type TrackingStep = {
   occurredAt: string;
   dateOnly: boolean;
 };
-
-export async function publicOrderTimelines(orderIds: string[]) {
-  const timelines = new Map<string, TrackingStep[]>();
-  if (!orderIds.length) return timelines;
-  const entries = await db.auditLog.findMany({
-    where: {
-      entityId: { in: orderIds },
-      action: { in: ["ORDER_CREATE", "ORDER_STAGE_UPDATE"] },
-    },
-    select: {
-      id: true,
-      entityId: true,
-      action: true,
-      createdAt: true,
-      snapshot: true,
-    },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-  });
-  for (const entry of entries) {
-    const label = orderAuditStageLabel(entry.action, entry.snapshot);
-    if (!label) continue;
-    const steps = timelines.get(entry.entityId) ?? [];
-    steps.push({
-      id: entry.id,
-      label,
-      occurredAt: entry.createdAt.toISOString(),
-      dateOnly: false,
-    });
-    timelines.set(entry.entityId, steps);
-  }
-  return timelines;
-}
 
 export const publicEventSelect = {
   id: true,

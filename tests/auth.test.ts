@@ -48,4 +48,19 @@ describe("server-side role checks using an isolated external auth fixture", () =
     await db.adminUser.update({ where: { id }, data: { active: false } });
     await expect(requireAdmin()).rejects.toThrow("não autorizado");
   });
+  it("restringe um vendedor ao papel explícito de carteira", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://auth-fixture.test");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "fixture");
+    fixture.user = { id };
+    await db.adminUser.upsert({
+      where: { id },
+      create: { id, email: "role-fixture@example.test", role: "SALES" },
+      update: { role: "SALES", active: true },
+    });
+    expect((await requireAdmin(["SALES"])).id).toBe(id);
+    await expect(requireAdmin()).rejects.toMatchObject({ status: 403 });
+    await expect(requireAdmin(["ADMIN", "OPERATOR"])).rejects.toMatchObject({
+      status: 403,
+    });
+  });
 });

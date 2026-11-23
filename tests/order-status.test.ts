@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { orderStatus } from "../src/lib/order-status";
-import { orderLookupSchema } from "../src/lib/validation";
+import { orderSchema } from "../src/lib/validation";
 
 describe("acompanhamento do pedido", () => {
   it("exibe a etapa anterior à nota fiscal", () => {
@@ -46,12 +46,9 @@ describe("acompanhamento do pedido", () => {
   });
 
   it("preserva zeros à esquerda e aceita identificadores alfanuméricos", () => {
+    expect(orderSchema.shape.numero_pedido.parse(" 001-A ")).toBe("001-A");
     expect(
-      orderLookupSchema.parse({ number: " 001-A ", document: "529.982.247-25" })
-        .number,
-    ).toBe("001-A");
-    expect(
-      orderLookupSchema.safeParse({ number: "001-A", document: "123" }).success,
+      orderSchema.shape.cpf_cnpj_destinatario.safeParse("123").success,
     ).toBe(false);
   });
 });

@@ -18,6 +18,7 @@ Mutações de navegador exigem `Origin` igual à origem de `APP_URL`, além do c
 | PATCH `/api/admin/shipments/:id`         | `{version,cte?,estimatedDelivery?,name?,email?,city?,state?,payerDocument?,carrierCode?}`; controle otimista | OPERATOR+                               |
 | POST `/api/admin/shipments/:id/invoices` | `{cnpj_remetente,serie_nf,numero_nf}`                                                                        | OPERATOR+                               |
 | POST `/api/admin/shipments/:id/sync`     | Consulta o adaptador; `{ok,code?}`                                                                           | OPERATOR+                               |
+| POST `/api/admin/zenlog/:id`             | Consulta eventos da expedição de um pedido conhecido no ZenLOG                                             | ADMIN / OPERATOR                        |
 | POST `/api/admin/shipments/:id/links`    | `{url}`; token mostrado apenas uma vez                                                                       | OPERATOR+                               |
 | DELETE `/api/admin/shipments/:id/links`  | `{linkId}` revoga o link da remessa                                                                          | OPERATOR+                               |
 | GET `/api/admin/shipments/export`        | CSV, mesmos filtros; limite 10 mil, sem documentos                                                           | VIEWER+                                 |
@@ -55,3 +56,5 @@ Exemplo de cadastro (dados fictícios exclusivamente para testes):
 Os links representam uma remessa. Uma consulta de pedido retorna links separados para todas as suas remessas autorizadas; não há agregação que marque todo o pedido entregue prematuramente.
 
 A consulta pública usa exclusivamente o número da NF (campo `number`, texto numérico de até 12 dígitos), preservando o contrato JSON. Após validar o destinatário, tenta até três atualizações elegíveis; erros da transportadora mantêm o histórico disponível. Resposta: `{links:[{url,carrier,invoiceNumber}]}`.
+
+O perfil SALES usa somente a área autenticada **Minha carteira**, com consultas limitadas ao vendedor ativo. Os endpoints administrativos de backoffice exigem os papéis indicados na tabela. Consulte [Integração ZenLOG](integracao-zenlog.md) para homologar a consulta de expedição.

@@ -1,3 +1,4 @@
+import { ZenlogExpedition } from "@/components/zenlog-expedition";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { OrderForm } from "@/components/order-form";
@@ -140,6 +141,10 @@ export default async function OrderDetails({
           <p>Nenhuma etapa do pedido registrada.</p>
         )}
       </section>
+
+      {canWrite && process.env.ZENLOG_API_ORIGIN && (
+        <ZenlogExpedition orderId={order.id} />
+      )}
 
       <section className="mt-6">
         <h2>Notas fiscais e remessas</h2>

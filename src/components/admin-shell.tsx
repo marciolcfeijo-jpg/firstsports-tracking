@@ -35,6 +35,10 @@ export function AdminShell({
   brand: React.ReactNode;
 }) {
   const path = usePathname();
+  const navigation =
+    role === "SALES"
+      ? ([["/admin/carteira", "Minha carteira", ClipboardList]] as const)
+      : entries;
   const router = useRouter();
   async function logout() {
     await fetch("/api/admin/session", { method: "DELETE" });
@@ -46,7 +50,7 @@ export function AdminShell({
       <aside className="sidebar">
         {brand}
         <nav>
-          {entries
+          {navigation
             .filter(([href]) => role === "ADMIN" || href !== "/admin/usuarios")
             .map(([href, label, Icon]) => (
               <Link

@@ -15,12 +15,20 @@ export async function POST(request: Request) {
     const { error } = await client.auth.signInWithPassword(body);
     if (error) throw new HttpError(401, "E-mail ou senha inválidos");
     try {
-      await requireAdmin();
+      const actor = await requireAdmin([
+        "ADMIN",
+        "OPERATOR",
+        "VIEWER",
+        "SALES",
+      ]);
+      return Response.json({
+        ok: true,
+        redirectTo: actor.role === "SALES" ? "/admin/carteira" : "/admin",
+      });
     } catch (e) {
       await client.auth.signOut();
       throw e;
     }
-    return Response.json({ ok: true });
   } catch (e) {
     return apiError(e);
   }
