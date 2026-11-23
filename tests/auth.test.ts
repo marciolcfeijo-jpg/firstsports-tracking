@@ -11,6 +11,7 @@ vi.mock("@supabase/ssr", () => ({
     },
   }),
 }));
+import { PATCH as editUserPermissions } from "../src/app/api/admin/users/route";
 import { requireAdmin } from "../src/lib/auth";
 const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 afterAll(async () => {
@@ -62,5 +63,63 @@ describe("server-side role checks using an isolated external auth fixture", () =
     await expect(requireAdmin(["ADMIN", "OPERATOR"])).rejects.toMatchObject({
       status: 403,
     });
+  });
+  it("permite ao administrador editar outro perfil e rejeita edição desatualizada ou do próprio acesso", async () => {
+    const target = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://auth-fixture.test");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "fixture");
+    fixture.user = { id };
+    await db.adminUser.upsert({
+      where: { id },
+      create: { id, email: "role-fixture@example.test", role: "ADMIN" },
+      update: { role: "ADMIN", active: true },
+    });
+    await db.adminUser.upsert({
+      where: { id: target },
+      create: {
+        id: target,
+        email: "carteira-fixture@example.test",
+        role: "VIEWER",
+      },
+      update: { role: "VIEWER", active: true },
+    });
+    const patch = (
+      userId: string,
+      previousRole: "VIEWER" | "ADMIN",
+      role: "SALES" | "VIEWER",
+    ) =>
+      editUserPermissions(
+        new Request("http://localhost:3000/api/admin/users", {
+          method: "PATCH",
+          headers: {
+            origin: "http://localhost:3000",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: userId,
+            previous: { role: previousRole, active: true },
+            role,
+            active: true,
+          }),
+        }),
+      );
+
+    try {
+      expect((await patch(id, "ADMIN", "SALES")).status).toBe(400);
+      expect((await patch(target, "VIEWER", "SALES")).status).toBe(200);
+      expect((await patch(target, "VIEWER", "VIEWER")).status).toBe(409);
+      expect(
+        await db.adminUser.findUnique({ where: { id: target } }),
+      ).toMatchObject({
+        email: "carteira-fixture@example.test",
+        role: "SALES",
+        active: true,
+      });
+      fixture.user = { id: target };
+      expect((await patch(target, "VIEWER", "VIEWER")).status).toBe(403);
+    } finally {
+      await db.auditLog.deleteMany({ where: { entityId: target } });
+      await db.adminUser.deleteMany({ where: { id: target } });
+    }
   });
 });

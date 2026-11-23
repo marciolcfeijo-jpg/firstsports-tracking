@@ -1,58 +1,92 @@
 "use client";
-import { useState } from "react";
+
+import { useState, useTransition, type FormEvent } from "react";
+import type { Role } from "@prisma/client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-export function UserForm() {
+import { userRoleLabels } from "@/lib/user-roles";
+
+type LinkedUser = { id: string; email: string; role: Role; active: boolean };
+
+export function UserForm({ user }: { user?: LinkedUser }) {
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [refreshing, startTransition] = useTransition();
   const router = useRouter();
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const permissions = {
+      role: form.get("role"),
+      active: form.get("active") === "on",
+    };
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: user ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          user
+            ? {
+                id: user.id,
+                previous: { role: user.role, active: user.active },
+                ...permissions,
+              }
+            : { id: form.get("id"), email: form.get("email"), ...permissions },
+        ),
+      });
+      if (!response.ok) throw new Error((await response.json()).error);
+      setMessage("Permissões salvas.");
+      startTransition(() => router.refresh());
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Erro ao salvar.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const busy = saving || refreshing;
   return (
     <form
+      id="permissoes"
       className="card spaced"
-      onSubmit={async (e) => {
-        e.preventDefault();
-        const d = new FormData(e.currentTarget);
-        try {
-          const r = await fetch("/api/admin/users", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: d.get("id"),
-              email: d.get("email"),
-              role: d.get("role"),
-              active: d.get("active") === "on",
-            }),
-          });
-          const b = await r.json();
-          if (!r.ok) throw new Error(b.error);
-          setMessage("Permissões salvas.");
-          router.refresh();
-        } catch (e) {
-          setMessage(e instanceof Error ? e.message : "Erro ao salvar");
-        }
-      }}
+      method="post"
+      onSubmit={submit}
     >
-      <h3>Vincular ou atualizar usuário Supabase</h3>
-      <p className="small">
-        Crie e verifique o usuário no Supabase Auth antes de conceder acesso
-        aqui.
-      </p>
-      <div className="grid-2">
-        <label className="field">
-          UUID do usuário
-          <input name="id" required />
-        </label>
-        <label className="field">
-          E-mail
-          <input name="email" type="email" required />
-        </label>
+      <h2>{user ? "Editar permissões" : "Vincular usuário Supabase"}</h2>
+      {user ? (
+        <p>{user.email}</p>
+      ) : (
+        <p className="small">
+          Crie e verifique o usuário no Supabase Auth antes de conceder acesso
+          aqui.
+        </p>
+      )}
+      <fieldset className="grid-2 mt-3" disabled={busy}>
+        {!user && (
+          <>
+            <label className="field">
+              UUID do usuário
+              <input name="id" required />
+            </label>
+            <label className="field">
+              E-mail
+              <input name="email" type="email" required />
+            </label>
+          </>
+        )}
         <label className="field">
           Papel
-          <select name="role">
-            <option value="VIEWER">Leitura geral</option>
-            <option value="SALES">
-              Vendedor / representante · própria carteira
-            </option>
-            <option value="OPERATOR">Operação</option>
-            <option value="ADMIN">Administração</option>
+          <select name="role" defaultValue={user?.role ?? "VIEWER"}>
+            {Object.entries(userRoleLabels).map(([role, label]) => (
+              <option value={role} key={role}>
+                {label}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field">
@@ -60,15 +94,31 @@ export function UserForm() {
           <input
             type="checkbox"
             name="active"
-            defaultChecked
+            defaultChecked={user?.active ?? true}
             className="!w-5 !min-h-5"
           />
         </label>
+      </fieldset>
+      <div className="actions">
+        <button className="button" disabled={busy}>
+          {busy ? "Salvando…" : "Salvar permissões"}
+        </button>
+        {user && (
+          <Link className="button secondary" href="/admin/usuarios#permissoes">
+            Voltar ao cadastro
+          </Link>
+        )}
       </div>
-      <button className="button">Salvar permissões</button>
-      <p role="status" className="small !mt-3">
-        {message}
-      </p>
+      {error && (
+        <p role="alert" className="error mt-3">
+          {error}
+        </p>
+      )}
+      {message && (
+        <p role="status" className="small mt-3">
+          {message}
+        </p>
+      )}
     </form>
   );
 }

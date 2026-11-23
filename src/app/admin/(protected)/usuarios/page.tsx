@@ -1,9 +1,20 @@
+import Link from "next/link";
+import { userRoleLabels } from "@/lib/user-roles";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
 import { UserForm } from "@/components/user-form";
-export default async function Users() {
+export default async function Users({
+  searchParams,
+}: {
+  searchParams: Promise<{ editar?: string | string[] }>;
+}) {
   await requirePageAdmin(["ADMIN"]);
-  const users = await db.adminUser.findMany();
+  const { editar } = await searchParams;
+  const users = await db.adminUser.findMany({
+    select: { id: true, email: true, role: true, active: true },
+    orderBy: { email: "asc" },
+  });
+  const selected = users.find((user) => user.id === editar);
   return (
     <>
       <div className="page-heading">
@@ -23,21 +34,36 @@ export default async function Users() {
               <th>Papel</th>
               <th>Status</th>
               <th>UUID</th>
+              <th>Ações</th>
             </tr>
           </thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
                 <td>{u.email}</td>
-                <td>{u.role}</td>
+                <td>{userRoleLabels[u.role]}</td>
                 <td>{u.active ? "Ativo" : "Inativo"}</td>
                 <td>{u.id}</td>
+                <td>
+                  <Link
+                    className="shipment-order-link"
+                    href={`?editar=${encodeURIComponent(u.id)}#permissoes`}
+                    aria-label={`Editar permissões de ${u.email}`}
+                  >
+                    Editar
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <UserForm />
+      {editar && !selected && (
+        <p className="error" role="alert">
+          Usuário não encontrado.
+        </p>
+      )}
+      <UserForm key={selected?.id ?? "new-user"} user={selected} />
     </>
   );
 }
