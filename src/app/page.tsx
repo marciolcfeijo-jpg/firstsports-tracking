@@ -15,9 +15,7 @@ export default function Home() {
                 <br />
                 minha <span className="brand-highlight">entrega?</span>
               </h1>
-              <p>
-                Acompanhe seu pedido de forma rápida e segura, em um só lugar.
-              </p>
+              <p>Acompanhe sua nota fiscal do faturamento à entrega.</p>
               <div className="chips">
                 <span>
                   <ShieldCheck size={16} /> Consulta segura
@@ -39,7 +37,7 @@ export default function Home() {
             <div className="steps">
               <article className="step">
                 <small>01 · IDENTIFIQUE</small>
-                <h3>Informe o pedido ou a nota fiscal</h3>
+                <h3>Informe a nota fiscal</h3>
                 <p>Tenha em mãos o CPF/CNPJ do destinatário.</p>
               </article>
               <article className="step">
@@ -53,7 +51,9 @@ export default function Home() {
               <article className="step">
                 <small>03 · FIQUE POR DENTRO</small>
                 <h3>Tudo em um só lugar</h3>
-                <p>Do pedido à entrega, acompanhe as etapas no mesmo lugar.</p>
+                <p>
+                  Do faturamento à entrega, acompanhe as etapas no mesmo lugar.
+                </p>
               </article>
             </div>
             <div className="notice flex gap-3 items-start !mt-6">

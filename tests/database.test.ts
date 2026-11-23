@@ -1,3 +1,7 @@
+import {
+  salesOrdersWhere,
+  salesShipmentsWhere,
+} from "../src/lib/sales-portfolio";
 import { agedOrdersWithoutShipments } from "../src/lib/operational-report";
 import { deliveryMetrics } from "../src/lib/delivery-metrics";
 import { shipmentWhere } from "../src/lib/filters";
@@ -342,4 +346,67 @@ it("uses actual movement and the selected inactivity threshold for operational r
       select: { number: true },
     }),
   ).toEqual([{ number: "RELATORIO-PEDIDO-SEM-VINCULO" }]);
+});
+
+it("faz a busca comercial por vendedor e protege as demais remessas do mesmo pedido", async () => {
+  const sellerIds = ["portfolio-seller-a", "portfolio-seller-b"];
+  await db.adminUser.createMany({
+    data: sellerIds.map((id) => ({
+      id,
+      email: id + "@example.test",
+      role: "SALES",
+    })),
+    skipDuplicates: true,
+  });
+  const [own, other] = sellerIds;
+  const first = await createShipmentTransaction(
+    {
+      ...shipmentFixture,
+      numero_pedido: "CARTEIRA-MISTA",
+      numero_nf: "77661",
+      vendedor_id: own,
+    },
+    "fixture",
+  );
+  await createShipmentTransaction(
+    {
+      ...shipmentFixture,
+      numero_pedido: "CARTEIRA-MISTA",
+      numero_nf: "77662",
+      vendedor_id: other,
+    },
+    "fixture",
+  );
+  await createShipmentTransaction(
+    {
+      ...shipmentFixture,
+      numero_pedido: "CARTEIRA-ALHEIA",
+      numero_nf: "77663",
+      vendedor_id: other,
+    },
+    "fixture",
+  );
+  const customer = await db.customer.findFirstOrThrow({
+    where: { orders: { some: { number: "CARTEIRA-MISTA" } } },
+  });
+  await db.order.create({
+    data: {
+      number: "CARTEIRA-PRE-NF",
+      customerId: customer.id,
+      sellerId: own,
+      stage: "RECEIVED",
+    },
+  });
+  const results = await db.order.findMany({
+    where: { ...salesOrdersWhere(own), number: { startsWith: "CARTEIRA-" } },
+    orderBy: { number: "asc" },
+    select: {
+      number: true,
+      shipments: { where: salesShipmentsWhere(own), select: { id: true } },
+    },
+  });
+  expect(results).toEqual([
+    { number: "CARTEIRA-MISTA", shipments: [{ id: first.id }] },
+    { number: "CARTEIRA-PRE-NF", shipments: [] },
+  ]);
 });

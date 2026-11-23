@@ -20,7 +20,7 @@ export async function POST(r: Request) {
       .object({
         id: z.uuid(),
         email: z.email(),
-        role: z.enum(["ADMIN", "OPERATOR", "VIEWER"]),
+        role: z.enum(["ADMIN", "OPERATOR", "VIEWER", "SALES"]),
         active: z.boolean(),
       })
       .parse(await r.json());

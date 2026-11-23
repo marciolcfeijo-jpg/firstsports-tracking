@@ -5,7 +5,6 @@ import type { ShipmentStatus } from "@prisma/client";
 import { dateOnly, dateTime, statusLabels } from "@/lib/status";
 export type LookupRow = {
   url: string;
-  orderTimeline: TrackingStep[];
   shipmentTimeline: TrackingStep[];
   carrier: string;
   invoiceNumber: string;
@@ -94,59 +93,10 @@ export function LookupResults({ rows }: { rows: LookupRow[] }) {
       </p>
       {rows.map((row) => (
         <article className="card mt-4" key={row.url}>
-          <h3>
-            Evolução do pedido {row.orderNumber} · NF {row.invoiceNumber}
-          </h3>
-          <LookupTimeline steps={row.orderTimeline} label="Etapas do pedido" />
+          <h3>Evolução da NF {row.invoiceNumber}</h3>
           <LookupTimeline
             steps={row.shipmentTimeline}
             label={`Etapas da entrega · ${row.carrier}`}
-          />
-        </article>
-      ))}
-    </section>
-  );
-}
-
-export type OrderResult = {
-  number: string;
-  status: string;
-  orderTimeline: TrackingStep[];
-  shipments: {
-    id: string;
-    status: ShipmentStatus;
-    carrier: { name: string };
-    invoices: { number: string }[];
-    estimatedDelivery: string | null;
-    deliveredAt: string | null;
-    timeline: TrackingStep[];
-  }[];
-};
-
-export function OrderLookupResult({ order }: { order: OrderResult }) {
-  return (
-    <section
-      className="lookup-results"
-      aria-labelledby="lookup-results-heading"
-    >
-      <h2 id="lookup-results-heading" tabIndex={-1}>
-        Evolução do pedido {order.number}
-      </h2>
-      <p role="status">{order.status}</p>
-      <LookupTimeline steps={order.orderTimeline} label="Etapas do pedido" />
-      {order.shipments.map((shipment) => (
-        <article className="card mt-4" key={shipment.id}>
-          <h3>
-            {shipment.carrier.name} · NF{" "}
-            {shipment.invoices.map(({ number }) => number).join(", ")}
-          </h3>
-          <p>{statusLabels[shipment.status]}</p>
-          {shipment.status !== "DELIVERED" && shipment.estimatedDelivery && (
-            <p>Previsão de entrega: {dateOnly(shipment.estimatedDelivery)}</p>
-          )}
-          <LookupTimeline
-            steps={shipment.timeline}
-            label={`Etapas da entrega · ${shipment.carrier.name}`}
           />
         </article>
       ))}

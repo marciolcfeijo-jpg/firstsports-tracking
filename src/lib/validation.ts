@@ -138,10 +138,6 @@ export const orderSchema = shipmentSchema.pick({
   uf_destino: true,
 });
 
-export const orderLookupSchema = trackingLookupSchema.extend({
-  number: orderSchema.shape.numero_pedido,
-});
-
 export const orderImportColumns = [
   "numero_pedido",
   "status_pedido",

@@ -70,7 +70,7 @@ Playwright usa `/usr/bin/chromium` neste ambiente. Para outra instalação, defi
 1. No painel, abra **Pedidos → Importar pedidos** e baixe o modelo Excel ou CSV. Os campos básicos são `numero_pedido`, `cpf_cnpj_destinatario`, `nome_cliente`, `cidade_destino` e `uf_destino`. Informe `data_emissao_pedido` no formato AAAA-MM-DD e, se disponível, o e-mail do vendedor cadastrado em `email_vendedor`. Use células de texto para preservar zeros à esquerda.
 2. Antes do faturamento, deixe as colunas fiscais e de transporte vazias. Se já houver NF, use uma linha por nota com número, série, CNPJ do remetente, transportadora e `data_emissao_nf`. O CNPJ do tomador, a chave da NF, o e-mail do cliente e o CT-e são opcionais. O código de rastreio é obrigatório para Correios. O lote é gravado de forma atômica e indica linhas com erro. Reimportar a mesma NF preserva o rastreamento. Preencha `status_pedido` para definir ou atualizar a etapa interna (Pedido recebido, Em preparação, Pronto para faturar ou Pedido cancelado); em branco, a etapa existente é preservada e pedidos novos começam como recebidos. Pedidos com remessas vinculadas continuam exibindo o status de entrega das remessas.
 3. Abra o pedido para avançar de **Recebido** para **Em preparação** e **Pronto para faturar**. A partir do cadastro de uma remessa com o mesmo pedido e CPF/CNPJ, o acompanhamento incorpora os estados das transportadoras. Em pedidos com mais de uma remessa cadastrada, o status considera o conjunto.
-4. No portal, acesse **Consultar por número do pedido** e informe também o CPF/CNPJ do destinatário. A consulta por pedido lê os dados já registrados no sistema. A sincronização segue o fluxo de rastreamento das remessas.
+4. No portal público, consulte a nota fiscal com o CPF/CNPJ do destinatário. A área administrativa exibe as etapas internas do pedido. Links de rastreio autorizados continuam mostrando os eventos da remessa.
 
 Para validar na Vercel Preview, aplique as migrações em um banco isolado de Preview antes de testar o fluxo. Em Production, o comando `build:vercel` usa a conexão de migração do ambiente conforme descrito no guia de deploy.
 
@@ -83,6 +83,7 @@ Para validar na Vercel Preview, aplique as migrações em um banco isolado de Pr
 - [Icaro ESL Cloud](docs/icaro.md)
 - [Vendedores e representantes nas remessas](docs/vendedores.md)
 - [Operações administrativas](docs/operacoes.md)
+- [Integração ZenLOG](docs/integracao-zenlog.md)
 - [Deploy, DNS, backup e rollback](docs/deploy.md)
 - [Decisões arquiteturais](docs/arquitetura.md)
 - [Checklist de homologação](docs/homologacao.md)

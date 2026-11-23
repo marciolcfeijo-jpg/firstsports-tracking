@@ -21,7 +21,9 @@ export function LoginForm() {
       });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error);
-      router.push("/admin");
+      router.push(
+        body.redirectTo === "/admin/carteira" ? "/admin/carteira" : "/admin",
+      );
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível entrar");

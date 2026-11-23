@@ -1,32 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { orderLookupSchema, trackingLookupSchema } from "@/lib/validation";
+import { trackingLookupSchema } from "@/lib/validation";
 import { Search, LockKeyhole, ArrowRight, PackageSearch } from "lucide-react";
-import {
-  LookupResults,
-  OrderLookupResult,
-  type LookupRow,
-  type OrderResult,
-} from "./lookup-results";
-const schema = z.discriminatedUnion("mode", [
-  trackingLookupSchema.extend({ mode: z.literal("invoice") }),
-  orderLookupSchema.extend({ mode: z.literal("order") }),
-]);
-type LookupData = z.infer<typeof schema>;
-type LookupResult =
-  | { mode: "invoice"; links: LookupRow[] }
-  | { mode: "order"; order: OrderResult };
+import { LookupResults, type LookupRow } from "./lookup-results";
 
-export function LookupForm({
-  initialMode = "invoice",
-}: {
-  initialMode?: LookupData["mode"];
-}) {
+type LookupData = z.infer<typeof trackingLookupSchema>;
+
+export function LookupForm() {
   const [error, setError] = useState("");
-  const [result, setResult] = useState<LookupResult | null>(null);
+  const [result, setResult] = useState<LookupRow[] | null>(null);
   useEffect(() => {
     if (result) {
       const heading = document.getElementById("lookup-results-heading");
@@ -37,32 +22,23 @@ export function LookupForm({
   const {
     register,
     handleSubmit,
-    control,
-    resetField,
     formState: { errors, isSubmitting },
   } = useForm<LookupData>({
-    resolver: zodResolver(schema),
-    defaultValues: { mode: initialMode, number: "", document: "" },
+    resolver: zodResolver(trackingLookupSchema),
+    defaultValues: { number: "", document: "" },
   });
-  const mode = useWatch({ control, name: "mode" });
-  const byOrder = mode === "order";
-  async function submit({ mode, ...data }: LookupData) {
+  async function submit(data: LookupData) {
     setError("");
     setResult(null);
     try {
-      const response = await fetch(
-        mode === "order" ? "/api/tracking/order" : "/api/tracking/lookup",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        },
-      );
+      const response = await fetch("/api/tracking/lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error);
-      setResult(
-        mode === "order" ? { mode, order: body } : { mode, links: body.links },
-      );
+      setResult(body.links);
     } catch (e) {
       setError(
         e instanceof Error ? e.message : "Falha na consulta. Tente novamente.",
@@ -89,22 +65,12 @@ export function LookupForm({
           noValidate
         >
           <label className="field">
-            Buscar por
-            <select
-              {...register("mode", { onChange: () => resetField("number") })}
-              disabled={isSubmitting}
-            >
-              <option value="invoice">Nota fiscal</option>
-              <option value="order">Pedido</option>
-            </select>
-          </label>
-          <label className="field">
-            {byOrder ? "Número do pedido" : "Número da nota fiscal"}
+            Número da nota fiscal
             <input
               {...register("number")}
-              placeholder={byOrder ? "Ex.: PED-33541" : "Ex.: 33541"}
-              inputMode={byOrder ? "text" : "numeric"}
-              maxLength={byOrder ? 120 : 12}
+              placeholder="Ex.: 33541"
+              inputMode="numeric"
+              maxLength={12}
               disabled={isSubmitting}
               autoComplete="off"
               aria-invalid={!!errors.number}
@@ -144,8 +110,7 @@ export function LookupForm({
           </div>
         )}
       </div>
-      {result?.mode === "invoice" && <LookupResults rows={result.links} />}
-      {result?.mode === "order" && <OrderLookupResult order={result.order} />}
+      {result && <LookupResults rows={result} />}
     </>
   );
 }

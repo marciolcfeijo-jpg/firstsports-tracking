@@ -35,10 +35,10 @@ export default async function Tracking({
             <h1 className="!text-3xl">Link indisponível</h1>
             <p>
               Este link é inválido, expirou ou foi revogado. Solicite um novo
-              link à First Sports ou consulte o pedido na página inicial.
+              link à First Sports ou consulte a nota fiscal na página inicial.
             </p>
             <Link href="/" className="button">
-              Consultar pedido
+              Consultar nota fiscal
             </Link>
           </div>
         )}
