@@ -35,12 +35,28 @@ export function stalledShipments(
   };
 }
 
+export const pendingOrderLabels = {
+  "pre-invoice": "Pedidos antes do faturamento",
+  "missing-link": "Pedidos sem remessa para revisar",
+} as const;
+
+export function pendingOrderFilter(value: unknown) {
+  return value === "pre-invoice" || value === "missing-link" ? value : null;
+}
+
 export function agedOrdersWithoutShipments(
   now: Date,
   days: number,
+  filter: keyof typeof pendingOrderLabels | null = null,
 ): Prisma.OrderWhereInput {
+  const stage: Prisma.OrderWhereInput =
+    filter === "pre-invoice"
+      ? { stage: { in: ["RECEIVED", "PREPARING", "READY_TO_INVOICE"] } }
+      : filter === "missing-link"
+        ? { stage: null }
+        : { OR: [{ stage: null }, { stage: { not: "CANCELLED" } }] };
   return {
-    OR: [{ stage: null }, { stage: { not: "CANCELLED" } }],
+    ...stage,
     shipments: { none: {} },
     createdAt: { lte: reportCutoff(now, days) },
   };

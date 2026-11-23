@@ -4,6 +4,7 @@ import { requirePageAdmin } from "@/lib/page-auth";
 import { shipmentWhere } from "@/lib/filters";
 import {
   agedOrdersWithoutShipments,
+  pendingOrderLabels,
   reportDays,
   reportDaysMax,
 } from "@/lib/operational-report";
@@ -61,21 +62,27 @@ export default async function Reports({
     return { label, help, params, where: shipmentWhere(params, now) };
   });
 
-  const [counts, agedOrders, delayedCarriers] = await Promise.all([
-    Promise.all(
-      categories.map(({ where }) =>
-        db.shipmentInvoice.count({ where: { shipment: where } }),
+  const [counts, pendingBilling, missingLink, delayedCarriers] =
+    await Promise.all([
+      Promise.all(
+        categories.map(({ where }) =>
+          db.shipmentInvoice.count({ where: { shipment: where } }),
+        ),
       ),
-    ),
-    db.order.count({ where: agedOrdersWithoutShipments(now, days) }),
-    db.shipment.groupBy({
-      by: ["carrierId"],
-      where: categories[0].where,
-      _count: { carrierId: true },
-      orderBy: [{ _count: { carrierId: "desc" } }, { carrierId: "asc" }],
-      take: 5,
-    }),
-  ]);
+      db.order.count({
+        where: agedOrdersWithoutShipments(now, days, "pre-invoice"),
+      }),
+      db.order.count({
+        where: agedOrdersWithoutShipments(now, days, "missing-link"),
+      }),
+      db.shipment.groupBy({
+        by: ["carrierId"],
+        where: categories[0].where,
+        _count: { carrierId: true },
+        orderBy: [{ _count: { carrierId: "desc" } }, { carrierId: "asc" }],
+        take: 5,
+      }),
+    ]);
 
   const carriers = delayedCarriers.length
     ? await db.carrier.findMany({
@@ -93,8 +100,11 @@ export default async function Reports({
     counts[1]
       ? `${number(counts[1])} ${counts[1] === 1 ? "NF está" : "NFs estão"} sem movimentação registrada há ${days} dias ou mais`
       : "",
-    agedOrders
-      ? `${number(agedOrders)} ${agedOrders === 1 ? "pedido segue" : "pedidos seguem"} sem remessa há ${days} dias ou mais`
+    pendingBilling
+      ? `${number(pendingBilling)} ${pendingBilling === 1 ? "pedido está em uma etapa" : "pedidos estão em etapa"} anterior ao faturamento e sem remessa`
+      : "",
+    missingLink
+      ? `${number(missingLink)} ${missingLink === 1 ? "pedido precisa" : "pedidos precisam"} de revisão do vínculo com a remessa`
       : "",
   ].filter(Boolean);
 
@@ -131,8 +141,8 @@ export default async function Reports({
           </ul>
         ) : (
           <p>
-            Sem atrasos, remessas paradas ou pedidos antigos sem remessa pelos
-            critérios acima. Confira as demais pendências abaixo.
+            Sem atrasos, remessas paradas ou pedidos sem remessa no período
+            analisado. Confira as demais pendências abaixo.
           </p>
         )}
       </section>
@@ -155,17 +165,32 @@ export default async function Reports({
             </article>
           ))}
           <article className="card delivery-kpi">
-            <h3>Pedidos antigos sem remessa</h3>
-            <strong>{number(agedOrders)}</strong>
+            <h3>{pendingOrderLabels["pre-invoice"]}</h3>
+            <strong>{number(pendingBilling)}</strong>
             <p>
-              Pedidos em aberto cadastrados há {days} dias ou mais. Confira a
-              etapa de preparação ou faturamento.
+              Pedidos cadastrados há {days} dias ou mais, sem remessa, com etapa
+              de recebimento, preparação ou faturamento pendente.
             </p>
             <Link
               className="delivery-details-link"
-              href={`/admin/pedidos?pendingDays=${days}`}
+              href={`/admin/pedidos?pendingDays=${days}&pending=pre-invoice`}
             >
-              Ver pedidos →
+              Ver pedidos antes do faturamento →
+            </Link>
+          </article>
+          <article className="card delivery-kpi">
+            <h3>{pendingOrderLabels["missing-link"]}</h3>
+            <strong>{number(missingLink)}</strong>
+            <p>
+              Pedidos cadastrados há {days} dias ou mais, sem remessa e sem
+              etapa interna registrada. Confira se a remessa foi removida ou se
+              o vínculo está faltando.
+            </p>
+            <Link
+              className="delivery-details-link"
+              href={`/admin/pedidos?pendingDays=${days}&pending=missing-link`}
+            >
+              Revisar vínculo com a remessa →
             </Link>
           </article>
         </div>

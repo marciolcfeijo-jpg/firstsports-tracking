@@ -8,7 +8,7 @@ describe("acompanhamento do pedido", () => {
     expect(orderStatus("PREPARING", [])).toBe("Em preparação");
     expect(orderStatus("READY_TO_INVOICE", [])).toBe("Pronto para faturar");
     expect(orderStatus("CANCELLED", [])).toBe("Pedido cancelado");
-    expect(orderStatus(null, [])).toBe("Aguardando remessa");
+    expect(orderStatus(null, [])).toBe("Sem remessa vinculada");
   });
 
   it("usa a remessa assim que a nota fiscal é cadastrada", () => {

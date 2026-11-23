@@ -305,6 +305,12 @@ it("uses actual movement and the selected inactivity threshold for operational r
         stage: "PREPARING",
       },
       {
+        number: "RELATORIO-PEDIDO-SEM-VINCULO",
+        customerId: customer.id,
+        createdAt: old,
+        stage: null,
+      },
+      {
         number: "RELATORIO-PEDIDO-CANCELADO",
         customerId: customer.id,
         createdAt: old,
@@ -321,10 +327,19 @@ it("uses actual movement and the selected inactivity threshold for operational r
   expect(
     await db.order.findMany({
       where: {
-        ...agedOrdersWithoutShipments(now, 3),
+        ...agedOrdersWithoutShipments(now, 3, "pre-invoice"),
         number: { startsWith: "RELATORIO-PEDIDO" },
       },
       select: { number: true },
     }),
   ).toEqual([{ number: "RELATORIO-PEDIDO-ANTIGO" }]);
+  expect(
+    await db.order.findMany({
+      where: {
+        ...agedOrdersWithoutShipments(now, 3, "missing-link"),
+        number: { startsWith: "RELATORIO-PEDIDO" },
+      },
+      select: { number: true },
+    }),
+  ).toEqual([{ number: "RELATORIO-PEDIDO-SEM-VINCULO" }]);
 });
