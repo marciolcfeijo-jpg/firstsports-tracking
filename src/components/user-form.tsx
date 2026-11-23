@@ -33,15 +33,23 @@ export function UserForm({ user }: { user?: LinkedUser }) {
           user
             ? {
                 id: user.id,
+                newId: form.get("id"),
                 previous: { role: user.role, active: user.active },
                 ...permissions,
               }
             : { id: form.get("id"), email: form.get("email"), ...permissions },
         ),
       });
-      if (!response.ok) throw new Error((await response.json()).error);
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
       setMessage("Permissões salvas.");
-      startTransition(() => router.refresh());
+      startTransition(() => {
+        if (user && body.id !== user.id)
+          router.replace(
+            `/admin/usuarios?editar=${encodeURIComponent(body.id)}#permissoes`,
+          );
+        else router.refresh();
+      });
     } catch (error) {
       setError(error instanceof Error ? error.message : "Erro ao salvar.");
     } finally {
@@ -67,17 +75,26 @@ export function UserForm({ user }: { user?: LinkedUser }) {
         </p>
       )}
       <fieldset className="grid-2 mt-3" disabled={busy}>
+        <label className="field">
+          UUID do usuário
+          <input
+            name="id"
+            required
+            defaultValue={user?.id}
+            autoComplete="off"
+          />
+          {user && (
+            <span className="small">
+              Para trocar, copie o UUID da conta com este mesmo e-mail no
+              Supabase Auth.
+            </span>
+          )}
+        </label>
         {!user && (
-          <>
-            <label className="field">
-              UUID do usuário
-              <input name="id" required />
-            </label>
-            <label className="field">
-              E-mail
-              <input name="email" type="email" required />
-            </label>
-          </>
+          <label className="field">
+            E-mail
+            <input name="email" type="email" required />
+          </label>
         )}
         <label className="field">
           Papel

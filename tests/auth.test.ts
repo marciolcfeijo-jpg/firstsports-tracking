@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, afterAll } from "vitest";
 import { db } from "../src/lib/db";
 const fixture = vi.hoisted(() => ({ user: null as null | { id: string } }));
+const authAdmin = vi.hoisted(() => ({ getUserById: vi.fn() }));
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({ auth: { admin: authAdmin } }),
+}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ getAll: () => [], set: () => {} }),
 }));
@@ -120,6 +124,118 @@ describe("server-side role checks using an isolated external auth fixture", () =
     } finally {
       await db.auditLog.deleteMany({ where: { entityId: target } });
       await db.adminUser.deleteMany({ where: { id: target } });
+    }
+  });
+  it("troca o UUID verificado e mantém os vínculos existentes da carteira", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://auth-fixture.test");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "fixture");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "server-fixture");
+    fixture.user = { id };
+    const before = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const after = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    const email = "vinculo-uuid@example.test";
+    await db.adminUser.upsert({
+      where: { id },
+      create: { id, email: "role-fixture@example.test", role: "ADMIN" },
+      update: { role: "ADMIN", active: true },
+    });
+    await db.adminUser.create({ data: { id: before, email, role: "SALES" } });
+    const customer = await db.customer.create({
+      data: {
+        name: "Fixture UUID",
+        documentHash: "auth-uuid-fixture",
+        city: "São Paulo",
+        state: "SP",
+      },
+    });
+    const order = await db.order.create({
+      data: {
+        number: "AUTH-UUID-TEST",
+        customerId: customer.id,
+        sellerId: before,
+      },
+    });
+    const carrier = await db.carrier.upsert({
+      where: { code: "BRASPRESS" },
+      update: {},
+      create: { code: "BRASPRESS", name: "Braspress" },
+    });
+    const shipment = await db.shipment.create({
+      data: {
+        orderId: order.id,
+        sellerId: before,
+        carrierId: carrier.id,
+        senderDocument: "11222333000181",
+        issuedAt: new Date(),
+      },
+    });
+
+    const patch = () =>
+      editUserPermissions(
+        new Request("http://localhost:3000/api/admin/users", {
+          method: "PATCH",
+          headers: {
+            origin: "http://localhost:3000",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: before,
+            newId: after,
+            previous: { role: "SALES", active: true },
+            role: "SALES",
+            active: true,
+          }),
+        }),
+      );
+
+    try {
+      authAdmin.getUserById.mockResolvedValueOnce({
+        data: {
+          user: {
+            id: after,
+            email: "alheio@example.test",
+            email_confirmed_at: "confirmed",
+          },
+        },
+        error: null,
+      });
+      expect((await patch()).status).toBe(422);
+      expect(
+        (await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } }))
+          .sellerId,
+      ).toBe(before);
+      authAdmin.getUserById.mockResolvedValueOnce({
+        data: { user: { id: after, email, email_confirmed_at: "confirmed" } },
+        error: null,
+      });
+      const result = await patch();
+      expect(result.status).toBe(200);
+      expect(await result.json()).toMatchObject({ id: after });
+      expect(
+        await db.adminUser.findUnique({ where: { id: before } }),
+      ).toBeNull();
+      expect(
+        (await db.shipment.findUniqueOrThrow({ where: { id: shipment.id } }))
+          .sellerId,
+      ).toBe(after);
+      expect(
+        (await db.order.findUniqueOrThrow({ where: { id: order.id } }))
+          .sellerId,
+      ).toBe(after);
+      expect(
+        await db.auditLog.findFirst({ where: { entityId: after } }),
+      ).toMatchObject({
+        action: "ADMIN_USER_UPDATE",
+        snapshot: { uuid: { from: before, to: after } },
+      });
+    } finally {
+      await db.shipment.delete({ where: { id: shipment.id } });
+      await db.order.delete({ where: { id: order.id } });
+      await db.customer.delete({ where: { id: customer.id } });
+      await db.auditLog.deleteMany({
+        where: { entityId: { in: [before, after] } },
+      });
+      await db.adminUser.deleteMany({ where: { id: { in: [before, after] } } });
     }
   });
 });
