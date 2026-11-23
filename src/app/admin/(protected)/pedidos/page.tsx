@@ -1,5 +1,7 @@
 import {
   agedOrdersWithoutShipments,
+  pendingOrderFilter,
+  pendingOrderLabels,
   reportDays,
 } from "@/lib/operational-report";
 import Link from "next/link";
@@ -15,12 +17,17 @@ export default async function Orders({
   searchParams: Promise<{
     pedido?: string | string[];
     pendingDays?: string | string[];
+    pending?: string | string[];
     page?: string | string[];
   }>;
 }) {
   const user = await requirePageAdmin();
-  const { pedido, pendingDays, page: pageParam } = await searchParams;
-  const days = typeof pendingDays === "string" ? reportDays(pendingDays) : null;
+  const { pedido, pendingDays, pending, page: pageParam } = await searchParams;
+  const filter = pendingOrderFilter(pending);
+  const days =
+    typeof pendingDays === "string" || filter
+      ? reportDays(typeof pendingDays === "string" ? pendingDays : null)
+      : null;
   const requestedPage = Number(pageParam);
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage >= 1
@@ -30,7 +37,7 @@ export default async function Orders({
   const orders = await db.order.findMany({
     where: {
       ...(number ? { number } : {}),
-      ...(days ? agedOrdersWithoutShipments(new Date(), days) : {}),
+      ...(days ? agedOrdersWithoutShipments(new Date(), days, filter) : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: {
@@ -49,6 +56,7 @@ export default async function Orders({
     const query = new URLSearchParams({ page: String(nextPage) });
     if (number) query.set("pedido", number);
     if (days) query.set("pendingDays", String(days));
+    if (filter) query.set("pending", filter);
     return "?" + query;
   }
 
@@ -56,7 +64,13 @@ export default async function Orders({
     <>
       <div className="page-heading">
         <div>
-          <h1>{days ? "Pedidos sem remessa" : "Pedidos"}</h1>
+          <h1>
+            {filter
+              ? pendingOrderLabels[filter]
+              : days
+                ? "Pedidos sem remessa"
+                : "Pedidos"}
+          </h1>
           {days && <p>Pedidos em aberto cadastrados há {days} dias ou mais.</p>}
         </div>
         {user.role !== "VIEWER" && (
@@ -66,6 +80,7 @@ export default async function Orders({
         )}
       </div>
       <form className="card mb-4">
+        {filter && <input type="hidden" name="pending" value={filter} />}
         {days && <input type="hidden" name="pendingDays" value={days} />}
         <label className="field">
           Número do pedido

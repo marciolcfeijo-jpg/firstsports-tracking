@@ -31,7 +31,7 @@ export function orderStatus(
 ) {
   if (stage === "CANCELLED") return orderStageLabels.CANCELLED;
   if (!shipments.length)
-    return stage ? orderStageLabels[stage] : "Aguardando remessa";
+    return stage ? orderStageLabels[stage] : "Sem remessa vinculada";
 
   const active = shipments.filter(({ status }) => status !== "CANCELLED");
   if (!active.length) return "Remessas canceladas";

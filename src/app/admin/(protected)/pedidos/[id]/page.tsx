@@ -149,7 +149,11 @@ export default async function OrderDetails({
             vinculadas. Notas da mesma remessa compartilham o rastreamento.
           </p>
         ) : (
-          <p>Nenhuma remessa vinculada.</p>
+          <p>
+            {order.stage === null
+              ? "O pedido está sem remessa vinculada e sem etapa interna registrada. Confira o faturamento e o histórico antes de vincular outra remessa."
+              : "Nenhuma remessa vinculada."}
+          </p>
         )}
         {order.shipments.map((shipment) => (
           <article className="card mt-4" key={shipment.id}>
