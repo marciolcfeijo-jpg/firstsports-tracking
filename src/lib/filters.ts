@@ -1,5 +1,6 @@
 import { Prisma, ShipmentStatus } from "@prisma/client";
 import { deliveryAttention, startOfDeliveryDay } from "./delivery-metrics";
+import { reportDays, stalledShipments } from "./operational-report";
 import { terminalStatuses } from "./status";
 
 export function shipmentWhere(
@@ -19,6 +20,9 @@ export function shipmentWhere(
       ? {
           AND: [
             { status: { notIn: [...terminalStatuses] } },
+            ...(attention === "stalled"
+              ? [stalledShipments(now, reportDays(p.get("days")))]
+              : []),
             ...(attention === "late"
               ? [{ estimatedDelivery: { lt: startOfDeliveryDay(now) } }]
               : []),

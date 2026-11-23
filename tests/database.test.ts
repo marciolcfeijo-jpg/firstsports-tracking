@@ -1,3 +1,4 @@
+import { agedOrdersWithoutShipments } from "../src/lib/operational-report";
 import { deliveryMetrics } from "../src/lib/delivery-metrics";
 import { shipmentWhere } from "../src/lib/filters";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
@@ -226,4 +227,104 @@ it("keeps attention list counts in sync with dashboard categories and current fi
       ),
     }),
   ).toBe(0);
+});
+
+it("uses actual movement and the selected inactivity threshold for operational reports", async () => {
+  const now = new Date("2026-11-21T15:00:00Z");
+  const old = new Date("2026-11-18T15:00:00Z");
+  const recent = new Date("2026-11-20T15:00:00Z");
+  const ids: string[] = [];
+  for (const [i, status] of [
+    "IN_TRANSIT",
+    "IN_TRANSIT",
+    "IN_TRANSIT",
+    "DELIVERED",
+  ].entries()) {
+    const { id } = await createShipmentTransaction(
+      {
+        ...shipmentFixture,
+        numero_pedido: "RELATORIO-INATIVIDADE",
+        numero_nf: String(42000 + i),
+      },
+      "fixture",
+    );
+    await db.shipment.update({
+      where: { id },
+      data: {
+        status: status as "IN_TRANSIT" | "DELIVERED",
+        lastSyncedAt: recent,
+        events: {
+          create: [
+            {
+              fingerprint: "consulta",
+              occurredAt: recent,
+              description: "Ocorrência informativa",
+              status: "EXCEPTION",
+            },
+            ...(i === 2
+              ? []
+              : [
+                  {
+                    fingerprint: "movement",
+                    occurredAt: i === 1 ? recent : old,
+                    description: "Movimentação na transportadora",
+                    status: "IN_TRANSIT" as const,
+                  },
+                ]),
+          ],
+        },
+      },
+    });
+    ids.push(id);
+  }
+  const params = new URLSearchParams({
+    q: "RELATORIO-INATIVIDADE",
+    attention: "stalled",
+    days: "3",
+  });
+  expect(
+    await db.shipment.findMany({
+      where: shipmentWhere(params, now),
+      select: { id: true },
+    }),
+  ).toEqual([{ id: ids[0] }]);
+  params.set("days", "4");
+  expect(await db.shipment.count({ where: shipmentWhere(params, now) })).toBe(
+    0,
+  );
+
+  const customer = await db.customer.findFirstOrThrow({
+    where: { orders: { some: { number: "RELATORIO-INATIVIDADE" } } },
+  });
+  await db.order.createMany({
+    data: [
+      {
+        number: "RELATORIO-PEDIDO-ANTIGO",
+        customerId: customer.id,
+        createdAt: old,
+        stage: "PREPARING",
+      },
+      {
+        number: "RELATORIO-PEDIDO-CANCELADO",
+        customerId: customer.id,
+        createdAt: old,
+        stage: "CANCELLED",
+      },
+      {
+        number: "RELATORIO-PEDIDO-RECENTE",
+        customerId: customer.id,
+        createdAt: recent,
+        stage: "RECEIVED",
+      },
+    ],
+  });
+  expect(
+    await db.order.findMany({
+      where: {
+        ...agedOrdersWithoutShipments(now, 3),
+        number: { startsWith: "RELATORIO-PEDIDO" },
+      },
+      select: { number: true },
+    }),
+  ).toEqual([{ number: "RELATORIO-PEDIDO-ANTIGO" }]);
 });

@@ -5,6 +5,7 @@ export const deliveryAttentionLabels = {
   late: "Em atraso",
   exception: "Em ocorrência",
   "no-forecast": "Sem previsão",
+  stalled: "Sem movimentação",
 } as const;
 
 export function deliveryAttention(value: string | null | undefined) {
