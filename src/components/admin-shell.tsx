@@ -3,6 +3,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
+  ChartNoAxesColumn,
   Package,
   ClipboardList,
   Upload,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 const entries = [
   ["/admin", "Visão geral", LayoutDashboard],
+  ["/admin/relatorios", "Relatórios", ChartNoAxesColumn],
   ["/admin/pedidos", "Pedidos", ClipboardList],
   ["/admin/remessas", "Remessas", Package],
   ["/admin/importacoes", "Importações", Upload],

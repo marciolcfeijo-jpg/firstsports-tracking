@@ -1,3 +1,4 @@
+import { movementStatuses, reportDays } from "@/lib/operational-report";
 import { TrackingAvailability } from "@/components/tracking-availability";
 import { ShipmentRow } from "@/components/shipment-row";
 import { BulkTracking } from "@/components/bulk-tracking";
@@ -35,10 +36,13 @@ export default async function Shipments({
         order: { include: { customer: true } },
         invoices: true,
         events: {
-          where: { status: "EXCEPTION" },
+          where: {
+            status:
+              attention === "stalled" ? { in: movementStatuses } : "EXCEPTION",
+          },
           orderBy: { occurredAt: "desc" },
           take: 1,
-          select: { description: true },
+          select: { description: true, occurredAt: true, dateOnly: true },
         },
       },
       take: 50,
@@ -57,6 +61,12 @@ export default async function Shipments({
               : "Remessas"}
           </h1>
           <p>{total} remessa(s) encontrada(s)</p>
+          {attention === "stalled" && (
+            <p>
+              Última movimentação da transportadora há {reportDays(p.days)} dias
+              ou mais.
+            </p>
+          )}
         </div>
         <div className="actions">
           <a
@@ -143,6 +153,17 @@ export default async function Shipments({
                       <p className="small mt-2 whitespace-normal min-w-40">
                         {s.events[0].description}
                       </p>
+                    )}
+                    {attention === "stalled" && s.events[0] && (
+                      <div className="small mt-2 whitespace-normal min-w-40">
+                        <span>
+                          Última movimentação em{" "}
+                          {s.events[0].dateOnly
+                            ? dateOnly(s.events[0].occurredAt)
+                            : dateTime(s.events[0].occurredAt)}
+                        </span>
+                        <p>{s.events[0].description}</p>
+                      </div>
                     )}
                     <TrackingAvailability error={s.lastSyncError} />
                   </td>

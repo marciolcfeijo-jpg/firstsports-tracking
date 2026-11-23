@@ -1,3 +1,7 @@
+import {
+  agedOrdersWithoutShipments,
+  reportDays,
+} from "@/lib/operational-report";
 import Link from "next/link";
 import { ShipmentRow } from "@/components/shipment-row";
 import { db } from "@/lib/db";
@@ -8,13 +12,26 @@ import { dateTime } from "@/lib/status";
 export default async function Orders({
   searchParams,
 }: {
-  searchParams: Promise<{ pedido?: string | string[] }>;
+  searchParams: Promise<{
+    pedido?: string | string[];
+    pendingDays?: string | string[];
+    page?: string | string[];
+  }>;
 }) {
   const user = await requirePageAdmin();
-  const { pedido } = await searchParams;
+  const { pedido, pendingDays, page: pageParam } = await searchParams;
+  const days = typeof pendingDays === "string" ? reportDays(pendingDays) : null;
+  const requestedPage = Number(pageParam);
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage >= 1
+      ? Math.min(requestedPage, 100_000)
+      : 1;
   const number = typeof pedido === "string" ? pedido.trim().slice(0, 120) : "";
   const orders = await db.order.findMany({
-    where: number ? { number } : {},
+    where: {
+      ...(number ? { number } : {}),
+      ...(days ? agedOrdersWithoutShipments(new Date(), days) : {}),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
@@ -25,12 +42,23 @@ export default async function Orders({
       shipments: { select: { status: true } },
     },
     take: 51,
+    skip: (page - 1) * 50,
   });
+
+  function pageHref(nextPage: number) {
+    const query = new URLSearchParams({ page: String(nextPage) });
+    if (number) query.set("pedido", number);
+    if (days) query.set("pendingDays", String(days));
+    return "?" + query;
+  }
 
   return (
     <>
       <div className="page-heading">
-        <h1>Pedidos</h1>
+        <div>
+          <h1>{days ? "Pedidos sem remessa" : "Pedidos"}</h1>
+          {days && <p>Pedidos em aberto cadastrados há {days} dias ou mais.</p>}
+        </div>
         {user.role !== "VIEWER" && (
           <Link className="button" href="/admin/pedidos/importar">
             Importar pedidos
@@ -38,6 +66,7 @@ export default async function Orders({
         )}
       </div>
       <form className="card mb-4">
+        {days && <input type="hidden" name="pendingDays" value={days} />}
         <label className="field">
           Número do pedido
           <input name="pedido" defaultValue={number} maxLength={120} />
@@ -77,12 +106,19 @@ export default async function Orders({
       ) : (
         <p>Nenhum pedido encontrado.</p>
       )}
-      {orders.length > 50 && (
-        <p className="small">
-          Exibindo os 50 pedidos mais recentes. Busque pelo número para
-          encontrar outros pedidos.
-        </p>
-      )}
+      <div className="actions spaced">
+        {page > 1 && (
+          <Link className="button secondary" href={pageHref(page - 1)}>
+            Anterior
+          </Link>
+        )}
+        {orders.length > 50 && (
+          <Link className="button secondary" href={pageHref(page + 1)}>
+            Próxima
+          </Link>
+        )}
+        {days && <Link href="/admin/pedidos">Todos os pedidos</Link>}
+      </div>
     </>
   );
 }

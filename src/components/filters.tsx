@@ -19,6 +19,9 @@ export async function Filters({
   const sellers = sellerUsers.map((user) => ({ ...user, name: user.email }));
   return (
     <form className="toolbar">
+      {includeAttention && values.days && (
+        <input type="hidden" name="days" value={values.days} />
+      )}
       <input
         name="q"
         placeholder="Buscar pedido, nota ou cliente"
