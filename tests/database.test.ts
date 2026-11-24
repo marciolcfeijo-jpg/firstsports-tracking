@@ -1,5 +1,6 @@
 import {
   salesOrdersWhere,
+  salesReportShipmentWhere,
   salesShipmentsWhere,
 } from "../src/lib/sales-portfolio";
 import { agedOrdersWithoutShipments } from "../src/lib/operational-report";
@@ -409,4 +410,26 @@ it("faz a busca comercial por vendedor e protege as demais remessas do mesmo ped
     { number: "CARTEIRA-MISTA", shipments: [{ id: first.id }] },
     { number: "CARTEIRA-PRE-NF", shipments: [] },
   ]);
+  const now = new Date("2026-11-21T12:00:00Z");
+  await db.shipment.updateMany({
+    where: { order: { number: { startsWith: "CARTEIRA-" } } },
+    data: { estimatedDelivery: new Date("2026-11-20T12:00:00Z") },
+  });
+  const report = new URLSearchParams({
+    attention: "late",
+    carrier: "BRASPRESS",
+  });
+  const shipment = salesReportShipmentWhere(own, report, now);
+  expect(
+    await db.shipmentInvoice.findMany({
+      where: { shipment },
+      select: { number: true },
+    }),
+  ).toEqual([{ number: "77661" }]);
+  report.set("seller", other);
+  expect(
+    await db.shipmentInvoice.count({
+      where: { shipment: salesReportShipmentWhere(own, report, now) },
+    }),
+  ).toBe(0);
 });

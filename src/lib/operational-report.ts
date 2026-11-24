@@ -61,3 +61,51 @@ export function agedOrdersWithoutShipments(
     createdAt: { lte: reportCutoff(now, days) },
   };
 }
+
+export const shipmentReports = [
+  {
+    id: "late",
+    label: "NFs em atraso",
+    query: { attention: "late" },
+    help: "A previsão de entrega já passou. Confira com a transportadora uma nova previsão.",
+  },
+  {
+    id: "stalled",
+    label: "NFs sem movimentação",
+    query: { attention: "stalled" },
+    help: "A remessa está em transporte e a última movimentação logística registrada atingiu o limite de dias.",
+  },
+  {
+    id: "exception",
+    label: "NFs em ocorrência",
+    query: { attention: "exception" },
+    help: "A transportadora registrou uma ocorrência. Abra a remessa para verificar o motivo.",
+  },
+  {
+    id: "no-forecast",
+    label: "NFs sem previsão",
+    query: { attention: "no-forecast" },
+    help: "A remessa está em aberto e ainda precisa de previsão de entrega.",
+  },
+  {
+    id: "not-found",
+    label: "NFs não localizadas",
+    query: { attention: "open", tracking: "not_found" },
+    help: "A última consulta não encontrou a remessa. Confira os dados fiscais e o CNPJ do tomador.",
+  },
+  {
+    id: "no-seller",
+    label: "NFs sem vendedor",
+    query: { attention: "open", seller: "none" },
+    help: "A remessa está em aberto e ainda precisa de um vendedor responsável.",
+  },
+] as const;
+
+export function shipmentReportParams(
+  report: (typeof shipmentReports)[number],
+  days: number,
+) {
+  const params = new URLSearchParams(report.query);
+  if (report.id === "stalled") params.set("days", String(days));
+  return params;
+}
