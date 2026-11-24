@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { verifySupabaseIdentity } from "@/lib/supabase-admin";
 import { requireAdmin } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { apiError, checkOrigin, HttpError } from "@/lib/security";
@@ -59,34 +61,91 @@ export async function PATCH(request: Request) {
   try {
     checkOrigin(request);
     const actor = await requireAdmin(["ADMIN"]);
-    const { id, previous, ...access } = permissions
+    const { id, newId, previous, ...access } = permissions
       .extend({
         id: z.uuid(),
+        newId: z.string().trim().toLowerCase().pipe(z.uuid()).optional(),
         previous: permissions,
       })
       .parse(await request.json());
     validateOwnAccess(actor.id, id, access);
-    await db.$transaction(async (tx) => {
-      const { count } = await tx.adminUser.updateMany({
-        where: { id, ...previous },
-        data: access,
+    const changedId = newId && newId !== id ? newId : null;
+    let verifiedEmail: string | undefined;
+    if (changedId) {
+      if (actor.id === id)
+        throw new HttpError(
+          400,
+          "Outro administrador deve alterar o UUID da sua conta.",
+        );
+      const user = await db.adminUser.findUnique({
+        where: { id },
+        select: { email: true },
       });
-      if (!count)
+      if (!user)
         throw new HttpError(
           409,
-          "O usuário foi alterado ou removido. Recarregue a página e tente novamente.",
+          "O usuário foi alterado ou removido. Recarregue a página.",
         );
-      if (previous.role !== access.role || previous.active !== access.active)
-        await tx.auditLog.create({
-          data: {
-            actorId: actor.id,
-            action: "ADMIN_USER_UPDATE",
-            entityId: id,
-            snapshot: { previous, current: access },
+      if (
+        await db.adminUser.findUnique({
+          where: { id: changedId },
+          select: { id: true },
+        })
+      )
+        throw new HttpError(
+          409,
+          "Este UUID já está vinculado a outro usuário no painel.",
+        );
+      await verifySupabaseIdentity(changedId, user.email);
+      verifiedEmail = user.email;
+    }
+
+    try {
+      await db.$transaction(async (tx) => {
+        const { count } = await tx.adminUser.updateMany({
+          where: {
+            id,
+            ...previous,
+            ...(verifiedEmail ? { email: verifiedEmail } : {}),
           },
+          data: { ...access, ...(changedId ? { id: changedId } : {}) },
         });
-    });
-    return Response.json({ ok: true });
+        if (!count)
+          throw new HttpError(
+            409,
+            "O usuário foi alterado ou removido. Recarregue a página e tente novamente.",
+          );
+        if (
+          changedId ||
+          previous.role !== access.role ||
+          previous.active !== access.active
+        )
+          await tx.auditLog.create({
+            data: {
+              actorId: actor.id,
+              action: "ADMIN_USER_UPDATE",
+              entityId: changedId ?? id,
+              snapshot: {
+                previous,
+                current: access,
+                ...(changedId ? { uuid: { from: id, to: changedId } } : {}),
+              },
+            },
+          });
+      });
+    } catch (error) {
+      if (
+        changedId &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        throw new HttpError(
+          409,
+          "Este UUID já está vinculado a outro usuário no painel.",
+        );
+      throw error;
+    }
+    return Response.json({ ok: true, id: changedId ?? id });
   } catch (error) {
     return apiError(error);
   }

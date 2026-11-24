@@ -48,6 +48,8 @@ Os placeholders CHANGE_ME não são credenciais utilizáveis. O Compose exige se
 
 A identidade é gerenciada no Supabase. O UUID deve corresponder ao usuário real. Remover o vínculo ou desativá-lo bloqueia o acesso imediatamente no servidor.
 
+Para corrigir o UUID de um usuário existente, abra **Admin → Usuários → Editar** e use o UUID da conta com o mesmo e-mail no Supabase Auth. A troca preserva os pedidos e remessas atribuídos. Configure `SUPABASE_SERVICE_ROLE_KEY` como segredo exclusivo do servidor na Vercel, do mesmo projeto usado em `NEXT_PUBLIC_SUPABASE_URL`. A edição comum de papel e situação funciona sem essa chave.
+
 ## Verificação
 
 Crie bancos separados terminados em `_test` (os testes recusam outro sufixo):
