@@ -37,7 +37,10 @@ export function AdminShell({
   const path = usePathname();
   const navigation =
     role === "SALES"
-      ? ([["/admin/carteira", "Minha carteira", ClipboardList]] as const)
+      ? ([
+          ["/admin/carteira", "Minha carteira", ClipboardList],
+          ["/admin/carteira/relatorios", "Relatórios", ChartNoAxesColumn],
+        ] as const)
       : entries;
   const router = useRouter();
   async function logout() {
@@ -57,7 +60,17 @@ export function AdminShell({
                 key={href}
                 href={href}
                 className={
-                  (href === "/admin" ? path === href : path.startsWith(href))
+                  (
+                    href === "/admin"
+                      ? path === href
+                      : path === href ||
+                        (path.startsWith(href + "/") &&
+                          !navigation.some(
+                            ([nested]) =>
+                              nested.startsWith(href + "/") &&
+                              path.startsWith(nested),
+                          ))
+                  )
                     ? "active"
                     : ""
                 }
