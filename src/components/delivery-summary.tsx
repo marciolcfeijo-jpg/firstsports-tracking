@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { deliveryAttentionLabels } from "@/lib/delivery-metrics";
+import {
+  deliveryAttentionLabels,
+  deliveryTimingLabels,
+} from "@/lib/delivery-metrics";
 import {
   Package,
   Truck,
@@ -16,10 +19,12 @@ export function DeliverySummary({
   metrics: m,
   filters = {},
   listPath = "/admin/remessas",
+  timingPath,
 }: {
   metrics: DeliveryMetrics;
   filters?: Record<string, string>;
   listPath?: string;
+  timingPath?: string;
 }) {
   function listHref(attention: keyof typeof deliveryAttentionLabels) {
     const query = new URLSearchParams(filters);
@@ -27,21 +32,30 @@ export function DeliverySummary({
     query.set("attention", attention);
     return listPath + "?" + query;
   }
+  function timingHref(timing: keyof typeof deliveryTimingLabels) {
+    const query = new URLSearchParams(filters);
+    query.delete("page");
+    query.set("timing", timing);
+    return timingPath + "?" + query;
+  }
   const distribution = [
     {
-      label: "Antes do prazo",
+      label: deliveryTimingLabels.early,
+      timing: "early" as const,
       value: m.early,
       tone: "early",
       description: "Entregues antes do dia previsto",
     },
     {
-      label: "No dia previsto",
+      label: deliveryTimingLabels.onDay,
+      timing: "onDay" as const,
       value: m.onDay,
       tone: "on-day",
       description: "Entregues no dia da previsão",
     },
     {
-      label: "Depois do prazo",
+      label: deliveryTimingLabels.after,
+      timing: "after" as const,
       value: m.after,
       tone: "after",
       description: "Entregues após a data prevista",
@@ -150,7 +164,7 @@ export function DeliverySummary({
             <dl className="delivery-timing-cards">
               {distribution.map((item) => (
                 <div
-                  className={"delivery-timing-card " + item.tone}
+                  className={"delivery-timing-card relative " + item.tone}
                   key={item.tone}
                 >
                   <dt>
@@ -159,6 +173,15 @@ export function DeliverySummary({
                   </dt>
                   <dd>{number(item.value)}</dd>
                   <p>{item.description}</p>
+                  {timingPath && (
+                    <Link
+                      className="delivery-details-link"
+                      href={timingHref(item.timing)}
+                      aria-label={`Ver remessas · ${item.label}`}
+                    >
+                      Ver remessas →
+                    </Link>
+                  )}
                 </div>
               ))}
             </dl>
@@ -166,6 +189,17 @@ export function DeliverySummary({
               <strong>{number(m.unclassified)} sem comparação de prazo.</strong>{" "}
               Falta a previsão ou a data confirmada de entrega; essas remessas
               não entram no percentual.
+              {timingPath && m.unclassified > 0 && (
+                <>
+                  {" "}
+                  <Link
+                    className="shipment-order-link inline"
+                    href={timingHref("unclassified")}
+                  >
+                    Ver remessas sem comparação →
+                  </Link>
+                </>
+              )}
             </p>
           </div>
         </div>
