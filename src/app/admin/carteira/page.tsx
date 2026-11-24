@@ -3,8 +3,7 @@ import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
 import {
   salesOrdersWhere,
-  salesReportShipmentWhere,
-  salesShipmentsWhere,
+  salesPortfolioShipmentFilter,
 } from "@/lib/sales-portfolio";
 import { orderStageLabels } from "@/lib/order-status";
 import {
@@ -18,6 +17,10 @@ import {
 } from "@/lib/operational-report";
 import { dateOnly, dateTime, statusLabels } from "@/lib/status";
 
+function textParam(value: string | string[] | undefined, limit = 120) {
+  return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+
 export default async function SalesPortfolio({
   searchParams,
 }: {
@@ -25,8 +28,14 @@ export default async function SalesPortfolio({
 }) {
   const seller = await requirePageAdmin(["SALES"]);
   const params = await searchParams;
-  const query =
-    typeof params.pedido === "string" ? params.pedido.trim().slice(0, 120) : "";
+  const query = textParam(params.pedido);
+  const customer = textParam(params.cliente);
+  const invoice = textParam(params.nf, 12);
+  const stage = Object.keys(orderStageLabels).find(
+    (key) => key === params.etapa,
+  ) as keyof typeof orderStageLabels | undefined;
+  const status = Object.keys(statusLabels).find((key) => key === params.status);
+  const hasFilters = Boolean(query || customer || invoice || stage || status);
   const requested = Number(params.page);
   const page =
     Number.isSafeInteger(requested) && requested > 0
@@ -41,11 +50,14 @@ export default async function SalesPortfolio({
     typeof params.pendingDays === "string" ? params.pendingDays : null,
   );
   const filters = new URLSearchParams();
-  const shipmentQuery = report ? shipmentReportParams(report, days) : null;
+  const shipmentQuery = report
+    ? shipmentReportParams(report, days)
+    : new URLSearchParams();
+  if (status) shipmentQuery.set("status", status);
   if (report) {
     filters.set("report", report.id);
     filters.set("days", String(days));
-    if (typeof params.carrier === "string" && shipmentQuery) {
+    if (typeof params.carrier === "string") {
       shipmentQuery.set("carrier", params.carrier);
       filters.set("carrier", params.carrier);
     }
@@ -55,14 +67,22 @@ export default async function SalesPortfolio({
     filters.set("pendingDays", String(pendingDays));
   }
   const now = new Date();
-  const shipments = shipmentQuery
-    ? salesReportShipmentWhere(seller.id, shipmentQuery, now)
-    : salesShipmentsWhere(seller.id);
+  const shipments = salesPortfolioShipmentFilter(
+    seller.id,
+    shipmentQuery,
+    invoice,
+    now,
+  );
+  const matchShipment = Boolean(report || invoice || status);
   const orders = await db.order.findMany({
     where: {
       ...salesOrdersWhere(seller.id),
       ...(query ? { number: query } : {}),
-      ...(report ? { shipments: { some: shipments } } : {}),
+      ...(customer
+        ? { customer: { name: { contains: customer, mode: "insensitive" } } }
+        : {}),
+      ...(stage ? { stage } : {}),
+      ...(matchShipment ? { shipments: { some: shipments } } : {}),
       ...(pending
         ? { AND: [agedOrdersWithoutShipments(now, pendingDays, pending)] }
         : {}),
@@ -104,6 +124,10 @@ export default async function SalesPortfolio({
     new URLSearchParams({
       ...Object.fromEntries(filters),
       pedido: query,
+      cliente: customer,
+      nf: invoice,
+      etapa: stage ?? "",
+      status: status ?? "",
       page: String(next),
     });
   return (
@@ -138,7 +162,56 @@ export default async function SalesPortfolio({
           maxLength={120}
           defaultValue={query}
         />
-        <button className="button secondary">Buscar</button>
+        <input
+          name="cliente"
+          aria-label="Cliente"
+          placeholder="Nome do cliente"
+          maxLength={120}
+          defaultValue={customer}
+        />
+        <input
+          name="nf"
+          aria-label="Número da NF"
+          placeholder="Número da NF"
+          inputMode="numeric"
+          maxLength={12}
+          defaultValue={invoice}
+        />
+        <select
+          name="etapa"
+          aria-label="Etapa do pedido"
+          defaultValue={stage ?? ""}
+        >
+          <option value="">Todas as etapas do pedido</option>
+          {Object.entries(orderStageLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <select
+          name="status"
+          aria-label="Status da NF"
+          defaultValue={status ?? ""}
+        >
+          <option value="">Todos os status da NF</option>
+          {Object.entries(statusLabels).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <button className="button secondary">Filtrar</button>
+        {hasFilters && (
+          <Link
+            className="button secondary"
+            href={
+              filters.size ? `/admin/carteira?${filters}` : "/admin/carteira"
+            }
+          >
+            Limpar filtros
+          </Link>
+        )}
       </form>
       {orders.length ? (
         <div className="table-wrap">
@@ -147,7 +220,8 @@ export default async function SalesPortfolio({
               <tr>
                 <th scope="col">Pedido</th>
                 <th scope="col">Cliente</th>
-                <th scope="col">Etapa e NFs da carteira</th>
+                <th scope="col">Etapa do pedido</th>
+                <th scope="col">NFs da carteira</th>
                 <th scope="col">Cadastro</th>
               </tr>
             </thead>
@@ -163,6 +237,11 @@ export default async function SalesPortfolio({
                     </Link>
                   </td>
                   <td>{order.customer.name}</td>
+                  <td>
+                    {order.stage
+                      ? orderStageLabels[order.stage]
+                      : "Sem etapa registrada"}
+                  </td>
                   <td>
                     {order.shipments.length ? (
                       <ul className="space-y-2">
@@ -200,8 +279,6 @@ export default async function SalesPortfolio({
                           </li>
                         ))}
                       </ul>
-                    ) : order.stage ? (
-                      orderStageLabels[order.stage]
                     ) : (
                       "Sem remessa na carteira"
                     )}
@@ -214,8 +291,8 @@ export default async function SalesPortfolio({
         </div>
       ) : (
         <p>
-          {report || pending
-            ? "Nenhum pedido da sua carteira corresponde a este relatório."
+          {report || pending || hasFilters
+            ? "Nenhum pedido da sua carteira corresponde aos filtros selecionados."
             : "Nenhum pedido encontrado na sua carteira."}
         </p>
       )}
