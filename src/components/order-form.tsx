@@ -7,14 +7,18 @@ import { orderStageLabels, orderTransitions } from "@/lib/order-status";
 
 export function OrderForm({
   order,
+  canCancel = true,
 }: {
   order: { id: string; stage: OrderStage | null };
+  canCancel?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const transitions = order.stage
-    ? orderTransitions[order.stage]
+    ? orderTransitions[order.stage].filter(
+        (stage) => canCancel || stage !== "CANCELLED",
+      )
     : ["RECEIVED" as const];
   if (!transitions.length) return null;
 

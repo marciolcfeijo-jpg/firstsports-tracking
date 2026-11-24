@@ -1,3 +1,4 @@
+import { salesShipmentsWhere } from "@/lib/sales-portfolio";
 import { randomUUID } from "node:crypto";
 import { recordSyncDiagnostic } from "@/lib/sync-diagnostics";
 import { requireAdmin } from "@/lib/auth";
@@ -11,8 +12,17 @@ export async function POST(r: Request, c: { params: Promise<{ id: string }> }) {
   let phase: "authentication" | "request_audit" | "sync" = "authentication";
   try {
     checkOrigin(r);
-    const actor = await requireAdmin(["ADMIN", "OPERATOR"]);
+    const actor = await requireAdmin(["ADMIN", "OPERATOR", "SALES"]);
     const { id } = await c.params;
+    const sellerId = actor.role === "SALES" ? actor.id : undefined;
+    if (
+      sellerId &&
+      !(await db.shipment.findFirst({
+        where: { id, ...salesShipmentsWhere(sellerId) },
+        select: { id: true },
+      }))
+    )
+      throw new HttpError(404, "Remessa não encontrada na sua carteira.");
     shipmentId = id;
     phase = "request_audit";
     await db.auditLog.create({
@@ -25,10 +35,13 @@ export async function POST(r: Request, c: { params: Promise<{ id: string }> }) {
       undefined,
       undefined,
       requestId,
+      sellerId,
     );
     return Response.json(
       {
-        ...result,
+        ...(sellerId
+          ? { ok: result.ok, code: result.code, skipped: result.skipped }
+          : result),
         requestId,
         ...(result.skipped
           ? {

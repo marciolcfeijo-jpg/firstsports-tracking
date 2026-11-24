@@ -15,6 +15,8 @@ vi.mock("@supabase/ssr", () => ({
     },
   }),
 }));
+import { PATCH as editOrderStage } from "../src/app/api/admin/orders/route";
+import { POST as refreshInvoice } from "../src/app/api/admin/shipments/[id]/sync/route";
 import { PATCH as editUserPermissions } from "../src/app/api/admin/users/route";
 import { requireAdmin } from "../src/lib/auth";
 const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -236,6 +238,118 @@ describe("server-side role checks using an isolated external auth fixture", () =
         where: { entityId: { in: [before, after] } },
       });
       await db.adminUser.deleteMany({ where: { id: { in: [before, after] } } });
+    }
+  });
+  it("permite ao vendedor atualizar somente pedidos e NFs da própria carteira", async () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://auth-fixture.test");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "fixture");
+    fixture.user = { id };
+    await db.adminUser.upsert({
+      where: { id },
+      create: { id, email: "role-fixture@example.test", role: "SALES" },
+      update: { role: "SALES", active: true },
+    });
+    const customer = await db.customer.create({
+      data: {
+        name: "Cliente fictício",
+        documentHash: "sales-mutations-fixture",
+        city: "São Paulo",
+        state: "SP",
+      },
+    });
+    const [own, outside, billed] = await db.order.createManyAndReturn({
+      data: [
+        {
+          number: "TEST-SALES-OWN",
+          customerId: customer.id,
+          stage: "RECEIVED",
+          sellerId: id,
+        },
+        {
+          number: "TEST-SALES-OUTSIDE",
+          customerId: customer.id,
+          stage: "RECEIVED",
+        },
+        {
+          number: "TEST-SALES-BILLED",
+          customerId: customer.id,
+          stage: "RECEIVED",
+          sellerId: id,
+        },
+      ],
+    });
+    const carrier = await db.carrier.create({
+      data: {
+        code: "SALES_MUTATION_FIXTURE",
+        name: "Transportadora desativada de teste",
+        enabled: false,
+      },
+    });
+    const [assigned, unrelated] = await db.shipment.createManyAndReturn({
+      data: [billed, outside].map((order) => ({
+        orderId: order.id,
+        carrierId: carrier.id,
+        senderDocument: "11222333000181",
+        issuedAt: new Date(),
+      })),
+    });
+    const headers = {
+      origin: "http://localhost:3000",
+      "Content-Type": "application/json",
+    };
+    const stage = (orderId: string, next = "PREPARING") =>
+      editOrderStage(
+        new Request("http://localhost:3000/api/admin/orders", {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ id: orderId, from: "RECEIVED", stage: next }),
+        }),
+      );
+    const sync = (shipmentId: string) =>
+      refreshInvoice(
+        new Request(
+          "http://localhost:3000/api/admin/shipments/" + shipmentId + "/sync",
+          { method: "POST", headers },
+        ),
+        { params: Promise.resolve({ id: shipmentId }) },
+      );
+
+    try {
+      expect((await stage(outside.id)).status).toBe(404);
+      expect((await stage(own.id, "CANCELLED")).status).toBe(403);
+      expect((await stage(billed.id)).status).toBe(409);
+      expect((await stage(own.id)).status).toBe(204);
+      expect(
+        (await db.order.findUniqueOrThrow({ where: { id: own.id } })).stage,
+      ).toBe("PREPARING");
+      expect((await sync(unrelated.id)).status).toBe(404);
+      expect(
+        await db.auditLog.count({ where: { entityId: unrelated.id } }),
+      ).toBe(0);
+      const response = await sync(assigned.id);
+      expect(response.status).toBe(422);
+      expect(await response.json()).toMatchObject({
+        code: "INTEGRATION_DISABLED",
+      });
+      expect(
+        await db.auditLog.count({
+          where: { entityId: assigned.id, action: "SYNC_REQUEST", actorId: id },
+        }),
+      ).toBe(1);
+    } finally {
+      const shipmentIds = [assigned.id, unrelated.id];
+      await db.syncLog.deleteMany({
+        where: { shipmentId: { in: shipmentIds } },
+      });
+      await db.shipment.deleteMany({ where: { id: { in: shipmentIds } } });
+      await db.auditLog.deleteMany({
+        where: {
+          entityId: { in: [...shipmentIds, own.id, outside.id, billed.id] },
+        },
+      });
+      await db.order.deleteMany({ where: { customerId: customer.id } });
+      await db.customer.delete({ where: { id: customer.id } });
+      await db.carrier.delete({ where: { id: carrier.id } });
     }
   });
 });

@@ -1,3 +1,6 @@
+import { OrderForm } from "@/components/order-form";
+import { OrderShipmentSync } from "@/components/order-shipment-sync";
+import { TrackingAvailability } from "@/components/tracking-availability";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TrackingHistory } from "@/components/tracking-history";
@@ -18,6 +21,9 @@ export default async function SalesOrder({
     where: { id, ...salesOrdersWhere(seller.id) },
     select: {
       number: true,
+      stage: true,
+      sellerId: true,
+      _count: { select: { shipments: true } },
       createdAt: true,
       customer: { select: { name: true } },
       shipments: {
@@ -27,7 +33,8 @@ export default async function SalesOrder({
           status: true,
           issuedAt: true,
           estimatedDelivery: true,
-          carrier: { select: { name: true } },
+          lastSyncError: true,
+          carrier: { select: { name: true, enabled: true } },
           invoices: { select: { number: true, series: true } },
           events: { orderBy: { occurredAt: "desc" } },
         },
@@ -73,8 +80,21 @@ export default async function SalesOrder({
           <p>Nenhuma etapa interna registrada.</p>
         )}
       </section>
+      {order.sellerId === seller.id && order._count.shipments === 0 && (
+        <OrderForm
+          key={order.stage ?? "unregistered"}
+          order={{ id, stage: order.stage }}
+          canCancel={false}
+        />
+      )}
       <section className="spaced">
         <h2>Faturamento e entrega na carteira</h2>
+        {order.shipments.length > 0 && (
+          <p className="small">
+            Após o faturamento, o andamento da entrega acompanha o rastreamento
+            das NFs vinculadas.
+          </p>
+        )}
         {!order.shipments.length && (
           <p>Nenhuma NF vinculada à sua carteira para este pedido.</p>
         )}
@@ -91,6 +111,13 @@ export default async function SalesOrder({
               {dateOnly(shipment.issuedAt)} · Previsão:{" "}
               {dateOnly(shipment.estimatedDelivery)}
             </p>
+            <TrackingAvailability error={shipment.lastSyncError} />
+            <div className="mt-3">
+              <OrderShipmentSync
+                shipmentId={shipment.id}
+                enabled={shipment.carrier.enabled}
+              />
+            </div>
             <TrackingHistory events={shipment.events} />
           </article>
         ))}

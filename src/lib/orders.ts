@@ -455,16 +455,38 @@ const stageUpdate = z.object({
   stage: z.enum(["RECEIVED", "PREPARING", "READY_TO_INVOICE", "CANCELLED"]),
 });
 
-export async function updateOrderStage(raw: unknown, actorId: string) {
+export async function updateOrderStage(
+  raw: unknown,
+  actorId: string,
+  sellerId?: string,
+) {
   const { id, from, stage } = stageUpdate.parse(raw);
   const allowed = from
     ? orderTransitions[from].some((next) => next === stage)
     : stage === "RECEIVED";
   if (!allowed) throw new HttpError(400, "Etapa inválida para este pedido.");
+  if (sellerId && stage === "CANCELLED")
+    throw new HttpError(
+      403,
+      "O cancelamento do pedido deve ser feito pelo backoffice.",
+    );
   await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${id} FOR UPDATE`;
+    if (
+      sellerId &&
+      !(await tx.order.findFirst({
+        where: { id, sellerId },
+        select: { id: true },
+      }))
+    )
+      throw new HttpError(404, "Pedido não encontrado na sua carteira.");
     const result = await tx.order.updateMany({
-      where: { id, stage: from, shipments: { none: {} } },
+      where: {
+        id,
+        ...(sellerId ? { sellerId } : {}),
+        stage: from,
+        shipments: { none: {} },
+      },
       data: { stage },
     });
     if (!result.count)

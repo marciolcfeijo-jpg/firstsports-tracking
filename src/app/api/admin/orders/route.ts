@@ -35,8 +35,12 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     checkOrigin(request);
-    const user = await requireAdmin(["ADMIN", "OPERATOR"]);
-    await updateOrderStage(await request.json(), user.id);
+    const user = await requireAdmin(["ADMIN", "OPERATOR", "SALES"]);
+    await updateOrderStage(
+      await request.json(),
+      user.id,
+      user.role === "SALES" ? user.id : undefined,
+    );
     return new Response(null, { status: 204 });
   } catch (error) {
     return apiError(error);
