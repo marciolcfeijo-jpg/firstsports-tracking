@@ -22,3 +22,17 @@ export function salesReportShipmentWhere(
 ): Prisma.ShipmentWhereInput {
   return { AND: [salesShipmentsWhere(sellerId), shipmentWhere(params, now)] };
 }
+
+export function salesPortfolioShipmentFilter(
+  sellerId: string,
+  params: URLSearchParams,
+  invoiceNumber: string,
+  now = new Date(),
+): Prisma.ShipmentWhereInput {
+  const where = salesReportShipmentWhere(sellerId, params, now);
+  if (!invoiceNumber) return where;
+  const number = /^\d{1,12}$/.test(invoiceNumber)
+    ? String(Number(invoiceNumber))
+    : invoiceNumber;
+  return { AND: [where, { invoices: { some: { number } } }] };
+}

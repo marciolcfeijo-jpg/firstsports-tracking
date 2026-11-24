@@ -1,5 +1,6 @@
 import {
   salesOrdersWhere,
+  salesPortfolioShipmentFilter,
   salesReportShipmentWhere,
   salesShipmentsWhere,
 } from "../src/lib/sales-portfolio";
@@ -430,6 +431,23 @@ it("faz a busca comercial por vendedor e protege as demais remessas do mesmo ped
   expect(
     await db.shipmentInvoice.count({
       where: { shipment: salesReportShipmentWhere(own, report, now) },
+    }),
+  ).toBe(0);
+  const status = new URLSearchParams({ status: "INVOICED" });
+  expect(
+    await db.shipment.count({
+      where: salesPortfolioShipmentFilter(own, status, "00077661", now),
+    }),
+  ).toBe(1);
+  expect(
+    await db.shipment.count({
+      where: salesPortfolioShipmentFilter(own, status, "77662", now),
+    }),
+  ).toBe(0);
+  status.set("status", "DELIVERED");
+  expect(
+    await db.shipment.count({
+      where: salesPortfolioShipmentFilter(own, status, "77661", now),
     }),
   ).toBe(0);
 });
