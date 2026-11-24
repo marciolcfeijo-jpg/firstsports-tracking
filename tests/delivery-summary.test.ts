@@ -52,3 +52,17 @@ it("links the open shipment cards to the same filters on the shipment list", () 
     );
   expect(html).not.toContain("page=3");
 });
+
+it("keeps the seller dashboard drilldowns in the authenticated portfolio", () => {
+  const html = renderToStaticMarkup(
+    createElement(DeliverySummary, {
+      metrics: deliveryMetrics([]),
+      filters: { status: "IN_TRANSIT", carrier: "BRASPRESS" },
+      listPath: "/admin/carteira",
+    }),
+  );
+  expect(html).toContain(
+    "/admin/carteira?status=IN_TRANSIT&amp;carrier=BRASPRESS&amp;attention=late",
+  );
+  expect(html).not.toContain("/admin/remessas");
+});

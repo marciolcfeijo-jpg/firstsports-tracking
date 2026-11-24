@@ -38,6 +38,7 @@ export function AdminShell({
   const navigation =
     role === "SALES"
       ? ([
+          ["/admin/carteira/visao-geral", "Visão geral", LayoutDashboard],
           ["/admin/carteira", "Minha carteira", ClipboardList],
           ["/admin/carteira/relatorios", "Relatórios", ChartNoAxesColumn],
         ] as const)

@@ -1,21 +1,29 @@
+import { salesShipmentsWhere } from "@/lib/sales-portfolio";
 import { db } from "@/lib/db";
 import { statusLabels } from "@/lib/status";
 import { deliveryAttentionLabels } from "@/lib/delivery-metrics";
 export async function Filters({
   values,
   includeAttention = false,
+  sellerId,
 }: {
   values: Record<string, string>;
   includeAttention?: boolean;
+  sellerId?: string;
 }) {
   const carriers = await db.carrier.findMany({
+    where: sellerId
+      ? { shipments: { some: salesShipmentsWhere(sellerId) } }
+      : undefined,
     select: { code: true, name: true },
     orderBy: { name: "asc" },
   });
-  const sellerUsers = await db.adminUser.findMany({
-    orderBy: { email: "asc" },
-    select: { id: true, email: true, active: true },
-  });
+  const sellerUsers = sellerId
+    ? []
+    : await db.adminUser.findMany({
+        orderBy: { email: "asc" },
+        select: { id: true, email: true, active: true },
+      });
   const sellers = sellerUsers.map((user) => ({ ...user, name: user.email }));
   return (
     <form className="toolbar">
@@ -40,20 +48,22 @@ export async function Filters({
           </option>
         ))}
       </select>
-      <select
-        name="seller"
-        defaultValue={values.seller || ""}
-        aria-label="Vendedor / representante"
-      >
-        <option value="">Todos os vendedores</option>
-        <option value="none">Sem vendedor</option>
-        {sellers.map((seller) => (
-          <option key={seller.id} value={seller.id}>
-            {seller.name}
-            {seller.active ? "" : " (inativo)"}
-          </option>
-        ))}
-      </select>
+      {!sellerId && (
+        <select
+          name="seller"
+          defaultValue={values.seller || ""}
+          aria-label="Vendedor / representante"
+        >
+          <option value="">Todos os vendedores</option>
+          <option value="none">Sem vendedor</option>
+          {sellers.map((seller) => (
+            <option key={seller.id} value={seller.id}>
+              {seller.name}
+              {seller.active ? "" : " (inativo)"}
+            </option>
+          ))}
+        </select>
+      )}
       <select
         name="status"
         defaultValue={values.status || ""}

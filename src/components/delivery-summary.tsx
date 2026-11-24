@@ -15,15 +15,17 @@ const number = (value: number) => value.toLocaleString("pt-BR");
 export function DeliverySummary({
   metrics: m,
   filters = {},
+  listPath = "/admin/remessas",
 }: {
   metrics: DeliveryMetrics;
   filters?: Record<string, string>;
+  listPath?: string;
 }) {
   function listHref(attention: keyof typeof deliveryAttentionLabels) {
     const query = new URLSearchParams(filters);
     query.delete("page");
     query.set("attention", attention);
-    return "/admin/remessas?" + query;
+    return listPath + "?" + query;
   }
   const distribution = [
     {
