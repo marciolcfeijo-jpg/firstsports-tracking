@@ -66,3 +66,25 @@ it("keeps the seller dashboard drilldowns in the authenticated portfolio", () =>
   );
   expect(html).not.toContain("/admin/remessas");
 });
+
+it("opens each delivery timing group in the seller portfolio and preserves the selected filters", () => {
+  const html = renderToStaticMarkup(
+    createElement(DeliverySummary, {
+      metrics: deliveryMetrics([
+        {
+          status: "DELIVERED",
+          deliveredAt: null,
+          estimatedDelivery: null,
+          carrierId: "carrier",
+        },
+      ]),
+      filters: { carrier: "BRASPRESS", page: "2" },
+      timingPath: "/admin/carteira/visao-geral/entregas",
+    }),
+  );
+  for (const timing of ["early", "onDay", "after", "unclassified"])
+    expect(html).toContain(
+      `/admin/carteira/visao-geral/entregas?carrier=BRASPRESS&amp;timing=${timing}`,
+    );
+  expect(html).not.toContain("page=2");
+});

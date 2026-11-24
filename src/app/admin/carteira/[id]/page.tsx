@@ -99,7 +99,11 @@ export default async function SalesOrder({
           <p>Nenhuma NF vinculada à sua carteira para este pedido.</p>
         )}
         {order.shipments.map((shipment) => (
-          <article className="card mt-4" key={shipment.id}>
+          <article
+            className="card mt-4"
+            key={shipment.id}
+            id={`remessa-${shipment.id}`}
+          >
             <h3>
               {shipment.invoices
                 .map(({ number, series }) => `NF ${number} · série ${series}`)

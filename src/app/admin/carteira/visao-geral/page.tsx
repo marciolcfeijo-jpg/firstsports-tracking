@@ -58,6 +58,7 @@ export default async function SalesDashboard({
         metrics={deliveryMetrics(shipments, now)}
         filters={filters}
         listPath="/admin/carteira"
+        timingPath="/admin/carteira/visao-geral/entregas"
       />
       <div className="page-heading spaced">
         <h2>

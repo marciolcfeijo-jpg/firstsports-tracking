@@ -52,6 +52,23 @@ export function startOfDeliveryDay(now: Date) {
   return new Date(later);
 }
 
+export const deliveryTimingLabels = {
+  early: "Antes do prazo",
+  onDay: "No dia previsto",
+  after: "Depois do prazo",
+  unclassified: "Sem comparação de prazo",
+} as const;
+
+export function deliveryTiming(
+  shipment: Pick<ShipmentMetricInput, "deliveredAt" | "estimatedDelivery">,
+): keyof typeof deliveryTimingLabels {
+  const delivered = localDay(shipment.deliveredAt);
+  const forecast = localDay(shipment.estimatedDelivery);
+  if (!delivered || !forecast) return "unclassified";
+  if (delivered < forecast) return "early";
+  return delivered === forecast ? "onDay" : "after";
+}
+
 export function deliveryMetrics(
   shipments: ShipmentMetricInput[],
   now = new Date(),
@@ -73,18 +90,14 @@ export function deliveryMetrics(
   const today = localDay(now)!;
   for (const shipment of shipments) {
     if (shipment.lastSyncError) failedCarriers.add(shipment.carrierId);
-    const forecast = localDay(shipment.estimatedDelivery);
     if (shipment.status === "DELIVERED") {
       counts.delivered++;
-      const delivered = localDay(shipment.deliveredAt);
-      if (!delivered || !forecast) counts.unclassified++;
-      else if (delivered < forecast) counts.early++;
-      else if (delivered === forecast) counts.onDay++;
-      else counts.after++;
+      counts[deliveryTiming(shipment)]++;
     } else if (terminalStatuses.some((status) => status === shipment.status)) {
       counts.closedOther++;
     } else {
       counts.open++;
+      const forecast = localDay(shipment.estimatedDelivery);
       if (!forecast) counts.withoutForecast++;
       else if (forecast < today) counts.overdue++;
       if (shipment.status === "EXCEPTION") counts.exceptions++;
