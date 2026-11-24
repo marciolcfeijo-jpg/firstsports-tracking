@@ -1,3 +1,4 @@
+import { salesShipmentsWhere } from "./sales-portfolio";
 import { recordSyncDiagnostic } from "./sync-diagnostics";
 import type { SyncDiagnostic } from "./sync-diagnostic-data";
 import { IcaroAdapter } from "../../integrations/carriers/icaro";
@@ -98,6 +99,7 @@ export async function syncShipment(
   invoiceNumber?: string,
   dueAt?: Date,
   requestId = randomUUID(),
+  sellerId?: string,
 ): Promise<{
   ok: boolean;
   code?: string;
@@ -109,6 +111,7 @@ export async function syncShipment(
     where: {
       id,
       OR: [{ leaseUntil: null }, { leaseUntil: { lt: new Date() } }],
+      ...(sellerId ? { AND: [salesShipmentsWhere(sellerId)] } : {}),
       ...(dueAt
         ? {
             nextSyncAt: { lte: dueAt },
