@@ -36,3 +36,26 @@ export function salesPortfolioShipmentFilter(
     : invoiceNumber;
   return { AND: [where, { invoices: { some: { number } } }] };
 }
+
+export function salesDeliveryFilters(
+  params: Record<string, string | string[] | undefined>,
+) {
+  const values: Record<string, string> = {};
+  for (const key of [
+    "q",
+    "carrier",
+    "status",
+    "tracking",
+    "state",
+    "from",
+    "to",
+    "sort",
+  ]) {
+    const value = params[key];
+    if (typeof value !== "string" || !value.trim()) continue;
+    if ((key === "from" || key === "to") && !/^\d{4}-\d{2}-\d{2}$/.test(value))
+      continue;
+    values[key] = value.trim().slice(0, 120);
+  }
+  return values;
+}

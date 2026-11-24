@@ -1,8 +1,13 @@
+import {
+  deliveryAttention,
+  deliveryAttentionLabels,
+} from "@/lib/delivery-metrics";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
 import {
   salesOrdersWhere,
+  salesDeliveryFilters,
   salesPortfolioShipmentFilter,
 } from "@/lib/sales-portfolio";
 import { orderStageLabels } from "@/lib/order-status";
@@ -44,28 +49,57 @@ export default async function SalesPortfolio({
   const report = shipmentReports.find(
     ({ id }) => id === params.report && id !== "no-seller",
   );
-  const pending = report ? null : pendingOrderFilter(params.pending);
+  const attention =
+    typeof params.attention === "string"
+      ? deliveryAttention(params.attention)
+      : null;
+  const deliveries = params.deliveries === "1";
+  const pending =
+    report || attention || deliveries
+      ? null
+      : pendingOrderFilter(params.pending);
   const days = reportDays(typeof params.days === "string" ? params.days : null);
   const pendingDays = reportDays(
     typeof params.pendingDays === "string" ? params.pendingDays : null,
   );
-  const filters = new URLSearchParams();
+  const deliveryFilters = salesDeliveryFilters(params);
+  delete deliveryFilters.status;
+  const filters = new URLSearchParams(deliveryFilters);
   const shipmentQuery = report
     ? shipmentReportParams(report, days)
     : new URLSearchParams();
+  for (const [key, value] of filters) shipmentQuery.set(key, value);
   if (status) shipmentQuery.set("status", status);
   if (report) {
     filters.set("report", report.id);
     filters.set("days", String(days));
-    if (typeof params.carrier === "string") {
-      shipmentQuery.set("carrier", params.carrier);
-      filters.set("carrier", params.carrier);
-    }
   }
+  if (attention && !report) {
+    shipmentQuery.set("attention", attention);
+    if (attention === "stalled") shipmentQuery.set("days", String(days));
+    filters.set("attention", attention);
+    if (attention === "stalled") filters.set("days", String(days));
+  }
+  if (deliveries) filters.set("deliveries", "1");
   if (pending) {
     filters.set("pending", pending);
     filters.set("pendingDays", String(pendingDays));
   }
+  const clear = new URLSearchParams();
+  for (const key of [
+    "report",
+    "days",
+    "pending",
+    "pendingDays",
+    "attention",
+    "deliveries",
+  ]) {
+    const value = filters.get(key);
+    if (value) clear.set(key, value);
+  }
+  const hasDeliveryFilters = Object.keys(deliveryFilters).some(
+    (key) => key !== "sort",
+  );
   const now = new Date();
   const shipments = salesPortfolioShipmentFilter(
     seller.id,
@@ -73,7 +107,10 @@ export default async function SalesPortfolio({
     invoice,
     now,
   );
-  const matchShipment = Boolean(report || invoice || status);
+  const shipmentView = report || attention || deliveries;
+  const matchShipment = Boolean(
+    shipmentView || invoice || status || hasDeliveryFilters,
+  );
   const orders = await db.order.findMany({
     where: {
       ...salesOrdersWhere(seller.id),
@@ -87,7 +124,10 @@ export default async function SalesPortfolio({
         ? { AND: [agedOrdersWithoutShipments(now, pendingDays, pending)] }
         : {}),
     },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [
+      { createdAt: deliveryFilters.sort === "asc" ? "asc" : "desc" },
+      { id: "desc" },
+    ],
     skip: (page - 1) * 50,
     take: 51,
     select: {
@@ -107,7 +147,7 @@ export default async function SalesPortfolio({
           events: {
             where: {
               status:
-                report?.id === "stalled"
+                report?.id === "stalled" || attention === "stalled"
                   ? { in: movementStatuses }
                   : "EXCEPTION",
             },
@@ -136,13 +176,26 @@ export default async function SalesPortfolio({
         <div>
           <h1>
             {report?.label ??
-              (pending ? pendingOrderLabels[pending] : "Minha carteira")}
+              (pending
+                ? pendingOrderLabels[pending]
+                : attention
+                  ? `Remessas · ${deliveryAttentionLabels[attention]}`
+                  : deliveries
+                    ? "Remessas da carteira"
+                    : "Minha carteira")}
           </h1>
           {report?.id === "stalled" && (
             <p>Última movimentação registrada há {days} dias ou mais.</p>
           )}
           {pending && <p>Pedidos cadastrados há {pendingDays} dias ou mais.</p>}
         </div>
+        {(attention || deliveries) && !report && (
+          <Link
+            href={`/admin/carteira/visao-geral?${new URLSearchParams(salesDeliveryFilters(params))}`}
+          >
+            Voltar à visão geral
+          </Link>
+        )}
         {(report || pending) && (
           <Link
             href={`/admin/carteira/relatorios?days=${pending ? pendingDays : days}`}
@@ -202,17 +255,20 @@ export default async function SalesPortfolio({
           ))}
         </select>
         <button className="button secondary">Filtrar</button>
-        {hasFilters && (
+        {(hasFilters || hasDeliveryFilters) && (
           <Link
             className="button secondary"
-            href={
-              filters.size ? `/admin/carteira?${filters}` : "/admin/carteira"
-            }
+            href={clear.size ? `/admin/carteira?${clear}` : "/admin/carteira"}
           >
             Limpar filtros
           </Link>
         )}
       </form>
+      {hasDeliveryFilters && (attention || deliveries) && (
+        <p className="small">
+          Os filtros da visão geral também se aplicam a esta lista.
+        </p>
+      )}
       {orders.length ? (
         <div className="table-wrap">
           <table>
@@ -252,11 +308,12 @@ export default async function SalesPortfolio({
                               .map(({ number }) => number)
                               .join(", ")}{" "}
                             · {statusLabels[shipment.status]}
-                            {report && (
+                            {shipmentView && (
                               <div className="small muted">
                                 {shipment.carrier.name} · Previsão:{" "}
                                 {dateOnly(shipment.estimatedDelivery)}
-                                {report.id === "stalled" &&
+                                {(report?.id === "stalled" ||
+                                  attention === "stalled") &&
                                   shipment.events[0] && (
                                     <p>
                                       Última movimentação:{" "}
@@ -270,7 +327,8 @@ export default async function SalesPortfolio({
                                       · {shipment.events[0].description}
                                     </p>
                                   )}
-                                {report.id === "exception" &&
+                                {(report?.id === "exception" ||
+                                  attention === "exception") &&
                                   shipment.events[0] && (
                                     <p>{shipment.events[0].description}</p>
                                   )}
@@ -291,7 +349,7 @@ export default async function SalesPortfolio({
         </div>
       ) : (
         <p>
-          {report || pending || hasFilters
+          {matchShipment || pending || hasFilters
             ? "Nenhum pedido da sua carteira corresponde aos filtros selecionados."
             : "Nenhum pedido encontrado na sua carteira."}
         </p>
