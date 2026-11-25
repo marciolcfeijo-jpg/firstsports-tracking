@@ -1,6 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { zenlogExpeditionEvents } from "../src/lib/zenlog";
 
+vi.mock("../src/lib/db", () => ({ db: {} }));
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -34,7 +36,7 @@ it("autentica por PAT e consulta os eventos do pedido usando HTTPS", async () =>
   );
   expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({
     personalAccessToken: "synthetic-fixture",
-    tenancyName: "fixture",
+    tenantName: "fixture",
   });
   const request = new URL(String(fetch.mock.calls[1][0]));
   expect(request.pathname).toBe(
