@@ -32,7 +32,7 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
   const tenant = process.env.ZENLOG_TENANCY_NAME;
   const origin = process.env.ZENLOG_API_ORIGIN;
   if (!pat || !tenant || !origin)
-    throw new HttpError(503, "Configure o acesso de homologação ao ZenLOG.");
+    throw new HttpError(503, "Configure o acesso ao ZenLOG.");
   const base = URL.parse(origin);
   if (!base || base.protocol !== "https:" || base.href !== base.origin + "/")
     throw new HttpError(
@@ -44,13 +44,14 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
   const depositor = formatDocument(process.env.ZENLOG_DEPOSITOR_DOCUMENT);
   const auth = await zenlogFetch(
     new URL("/api/TokenAuth/AuthenticatePAT", base),
+    "autenticação",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ personalAccessToken: pat, tenancyName: tenant }),
+      body: JSON.stringify({ personalAccessToken: pat, tenantName: tenant }),
     },
   );
   const token = authResponse.safeParse(auth);
@@ -66,7 +67,7 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
     cpfCnpjDepositante: depositor,
     numeroPedido: orderNumber,
   }).toString();
-  const result = await zenlogFetch(url, {
+  const result = await zenlogFetch(url, "consulta de eventos", {
     headers: {
       Authorization: "Bearer " + token.data.result.accessToken,
       Accept: "application/json",
@@ -86,7 +87,11 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
   return parsed.data;
 }
 
-async function zenlogFetch(url: URL, init: RequestInit): Promise<unknown> {
+async function zenlogFetch(
+  url: URL,
+  stage: "autenticação" | "consulta de eventos",
+  init: RequestInit,
+): Promise<unknown> {
   try {
     const response = await fetch(url, {
       ...init,
@@ -95,10 +100,13 @@ async function zenlogFetch(url: URL, init: RequestInit): Promise<unknown> {
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok)
-      throw new HttpError(502, `O ZenLOG retornou HTTP ${response.status}.`);
+      throw new HttpError(
+        502,
+        `O ZenLOG retornou HTTP ${response.status} na etapa de ${stage}.`,
+      );
     return await response.json();
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    throw new HttpError(502, "Não foi possível consultar o ZenLOG.");
+    throw new HttpError(502, `Falha na etapa de ${stage} do ZenLOG.`);
   }
 }
