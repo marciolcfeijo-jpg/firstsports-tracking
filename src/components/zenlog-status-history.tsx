@@ -43,7 +43,7 @@ export async function ZenlogStatusHistory({ orderId }: { orderId: string }) {
   if (!statuses.length) return null;
 
   return (
-    <section className="card">
+    <section className="card" id="status-zenlog">
       <h2>Status no ZenLOG</h2>
       {statuses.map((item) => (
         <div key={item.id}>

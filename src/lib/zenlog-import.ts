@@ -22,6 +22,7 @@ function timestamp(value: string | null | undefined) {
 
 function snapshot(expedition: Expedition, doc: Document) {
   return {
+    importedAt: new Date().toISOString(),
     expeditionStatus: statusCode(expedition.situacao),
     integrationStatus: statusCode(expedition.situacaoIntegracao),
     documentStatus: statusCode(doc.situacao),
@@ -145,6 +146,22 @@ async function importDocument(
             ]),
           )
           .digest("hex");
+      const previousImport = created
+        ? null
+        : await tx.auditLog.findFirst({
+            where: { entityId: order.id, action: "ZENLOG_STATUS" },
+            select: { id: true },
+          });
+      if (!previousImport) {
+        await tx.auditLog.create({
+          data: {
+            id: "zenlog-origin-" + order.id,
+            actorId,
+            entityId: order.id,
+            action: created ? "ZENLOG_ORDER_CREATED" : "ZENLOG_ORDER_EXISTING",
+          },
+        });
+      }
       const latest = snapshot(expedition, doc);
       await tx.auditLog.upsert({
         where: { id: snapshotId },

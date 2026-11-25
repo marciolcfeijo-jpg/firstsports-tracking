@@ -10,6 +10,14 @@ import { db } from "@/lib/db";
 import { orderStatus } from "@/lib/order-status";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { dateTime } from "@/lib/status";
+import {
+  zenlogOrderPage,
+  zenlogOrderSource,
+  zenlogOrderSources,
+  zenlogOrderSummaries,
+} from "@/lib/zenlog-order-list";
+
+const pageSize = 50;
 
 export default async function Orders({
   searchParams,
@@ -19,10 +27,17 @@ export default async function Orders({
     pendingDays?: string | string[];
     pending?: string | string[];
     page?: string | string[];
+    origem?: string | string[];
   }>;
 }) {
   const user = await requirePageAdmin();
-  const { pedido, pendingDays, pending, page: pageParam } = await searchParams;
+  const {
+    pedido,
+    pendingDays,
+    pending,
+    page: pageParam,
+    origem,
+  } = await searchParams;
   const filter = pendingOrderFilter(pending);
   const days =
     typeof pendingDays === "string" || filter
@@ -34,9 +49,14 @@ export default async function Orders({
       ? Math.min(requestedPage, 100_000)
       : 1;
   const number = typeof pedido === "string" ? pedido.trim().slice(0, 120) : "";
+  const source = days ? null : zenlogOrderSource(origem);
+  const skip = (page - 1) * pageSize;
+  const ids = source
+    ? await zenlogOrderPage(source, number, skip, pageSize + 1)
+    : null;
   const orders = await db.order.findMany({
     where: {
-      ...(number ? { number } : {}),
+      ...(ids ? { id: { in: ids } } : number ? { number } : {}),
       ...(days ? agedOrdersWithoutShipments(new Date(), days, filter) : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -46,17 +66,30 @@ export default async function Orders({
       stage: true,
       createdAt: true,
       customer: { select: { name: true } },
-      shipments: { select: { status: true } },
+      seller: { select: { email: true } },
+      shipments: {
+        select: {
+          status: true,
+          seller: { select: { email: true } },
+          invoices: { select: { number: true, series: true } },
+        },
+      },
     },
-    take: 51,
-    skip: (page - 1) * 50,
+    take: pageSize + 1,
+    skip: ids ? 0 : skip,
   });
+
+  const visibleOrders = orders.slice(0, pageSize);
+  const zenlog = await zenlogOrderSummaries(
+    visibleOrders.map((order) => order.id),
+  );
 
   function pageHref(nextPage: number) {
     const query = new URLSearchParams({ page: String(nextPage) });
     if (number) query.set("pedido", number);
     if (days) query.set("pendingDays", String(days));
     if (filter) query.set("pending", filter);
+    if (source) query.set("origem", source);
     return "?" + query;
   }
 
@@ -73,25 +106,43 @@ export default async function Orders({
           </h1>
           {days && <p>Pedidos em aberto cadastrados há {days} dias ou mais.</p>}
         </div>
-        {(user.role === "ADMIN" || user.role === "OPERATOR") && (
-          <Link className="button" href="/admin/pedidos/zenlog">
-            Prévia ZenLOG
-          </Link>
-        )}
         {user.role !== "VIEWER" && (
-          <Link className="button" href="/admin/pedidos/importar">
-            Importar pedidos
-          </Link>
+          <div className="actions">
+            {(user.role === "ADMIN" || user.role === "OPERATOR") && (
+              <Link className="button" href="/admin/pedidos/zenlog">
+                Consultar e importar do ZenLOG
+              </Link>
+            )}
+            <Link className="button secondary" href="/admin/pedidos/importar">
+              Importar planilha
+            </Link>
+          </div>
         )}
       </div>
-      <form className="card mb-4">
+      <form className="card mb-4 orders-filters">
         {filter && <input type="hidden" name="pending" value={filter} />}
         {days && <input type="hidden" name="pendingDays" value={days} />}
         <label className="field">
           Número do pedido
           <input name="pedido" defaultValue={number} maxLength={120} />
         </label>
-        <button className="button">Buscar pedido</button>
+        {!days && (
+          <label className="field">
+            Origem da importação
+            <select name="origem" defaultValue={source ?? ""}>
+              <option value="">Todos os pedidos</option>
+              {Object.entries(zenlogOrderSources).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <button className="button">Filtrar</button>
+        {!days && (source || number) && (
+          <Link href="/admin/pedidos">Limpar filtros</Link>
+        )}
       </form>
       {orders.length ? (
         <div className="table-wrap">
@@ -100,26 +151,104 @@ export default async function Orders({
               <tr>
                 <th>Pedido</th>
                 <th>Cliente</th>
-                <th>Status</th>
+                <th>NF</th>
+                <th>Status no portal</th>
+                <th>ZenLOG</th>
                 <th>Cadastro</th>
               </tr>
             </thead>
             <tbody>
-              {orders.slice(0, 50).map((order) => (
-                <ShipmentRow key={order.id} href={`/admin/pedidos/${order.id}`}>
-                  <td>
-                    <Link
-                      className="shipment-order-link"
-                      href={`/admin/pedidos/${order.id}`}
-                    >
-                      {order.number}
-                    </Link>
-                  </td>
-                  <td>{order.customer.name}</td>
-                  <td>{orderStatus(order.stage, order.shipments)}</td>
-                  <td>{dateTime(order.createdAt)}</td>
-                </ShipmentRow>
-              ))}
+              {visibleOrders.map((order) => {
+                const details = `/admin/pedidos/${order.id}`;
+                const summary = zenlog.get(order.id);
+                const invoices = order.shipments.flatMap(
+                  (shipment) => shipment.invoices,
+                );
+                const sellers = [
+                  ...new Set(
+                    [
+                      order.seller?.email,
+                      ...order.shipments.map(
+                        (shipment) => shipment.seller?.email,
+                      ),
+                    ].filter(Boolean),
+                  ),
+                ];
+                return (
+                  <ShipmentRow key={order.id} href={details}>
+                    <td>
+                      <Link className="shipment-order-link" href={details}>
+                        {order.number}
+                      </Link>
+                    </td>
+                    <td>
+                      {order.customer.name}
+                      <small className="order-row-detail">
+                        {sellers.length
+                          ? sellers.join(", ")
+                          : "Sem vendedor vinculado"}
+                      </small>
+                    </td>
+                    <td>
+                      {invoices.length
+                        ? invoices.slice(0, 2).map((invoice, index) => (
+                            <div key={index}>
+                              {invoice.number} · série {invoice.series}
+                            </div>
+                          ))
+                        : "Sem NF vinculada"}
+                      {invoices.length > 2 && (
+                        <small className="order-row-detail">
+                          + {invoices.length - 2} NFs
+                        </small>
+                      )}
+                    </td>
+                    <td>{orderStatus(order.stage, order.shipments)}</td>
+                    <td>
+                      {summary ? (
+                        <>
+                          <span
+                            className={
+                              summary.createdByZenlog
+                                ? "badge DELIVERED"
+                                : "badge"
+                            }
+                          >
+                            {summary.createdByZenlog
+                              ? "Criado pelo ZenLOG"
+                              : summary.createdByZenlog === false
+                                ? "Já existia no portal"
+                                : "Importado · origem sem registro"}
+                          </span>
+                          <small className="order-row-detail">
+                            {[
+                              summary.status && "Expedição: " + summary.status,
+                              summary.documentStatus &&
+                                "Documento: " + summary.documentStatus,
+                              summary.integrationStatus &&
+                                "Integração: " + summary.integrationStatus,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                          <small className="order-row-detail">
+                            <Link href={details + "#status-zenlog"}>
+                              Ver status e eventos
+                            </Link>
+                          </small>
+                          <small className="order-row-detail">
+                            Registro de importação:{" "}
+                            {dateTime(summary.updatedAt)}
+                          </small>
+                        </>
+                      ) : (
+                        <span className="muted">Sem importação ZenLOG</span>
+                      )}
+                    </td>
+                    <td>{dateTime(order.createdAt)}</td>
+                  </ShipmentRow>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -132,7 +261,7 @@ export default async function Orders({
             Anterior
           </Link>
         )}
-        {orders.length > 50 && (
+        {orders.length > pageSize && (
           <Link className="button secondary" href={pageHref(page + 1)}>
             Próxima
           </Link>
