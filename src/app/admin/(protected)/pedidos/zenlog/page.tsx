@@ -1,3 +1,4 @@
+import { ZenlogImportForm } from "./import-form";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
@@ -175,6 +176,9 @@ export default async function ZenlogPreviewPage({
               </tbody>
             </table>
           </div>
+          {result.rows.length > 0 && (
+            <ZenlogImportForm key={pageHref(page)} order={order} page={page} />
+          )}
           <nav aria-label="Páginas da prévia">
             {page > 1 && (
               <Link prefetch={false} href={pageHref(page - 1)}>

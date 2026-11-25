@@ -1,3 +1,4 @@
+import { ZenlogStatusHistory } from "@/components/zenlog-status-history";
 import { OrderForm } from "@/components/order-form";
 import { OrderShipmentSync } from "@/components/order-shipment-sync";
 import { TrackingAvailability } from "@/components/tracking-availability";
@@ -63,6 +64,12 @@ export default async function SalesOrder({
           </p>
         </div>
       </div>
+      {(order.sellerId === seller.id ||
+        (!order.sellerId &&
+          order.shipments.length > 0 &&
+          order.shipments.length === order._count.shipments)) && (
+        <ZenlogStatusHistory orderId={id} />
+      )}
       <section className="card">
         <h2>Etapas internas</h2>
         {history.length ? (

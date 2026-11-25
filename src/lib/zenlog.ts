@@ -93,7 +93,17 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
   return parsed.data;
 }
 
-const party = z.object({ cpfCnpj: z.string().nullish() }).nullish();
+const optionalText = z.string().nullish();
+const party = z.object({ cpfCnpj: optionalText, nome: optionalText }).nullish();
+const status = z.union([z.string(), z.number()]).nullish();
+const zenlogEvent = z.object({
+  id: z.number().int().nullish(),
+  eventoId: z.number().int().nullish(),
+  sequencia: z.number().int().nullish(),
+  status,
+  inicio: optionalText,
+  fim: optionalText,
+});
 const expeditionList = z.object({
   result: z.object({
     totalCount: z.number().int().nonnegative(),
@@ -101,6 +111,12 @@ const expeditionList = z.object({
       .array(
         z.object({
           codigo: z.string(),
+          id: z.number().int().nullish(),
+          situacao: status,
+          situacaoIntegracao: status,
+          data: optionalText,
+          dataEmissao: optionalText,
+          eventos: z.array(zenlogEvent).nullish(),
           operadorLogistico: party,
           depositante: party,
           documentos: z
@@ -110,7 +126,22 @@ const expeditionList = z.object({
                 numero: z.string().nullish(),
                 serie: z.string().nullish(),
                 chave: z.string().nullish(),
+                id: z.number().int().nullish(),
                 destinatario: party,
+                situacao: status,
+                transportador: optionalText,
+                codigoRastreio: optionalText,
+                enderecoCustomizado: z
+                  .object({
+                    cidade: z
+                      .object({ nome: optionalText, uf: optionalText })
+                      .nullish(),
+                    uf: optionalText,
+                  })
+                  .nullish(),
+                atributos: z
+                  .array(z.object({ nome: optionalText, valor: optionalText }))
+                  .nullish(),
                 notas: z
                   .array(
                     z.object({

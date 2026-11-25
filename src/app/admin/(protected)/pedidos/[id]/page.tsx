@@ -1,3 +1,4 @@
+import { ZenlogStatusHistory } from "@/components/zenlog-status-history";
 import { ZenlogExpedition } from "@/components/zenlog-expedition";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -88,6 +89,7 @@ export default async function OrderDetails({
         )}
       </div>
       <div className="grid-2">
+        <ZenlogStatusHistory orderId={id} />
         <section className="card">
           <h2>Dados do pedido</h2>
           <Details
