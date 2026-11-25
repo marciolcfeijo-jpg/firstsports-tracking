@@ -57,9 +57,9 @@ async function preview(skip: number, order: string, actorId: string) {
           code: item.codigo,
           number,
           status: matchingOrder
-            ? "Já cadastrado"
+            ? "Já existe no portal"
             : number && validDocument(recipient)
-              ? "Candidato a cadastro"
+              ? "Novo no portal"
               : "Revisar dados do pedido",
           invoices,
         };
@@ -114,10 +114,11 @@ export default async function ZenlogPreviewPage({
     <>
       <div className="page-heading">
         <div>
-          <h1>Prévia da importação ZenLOG</h1>
+          <h1>Importar pedidos do ZenLOG</h1>
           <p>
-            Consulte até 10 expedições por página. A prévia não altera pedidos,
-            NFs ou vínculos.
+            Consulte um pedido pelo número ou deixe o campo em branco para
+            listar até 10 expedições por página. Confira a tabela e confirme a
+            importação.
           </p>
         </div>
         <Link href="/admin/pedidos">Voltar aos pedidos</Link>

@@ -2,6 +2,10 @@ import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { db } from "../src/lib/db";
 import { documentHash } from "../src/lib/security";
 import { importZenlogPage } from "../src/lib/zenlog-import";
+import {
+  zenlogOrderPage,
+  zenlogOrderSummaries,
+} from "../src/lib/zenlog-order-list";
 import { zenlogExpeditions } from "../src/lib/zenlog";
 
 vi.mock("../src/lib/zenlog", () => ({ zenlogExpeditions: vi.fn() }));
@@ -72,6 +76,8 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     where: { number, customer: { documentHash: documentHash(recipient) } },
   });
   expect(order.sellerId).toBe(sellerId);
+  expect(await zenlogOrderPage("novos", number, 0, 50)).toEqual([order.id]);
+  expect(await zenlogOrderPage("atualizados", number, 0, 50)).toEqual([]);
   expect(order.issuedAt?.toISOString()).toBe("2026-11-24T00:00:00.000Z");
 
   vi.mocked(zenlogExpeditions).mockResolvedValue({
@@ -108,9 +114,70 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     where: { entityId: order.id, action: "ZENLOG_STATUS" },
   });
   expect(entries).toHaveLength(1);
+  expect((await zenlogOrderSummaries([order.id])).get(order.id)).toMatchObject({
+    createdByZenlog: true,
+    status: "3",
+  });
   expect(entries[0].snapshot).toMatchObject({
     expeditionStatus: "3",
     integrationStatus: "0",
     events: [{ code: 52, status: "S" }],
+  });
+});
+
+it("separates a pre-existing order from a ZenLOG-created order after import", async () => {
+  const customer = await db.customer.upsert({
+    where: { documentHash: documentHash(recipient) },
+    create: {
+      documentHash: documentHash(recipient),
+      name: "Cliente de teste",
+      city: "",
+      state: "",
+    },
+    update: {},
+  });
+  const order = await db.order.create({
+    data: {
+      number,
+      customerId: customer.id,
+      createdAt: new Date("2026-10-01T12:00:00Z"),
+    },
+  });
+  expect(await zenlogOrderPage("sem-importacao", number, 0, 50)).toEqual([
+    order.id,
+  ]);
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      {
+        codigo: "EXP-13",
+        situacao: "1",
+        documentos: [
+          {
+            pedido: number,
+            destinatario: { cpfCnpj: recipient, nome: "Cliente de teste" },
+          },
+        ],
+      },
+    ],
+  });
+  expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
+    reused: 1,
+  });
+  expect(await zenlogOrderPage("atualizados", number, 0, 50)).toEqual([
+    order.id,
+  ]);
+  expect(await zenlogOrderPage("novos", number, 0, 50)).toEqual([]);
+  expect(await zenlogOrderPage("sem-importacao", number, 0, 50)).toEqual([]);
+
+  // Simulate an import made before the portal recorded the original source.
+  await db.auditLog.delete({ where: { id: "zenlog-origin-" + order.id } });
+  await importZenlogPage(0, number, sellerId);
+  expect(await zenlogOrderPage("origem-indisponivel", number, 0, 50)).toEqual([
+    order.id,
+  ]);
+  expect((await zenlogOrderSummaries([order.id])).get(order.id)).toMatchObject({
+    createdByZenlog: null,
+    status: "1",
   });
 });

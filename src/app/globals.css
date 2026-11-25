@@ -1241,3 +1241,25 @@ tr:last-child td {
   margin-top: 0.4rem;
   white-space: normal;
 }
+
+.orders-filters {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.orders-filters .field {
+  flex: 1 1 190px;
+  margin: 0;
+}
+
+.orders-filters > a {
+  align-self: center;
+}
+
+.order-row-detail {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}

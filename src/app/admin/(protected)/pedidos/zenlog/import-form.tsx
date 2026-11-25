@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { importZenlog } from "./actions";
 
@@ -24,7 +25,19 @@ export function ZenlogImportForm({
             : "Importar esta página"}
       </button>
       {result && (
-        <p role={result.error ? "alert" : "status"}>{result.message}</p>
+        <div>
+          <p role={result.error ? "alert" : "status"}>{result.message}</p>
+          {!result.error && (
+            <div className="actions">
+              <Link href="/admin/pedidos?origem=novos">
+                Ver pedidos criados pelo ZenLOG
+              </Link>
+              <Link href="/admin/pedidos?origem=atualizados">
+                Ver pedidos que já existiam
+              </Link>
+            </div>
+          )}
+        </div>
       )}
     </form>
   );
