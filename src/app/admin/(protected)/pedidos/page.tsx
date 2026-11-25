@@ -73,6 +73,11 @@ export default async function Orders({
           </h1>
           {days && <p>Pedidos em aberto cadastrados há {days} dias ou mais.</p>}
         </div>
+        {(user.role === "ADMIN" || user.role === "OPERATOR") && (
+          <Link className="button" href="/admin/pedidos/zenlog">
+            Prévia ZenLOG
+          </Link>
+        )}
         {user.role !== "VIEWER" && (
           <Link className="button" href="/admin/pedidos/importar">
             Importar pedidos
