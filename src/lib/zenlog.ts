@@ -27,7 +27,7 @@ const authResponse = z.object({
   result: z.object({ accessToken: z.string().min(1) }),
 });
 
-export async function zenlogExpeditionEvents(orderNumber: string) {
+async function zenlogSession() {
   const pat = process.env.ZENLOG_PAT;
   const tenant = process.env.ZENLOG_TENANCY_NAME;
   const origin = process.env.ZENLOG_API_ORIGIN;
@@ -40,8 +40,6 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
       "A origem do ZenLOG precisa ser uma URL HTTPS sem caminho.",
     );
 
-  const operator = formatDocument(process.env.ZENLOG_OPERATOR_DOCUMENT);
-  const depositor = formatDocument(process.env.ZENLOG_DEPOSITOR_DOCUMENT);
   const auth = await zenlogFetch(
     new URL("/api/TokenAuth/AuthenticatePAT", base),
     "autenticação",
@@ -61,18 +59,26 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
       "Resposta de autenticação do ZenLOG fora do formato esperado.",
     );
 
+  return {
+    base,
+    headers: {
+      Authorization: "Bearer " + token.data.result.accessToken,
+      Accept: "application/json",
+    },
+  };
+}
+
+export async function zenlogExpeditionEvents(orderNumber: string) {
+  const operator = formatDocument(process.env.ZENLOG_OPERATOR_DOCUMENT);
+  const depositor = formatDocument(process.env.ZENLOG_DEPOSITOR_DOCUMENT);
+  const { base, headers } = await zenlogSession();
   const url = new URL("/api/services/app/Expedicao/GetEventosExpedicao", base);
   url.search = new URLSearchParams({
     cpfCnpjOperadorLogistico: operator,
     cpfCnpjDepositante: depositor,
     numeroPedido: orderNumber,
   }).toString();
-  const result = await zenlogFetch(url, "consulta de eventos", {
-    headers: {
-      Authorization: "Bearer " + token.data.result.accessToken,
-      Accept: "application/json",
-    },
-  });
+  const result = await zenlogFetch(url, "consulta de eventos", { headers });
   const parsed = z
     .union([
       z.object({ result: payload }).transform(({ result }) => result),
@@ -87,9 +93,76 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
   return parsed.data;
 }
 
+const party = z.object({ cpfCnpj: z.string().nullish() }).nullish();
+const expeditionList = z.object({
+  result: z.object({
+    totalCount: z.number().int().nonnegative(),
+    items: z
+      .array(
+        z.object({
+          codigo: z.string(),
+          operadorLogistico: party,
+          depositante: party,
+          documentos: z
+            .array(
+              z.object({
+                pedido: z.string().nullish(),
+                numero: z.string().nullish(),
+                serie: z.string().nullish(),
+                chave: z.string().nullish(),
+                destinatario: party,
+                notas: z
+                  .array(
+                    z.object({
+                      numero: z.string().nullish(),
+                      serie: z.string().nullish(),
+                      chave: z.string().nullish(),
+                    }),
+                  )
+                  .nullish(),
+              }),
+            )
+            .nullish(),
+        }),
+      )
+      .max(10),
+  }),
+});
+
+export const zenlogPageSize = 10;
+
+export async function zenlogExpeditions(skip: number, order: string) {
+  const operator = digits(formatDocument(process.env.ZENLOG_OPERATOR_DOCUMENT));
+  const depositor = digits(
+    formatDocument(process.env.ZENLOG_DEPOSITOR_DOCUMENT),
+  );
+  const { base, headers } = await zenlogSession();
+  const url = new URL("/api/services/app/Expedicao/GetAll", base);
+  url.searchParams.set("SkipCount", String(skip));
+  url.searchParams.set("MaxResultCount", String(zenlogPageSize));
+  if (order) url.searchParams.set("Pedido", order);
+  const parsed = expeditionList.safeParse(
+    await zenlogFetch(url, "listagem de expedições", { headers }),
+  );
+  if (!parsed.success)
+    throw new HttpError(
+      502,
+      "A listagem de expedições do ZenLOG veio fora do formato esperado.",
+    );
+  const { totalCount, items } = parsed.data.result;
+  return {
+    totalCount,
+    items: items.filter(
+      (item) =>
+        digits(item.operadorLogistico?.cpfCnpj ?? "") === operator &&
+        digits(item.depositante?.cpfCnpj ?? "") === depositor,
+    ),
+  };
+}
+
 async function zenlogFetch(
   url: URL,
-  stage: "autenticação" | "consulta de eventos",
+  stage: "autenticação" | "consulta de eventos" | "listagem de expedições",
   init: RequestInit,
 ): Promise<unknown> {
   try {

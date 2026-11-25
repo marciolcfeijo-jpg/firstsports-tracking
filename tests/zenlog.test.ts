@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { zenlogExpeditionEvents } from "../src/lib/zenlog";
+import { zenlogExpeditionEvents, zenlogExpeditions } from "../src/lib/zenlog";
 
 vi.mock("../src/lib/db", () => ({ db: {} }));
 
@@ -61,4 +61,44 @@ it("rejeita origem HTTP antes de enviar a credencial", async () => {
     status: 503,
   });
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it("consulta a prévia paginada e restringe os resultados à instalação configurada", async () => {
+  vi.stubEnv("ZENLOG_API_ORIGIN", "https://zenlog.example.test");
+  vi.stubEnv("ZENLOG_TENANCY_NAME", "fixture");
+  vi.stubEnv("ZENLOG_PAT", "synthetic-fixture");
+  vi.stubEnv("ZENLOG_OPERATOR_DOCUMENT", "11222333000181");
+  vi.stubEnv("ZENLOG_DEPOSITOR_DOCUMENT", "04252011000110");
+  const expedition = {
+    codigo: "EXP-1",
+    operadorLogistico: { cpfCnpj: "11.222.333/0001-81" },
+    depositante: { cpfCnpj: "04.252.011/0001-10" },
+    documentos: [{ pedido: "001", numero: "", serie: "", notas: [] }],
+  };
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockResolvedValueOnce(
+      Response.json({ result: { accessToken: "fixture-token" } }),
+    )
+    .mockResolvedValueOnce(
+      Response.json({
+        result: {
+          totalCount: 22,
+          items: [expedition, { ...expedition, depositante: null }],
+        },
+      }),
+    );
+  vi.stubGlobal("fetch", fetch);
+
+  expect(await zenlogExpeditions(10, "001")).toEqual({
+    totalCount: 22,
+    items: [expedition],
+  });
+  const url = new URL(String(fetch.mock.calls[1][0]));
+  expect(url.pathname).toBe("/api/services/app/Expedicao/GetAll");
+  expect(Object.fromEntries(url.searchParams)).toEqual({
+    SkipCount: "10",
+    MaxResultCount: "10",
+    Pedido: "001",
+  });
 });
