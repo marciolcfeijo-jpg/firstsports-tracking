@@ -307,6 +307,15 @@ export async function importZenlogPage(
   order: string,
   actorId: string,
 ) {
+  const { items } = await zenlogExpeditions(skip, order);
+  return importZenlogExpeditions(items, order, actorId);
+}
+
+export async function importZenlogExpeditions(
+  items: Expedition[],
+  order: string,
+  actorId: string,
+) {
   const carrierCodes = Object.fromEntries(
     (process.env.ZENLOG_CARRIER_CODES ?? "").split(",").flatMap((pair) => {
       const [document, code] = pair.split("=").map((part) => part.trim());
@@ -318,7 +327,6 @@ export async function importZenlogPage(
         : [];
     }),
   );
-  const { items } = await zenlogExpeditions(skip, order);
   const summary = {
     created: 0,
     reused: 0,

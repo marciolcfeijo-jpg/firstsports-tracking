@@ -18,11 +18,13 @@ Configure as variáveis no ambiente da Vercel correspondente à instalação e a
 
 A operação consulta um pedido conhecido e exibe eventos da expedição. Nenhuma consulta altera o ZenLOG ou registra entrega automaticamente. Homologue o formato de resposta e o vínculo entre o número do pedido da First Sports e o número da expedição antes de habilitar em produção. Se houver pedidos com número repetido por destinatário, é necessário confirmar com o operador uma identidade de consulta mais específica, como o código da expedição.
 
-## Sincronização automática a homologar
+## Sincronização diária
 
-A documentação cobre o envio do pedido de expedição, a atribuição da NF ao pedido, a consulta de eventos e a confirmação de mercadoria na doca. A confirmação de doca sinaliza disponibilidade para expedição. A confirmação de entrega precisa vir de um evento de entrega reconhecido ou da integração da transportadora.
+A Vercel chama `/api/internal/zenlog-sync` diariamente às 08:00 UTC (05:00 em Brasília), usando o mesmo `CRON_SECRET` do agendamento das transportadoras. No plano Hobby, a execução pode começar em qualquer momento da hora agendada.
 
-O endpoint `Expedicao/GetAll` oferece paginação e o filtro `DataAtualizacaoRegistro`. Antes de agendar a sincronização, confirme em homologação se o vínculo de uma NF atualiza esse campo e qual é a ordenação estável para percorrer as páginas. Enquanto isso, o painel permite importar manualmente por pedido ou página.
+A rotina consulta o `Expedicao/GetAll` em páginas de 10, percorre os registros em ordem crescente de ID e reaproveita a mesma sessão ZenLOG. Quando a execução termina por limite de tempo ou por erro, a próxima chamada retoma a última página ainda pendente. Ao concluir a varredura, a próxima execução diária recomeça pela primeira página. Os logs da Vercel mostram se o processamento terminou ou ficou parcial e os totais de cada execução.
+
+A rotina faz uma varredura paginada. Antes de trocar para consultas incrementais, confirme em homologação se o vínculo de uma NF atualiza o filtro `DataAtualizacaoRegistro`. A importação manual continua disponível no painel.
 
 ## Importar pedidos, notas e status
 

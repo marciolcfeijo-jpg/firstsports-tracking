@@ -162,33 +162,47 @@ const expeditionList = z.object({
 
 export const zenlogPageSize = 10;
 
-export async function zenlogExpeditions(skip: number, order: string) {
+export async function zenlogExpeditionReader() {
   const operator = digits(formatDocument(process.env.ZENLOG_OPERATOR_DOCUMENT));
   const depositor = digits(
     formatDocument(process.env.ZENLOG_DEPOSITOR_DOCUMENT),
   );
   const { base, headers } = await zenlogSession();
-  const url = new URL("/api/services/app/Expedicao/GetAll", base);
-  url.searchParams.set("SkipCount", String(skip));
-  url.searchParams.set("MaxResultCount", String(zenlogPageSize));
-  if (order) url.searchParams.set("Pedido", order);
-  const parsed = expeditionList.safeParse(
-    await zenlogFetch(url, "listagem de expedições", { headers }),
-  );
-  if (!parsed.success)
-    throw new HttpError(
-      502,
-      "A listagem de expedições do ZenLOG veio fora do formato esperado.",
+
+  return async (skip: number, order: string, sorting?: string) => {
+    const url = new URL("/api/services/app/Expedicao/GetAll", base);
+    url.searchParams.set("SkipCount", String(skip));
+    url.searchParams.set("MaxResultCount", String(zenlogPageSize));
+    if (order) url.searchParams.set("Pedido", order);
+    if (sorting) url.searchParams.set("Sorting", sorting);
+    const parsed = expeditionList.safeParse(
+      await zenlogFetch(url, "listagem de expedições", { headers }),
     );
-  const { totalCount, items } = parsed.data.result;
-  return {
-    totalCount,
-    items: items.filter(
-      (item) =>
-        digits(item.operadorLogistico?.cpfCnpj ?? "") === operator &&
-        digits(item.depositante?.cpfCnpj ?? "") === depositor,
-    ),
+    if (!parsed.success)
+      throw new HttpError(
+        502,
+        "A listagem de expedições do ZenLOG veio fora do formato esperado.",
+      );
+    const { totalCount, items } = parsed.data.result;
+    if (sorting && items.length < Math.min(zenlogPageSize, totalCount - skip))
+      throw new HttpError(
+        502,
+        "O ZenLOG retornou uma página incompleta. Tente novamente.",
+      );
+    return {
+      totalCount,
+      items: items.filter(
+        (item) =>
+          digits(item.operadorLogistico?.cpfCnpj ?? "") === operator &&
+          digits(item.depositante?.cpfCnpj ?? "") === depositor,
+      ),
+    };
   };
+}
+
+export async function zenlogExpeditions(skip: number, order: string) {
+  const readPage = await zenlogExpeditionReader();
+  return readPage(skip, order);
 }
 
 async function zenlogFetch(

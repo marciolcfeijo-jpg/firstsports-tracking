@@ -49,7 +49,8 @@ export default async function Settings() {
           Altere os valores no gerenciador seguro de configuração da hospedagem
           e reinicie a aplicação. Fuso de apresentação: America/Sao_Paulo. Links
           públicos: 30 dias. Agendamento Vercel: diário, a partir das 6h de
-          Brasília, em lotes de até 10 remessas elegíveis.
+          Brasília, em lotes de até 10 remessas elegíveis. O ZenLOG é consultado
+          a partir das 5h de Brasília, em páginas de 10 expedições.
         </div>
       </div>
     </>
