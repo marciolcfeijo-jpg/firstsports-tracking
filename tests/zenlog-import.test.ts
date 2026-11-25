@@ -1,4 +1,5 @@
 import { afterAll, afterEach, expect, it, vi } from "vitest";
+import { setCarrierCnpj } from "../src/lib/carriers";
 import { db } from "../src/lib/db";
 import { documentHash } from "../src/lib/security";
 import { importZenlogPage } from "../src/lib/zenlog-import";
@@ -10,6 +11,7 @@ import { zenlogExpeditions } from "../src/lib/zenlog";
 
 vi.mock("../src/lib/zenlog", () => ({ zenlogExpeditions: vi.fn() }));
 
+const carrierCode = "ZENLOG_CNPJ_TEST";
 const sellerId = "zenlog-import-test-seller";
 const number = "ZENLOG-IMPORT-TEST";
 const recipient = "04252011000110";
@@ -30,6 +32,9 @@ afterEach(async () => {
     db.shipment.deleteMany({ where: { orderId: { in: orderIds } } }),
     db.order.deleteMany({ where: { id: { in: orderIds } } }),
     db.adminUser.deleteMany({ where: { id: sellerId } }),
+    db.carrier.deleteMany({
+      where: { code: { in: [carrierCode, carrierCode + "_OTHER"] } },
+    }),
   ]);
 });
 
@@ -45,10 +50,21 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
       role: "SALES",
     },
   });
+  const carrier = await db.carrier.create({
+    data: { code: carrierCode, name: "Transportadora de teste" },
+  });
+  const other = await db.carrier.create({
+    data: { code: carrierCode + "_OTHER", name: "Outra transportadora" },
+  });
+  await setCarrierCnpj(carrier.id, issuer, sellerId);
+  await expect(
+    setCarrierCnpj(other.id, issuer, sellerId),
+  ).rejects.toMatchObject({ status: 409 });
   const document = {
     id: 98,
     pedido: number,
     destinatario: { cpfCnpj: recipient, nome: "Cliente de teste" },
+    transportador: "11.222.333/0001-81",
     atributos: [{ nome: "Vendedor", valor: "seller-zenlog@example.test" }],
     situacao: "ATIVO",
     notas: [],
@@ -109,6 +125,7 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     orderId: order.id,
     sellerId,
     status: "INVOICED",
+    carrierId: carrier.id,
   });
   const entries = await db.auditLog.findMany({
     where: { entityId: order.id, action: "ZENLOG_STATUS" },

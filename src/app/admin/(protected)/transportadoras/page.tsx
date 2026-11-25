@@ -2,12 +2,13 @@ import { IcaroAdapter } from "../../../../../integrations/carriers/icaro";
 import { CorreiosAdapter } from "../../../../../integrations/carriers/correios";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { db } from "@/lib/db";
+import { CarrierCnpjForm } from "@/components/carrier-cnpj-form";
 import { CarrierToggle } from "@/components/carrier-toggle";
 import { BraspressAdapter } from "../../../../../integrations/carriers/braspress";
 import { AlfaAdapter } from "../../../../../integrations/carriers/alfa";
 export default async function Carriers() {
   const user = await requirePageAdmin();
-  const carriers = await db.carrier.findMany();
+  const carriers = await db.carrier.findMany({ orderBy: { name: "asc" } });
   const config: Record<string, { valid: boolean; reason?: string }> = {
     BRASPRESS: new BraspressAdapter().validateConfiguration(),
     ALFA: new AlfaAdapter().validateConfiguration(),
@@ -44,6 +45,12 @@ export default async function Carriers() {
                   : config[c.code]?.reason ||
                     "Não há conector disponível para esta transportadora."}
             </p>
+            <CarrierCnpjForm
+              key={c.cnpj ?? ""}
+              id={c.id}
+              cnpj={c.cnpj}
+              editable={user.role === "ADMIN"}
+            />
             {user.role === "ADMIN" && (
               <CarrierToggle id={c.id} enabled={c.enabled} />
             )}

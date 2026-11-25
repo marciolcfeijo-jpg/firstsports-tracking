@@ -79,6 +79,7 @@ model Order {
 model Carrier {
   id             String     @id @default(cuid())
   code           String     @unique
+  cnpj           String?    @unique
   name           String
   syncLeaseUntil DateTime?
   syncLeaseToken String?
