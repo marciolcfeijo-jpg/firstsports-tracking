@@ -237,17 +237,26 @@ async function importDocument(
         const carrierRef = doc.transportador?.trim() || "";
         const carrierDocument = digits(carrierRef);
         const mappedCarrier = carrierCodes[carrierDocument];
-        const carrier = carrierRef
-          ? await tx.carrier.findFirst({
-              where: {
-                OR: [
-                  { code: mappedCarrier ?? carrierRef.toUpperCase() },
-                  { name: { equals: carrierRef, mode: "insensitive" } },
-                ],
-              },
-              select: { code: true },
-            })
-          : null;
+        const carrierByCnpj =
+          carrierDocument.length === 14 && /^[\d./-]+$/.test(carrierRef)
+            ? await tx.carrier.findUnique({
+                where: { cnpj: carrierDocument },
+                select: { code: true },
+              })
+            : null;
+        const carrier =
+          carrierByCnpj ??
+          (carrierRef
+            ? await tx.carrier.findFirst({
+                where: {
+                  OR: [
+                    { code: mappedCarrier ?? carrierRef.toUpperCase() },
+                    { name: { equals: carrierRef, mode: "insensitive" } },
+                  ],
+                },
+                select: { code: true },
+              })
+            : null);
         const code =
           carrier?.code ??
           (validDocument(carrierDocument) && carrierDocument.length === 14

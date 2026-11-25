@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+import { HttpError } from "./security";
 import { db } from "./db";
 
 export async function setCarrierEnabled(
@@ -25,4 +27,30 @@ export async function setCarrierEnabled(
     });
     return { ok: true };
   });
+}
+
+export async function setCarrierCnpj(
+  id: string,
+  cnpj: string | null,
+  actorId: string,
+) {
+  try {
+    return await db.$transaction(async (tx) => {
+      await tx.carrier.update({ where: { id }, data: { cnpj } });
+      await tx.auditLog.create({
+        data: { actorId, action: "CARRIER_CNPJ_UPDATE", entityId: id },
+      });
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002")
+        throw new HttpError(
+          409,
+          "Este CNPJ já está associado a outra transportadora.",
+        );
+      if (error.code === "P2025")
+        throw new HttpError(404, "Transportadora não encontrada.");
+    }
+    throw error;
+  }
 }
