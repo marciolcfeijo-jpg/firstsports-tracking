@@ -1,14 +1,23 @@
+import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { shipmentSchema, type ShipmentInput } from "./validation";
 import { documentHash, HttpError, newToken, hashToken } from "./security";
+const zenlogShipmentSchema = shipmentSchema.extend({
+  cidade_destino: z.union([shipmentSchema.shape.cidade_destino, z.literal("")]),
+  uf_destino: z.union([shipmentSchema.shape.uf_destino, z.literal("")]),
+});
+
 export async function createShipment(
   raw: unknown,
   actorId: string,
   tx: Prisma.TransactionClient = db,
   expectedOrderId?: string,
+  source?: "zenlog",
 ) {
-  const data = shipmentSchema.parse(raw);
+  const data = (
+    source === "zenlog" ? zenlogShipmentSchema : shipmentSchema
+  ).parse(raw);
   if (expectedOrderId) {
     const order = await tx.order.findFirst({
       where: {
@@ -24,7 +33,11 @@ export async function createShipment(
         "Confira o número e o CPF/CNPJ do pedido selecionado.",
       );
   }
-  if (data.transportadora === "CORREIOS" && !data.codigo_rastreio)
+  if (
+    source !== "zenlog" &&
+    data.transportadora === "CORREIOS" &&
+    !data.codigo_rastreio
+  )
     throw new HttpError(400, "Informe o código de rastreamento dos Correios");
   const issuerDocument = data.cnpj_remetente,
     series = String(Number(data.serie_nf)),
