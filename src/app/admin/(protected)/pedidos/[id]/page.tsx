@@ -41,7 +41,13 @@ export default async function OrderDetails({
     include: {
       seller: { select: { email: true } },
       customer: {
-        select: { name: true, email: true, city: true, state: true },
+        select: {
+          name: true,
+          email: true,
+          city: true,
+          state: true,
+          responsible: { select: { email: true, active: true } },
+        },
       },
       shipments: {
         include: {
@@ -99,6 +105,15 @@ export default async function OrderDetails({
                   : null,
               ],
               ["Vendedor do pedido", order.seller?.email ?? null],
+              [
+                "Responsável do cliente",
+                order.customer.responsible
+                  ? order.customer.responsible.email +
+                    (order.customer.responsible.active
+                      ? ""
+                      : " · acesso inativo")
+                  : null,
+              ],
               ["Cliente", order.customer.name],
               ["E-mail", order.customer.email],
               ["Cidade", order.destinationCity ?? order.customer.city],
