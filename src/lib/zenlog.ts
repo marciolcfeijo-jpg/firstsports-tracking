@@ -94,7 +94,13 @@ export async function zenlogExpeditionEvents(orderNumber: string) {
 }
 
 const optionalText = z.string().nullish();
-const party = z.object({ cpfCnpj: optionalText, nome: optionalText }).nullish();
+const party = z
+  .object({
+    cpfCnpj: optionalText,
+    nome: optionalText,
+    id: z.number().int().nullish(),
+  })
+  .nullish();
 const status = z.union([z.string(), z.number()]).nullish();
 const zenlogEvent = z.object({
   id: z.number().int().nullish(),
@@ -130,6 +136,7 @@ const expeditionList = z.object({
                 chave: z.string().nullish(),
                 id: z.number().int().nullish(),
                 destinatario: party,
+                destinatarioId: z.number().int().nullish(),
                 situacao: status,
                 transportador: optionalText,
                 codigoRastreio: optionalText,

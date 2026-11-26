@@ -6,7 +6,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { userRoleLabels } from "@/lib/user-roles";
 
-type LinkedUser = { id: string; email: string; role: Role; active: boolean };
+type LinkedUser = {
+  id: string;
+  email: string;
+  role: Role;
+  active: boolean;
+  erpSellerCode?: string | null;
+};
 
 export function UserForm({ user }: { user?: LinkedUser }) {
   const [message, setMessage] = useState("");
@@ -21,6 +27,7 @@ export function UserForm({ user }: { user?: LinkedUser }) {
     const permissions = {
       role: form.get("role"),
       active: form.get("active") === "on",
+      erpSellerCode: form.get("erpSellerCode"),
     };
     setSaving(true);
     setError("");
@@ -105,6 +112,14 @@ export function UserForm({ user }: { user?: LinkedUser }) {
               </option>
             ))}
           </select>
+        </label>
+        <label className="field">
+          Código do vendedor no ERP
+          <input
+            name="erpSellerCode"
+            maxLength={60}
+            defaultValue={user?.erpSellerCode ?? ""}
+          />
         </label>
         <label className="field">
           Acesso ativo

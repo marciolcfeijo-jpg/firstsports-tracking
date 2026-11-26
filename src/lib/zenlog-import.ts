@@ -171,13 +171,33 @@ async function importDocument(
         });
         if (existing) return "already-in-portal" as const;
       }
-      const seller =
-        sellerEmails.length === 1
-          ? await tx.adminUser.findFirst({
-              where: { email: sellerEmails[0], active: true, role: "SALES" },
-              select: { id: true },
-            })
-          : null;
+      const nestedRecipientId = doc.destinatario?.id;
+      const directRecipientId = doc.destinatarioId;
+      if (
+        nestedRecipientId &&
+        directRecipientId &&
+        nestedRecipientId !== directRecipientId
+      )
+        throw new HttpError(
+          409,
+          "O ZenLOG retornou IDs divergentes para o destinatário.",
+        );
+      const suppliedId = directRecipientId || nestedRecipientId;
+      const zenlogRecipientId =
+        suppliedId && suppliedId > 0 && suppliedId <= 2_147_483_647
+          ? suppliedId
+          : undefined;
+      if (zenlogRecipientId) {
+        const identified = await tx.customer.findUnique({
+          where: { zenlogRecipientId },
+          select: { documentHash: true },
+        });
+        if (identified && identified.documentHash !== hash)
+          throw new HttpError(
+            409,
+            "O ID do ZenLOG e o CPF/CNPJ apontam para clientes diferentes.",
+          );
+      }
       const customer = await tx.customer.upsert({
         where: { documentHash: hash },
         create: {
@@ -186,10 +206,37 @@ async function importDocument(
           city,
           state: state ?? "",
           email,
+          zenlogRecipientId,
         },
         update: {},
       });
+      if (
+        customer.zenlogRecipientId &&
+        zenlogRecipientId &&
+        customer.zenlogRecipientId !== zenlogRecipientId
+      )
+        throw new HttpError(
+          409,
+          "O cliente está vinculado a outro ID do ZenLOG.",
+        );
+
+      const seller =
+        customer.responsibleId || sellerEmails.length === 1
+          ? await tx.adminUser.findFirst({
+              where: {
+                ...(customer.responsibleId
+                  ? { id: customer.responsibleId }
+                  : { email: sellerEmails[0] }),
+                active: true,
+                role: "SALES",
+              },
+              select: { id: true },
+            })
+          : null;
       const customerFields = {
+        zenlogRecipientId: customer.zenlogRecipientId
+          ? undefined
+          : zenlogRecipientId,
         email: customer.email?.trim() ? undefined : email,
         city: !customer.city.trim() && city ? city : undefined,
         state: customer.state.trim() ? undefined : state,
