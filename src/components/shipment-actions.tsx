@@ -273,9 +273,12 @@ export function ShipmentActions(p: Props) {
                 Corrigir CPF/CNPJ do destinatário
                 <input
                   name="recipientDocument"
-                  placeholder="Deixe em branco para manter o documento atual"
+                  placeholder="Informe apenas para corrigir o documento"
                   maxLength={25}
                 />
+                <small>
+                  O documento atual está cadastrado e é protegido no portal.
+                </small>
               </label>
               <label className="field">
                 CNPJ do remetente
