@@ -1,8 +1,9 @@
+import { LinkInvoiceForm } from "./link-invoice-form";
 import { ZenlogImportForm } from "./import-form";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
-import { documentHash, HttpError, rateLimit } from "@/lib/security";
+import { documentHash, hashToken, HttpError, rateLimit } from "@/lib/security";
 import { digits, validDocument } from "@/lib/validation";
 import { zenlogExpeditions, zenlogPageSize } from "@/lib/zenlog";
 
@@ -60,6 +61,7 @@ async function preview(
                   : "Revisar dados da NF";
               return {
                 number: invoice?.numero?.trim() || "—",
+                reference: key.length === 44 ? hashToken(key) : undefined,
                 series: invoice?.serie?.trim(),
                 status,
               };
@@ -248,6 +250,19 @@ export default async function ZenlogPreviewPage({
                                 ? " · série " + invoice.series
                                 : ""}{" "}
                               · {invoice.status}
+                              {row.orderId &&
+                                invoice.reference &&
+                                /^\d{1,9}$/.test(invoice.number) && (
+                                  <LinkInvoiceForm
+                                    orderId={row.orderId}
+                                    invoiceHash={invoice.reference}
+                                    invoiceNumber={invoice.number}
+                                    pendingLink={
+                                      invoice.status ===
+                                      "Vínculo pendente no portal"
+                                    }
+                                  />
+                                )}
                             </div>
                           ))
                         : "ZenLOG retornou o pedido sem NF"}
