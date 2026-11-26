@@ -87,7 +87,9 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     totalCount: 1,
     items: [payload],
   });
-  expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
+  expect(
+    await importZenlogPage(0, number, sellerId, { onlyNew: true }),
+  ).toMatchObject({
     created: 1,
     linked: 0,
   });
@@ -110,6 +112,16 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
       },
     ],
   });
+  expect(
+    await importZenlogPage(0, number, sellerId, { onlyNew: true }),
+  ).toMatchObject({
+    alreadyInPortal: 1,
+    reused: 0,
+    linked: 0,
+  });
+  expect(
+    await db.shipmentInvoice.findUnique({ where: { accessKey: key } }),
+  ).toBeNull();
   expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
     reused: 1,
     linked: 1,

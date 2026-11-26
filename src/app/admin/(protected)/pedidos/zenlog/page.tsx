@@ -6,7 +6,12 @@ import { documentHash, HttpError, rateLimit } from "@/lib/security";
 import { digits, validDocument } from "@/lib/validation";
 import { zenlogExpeditions, zenlogPageSize } from "@/lib/zenlog";
 
-async function preview(skip: number, order: string, actorId: string) {
+async function preview(
+  skip: number,
+  order: string,
+  actorId: string,
+  onlyNew: boolean,
+) {
   await rateLimit("zenlog:preview:global", 60, 60);
   await rateLimit("zenlog:preview:" + actorId, 20, 60);
   const { items, totalCount } = await zenlogExpeditions(skip, order);
@@ -15,6 +20,12 @@ async function preview(skip: number, order: string, actorId: string) {
       (item.documentos?.length ? item.documentos : [null]).map(async (doc) => {
         const number = doc?.pedido?.trim();
         const recipient = digits(doc?.destinatario?.cpfCnpj ?? "");
+        if (order && number !== order) return null;
+        const validOrder =
+          !!number &&
+          number.length <= 120 &&
+          validDocument(recipient) &&
+          !!doc?.destinatario?.nome?.trim();
         const matchingOrder =
           number && validDocument(recipient)
             ? await db.order.findFirst({
@@ -25,6 +36,7 @@ async function preview(skip: number, order: string, actorId: string) {
                 select: { id: true },
               })
             : null;
+        if (onlyNew && (matchingOrder || !validOrder)) return null;
         const invoices = await Promise.all(
           [doc, ...(doc?.notas ?? [])]
             .filter(
@@ -58,7 +70,7 @@ async function preview(skip: number, order: string, actorId: string) {
           number,
           status: matchingOrder
             ? "Já existe no portal"
-            : number && validDocument(recipient)
+            : validOrder
               ? "Novo no portal"
               : "Revisar dados do pedido",
           invoices,
@@ -66,7 +78,7 @@ async function preview(skip: number, order: string, actorId: string) {
       }),
     ),
   );
-  return { rows, totalCount };
+  return { rows: rows.filter((row) => row !== null), totalCount };
 }
 
 export default async function ZenlogPreviewPage({
@@ -76,12 +88,14 @@ export default async function ZenlogPreviewPage({
     consultar?: string;
     pedido?: string;
     pagina?: string;
+    filtro?: string;
   }>;
 }) {
   const user = await requirePageAdmin(["ADMIN", "OPERATOR"]);
   const query = await searchParams;
   const order =
     typeof query.pedido === "string" ? query.pedido.trim().slice(0, 20) : "";
+  const onlyNew = query.filtro === "novos";
   const requestedPage = Number(query.pagina);
   const page =
     Number.isSafeInteger(requestedPage) && requestedPage >= 1
@@ -92,7 +106,7 @@ export default async function ZenlogPreviewPage({
   let error: string | undefined;
   if (query.consultar === "1") {
     try {
-      result = await preview(skip, order, user.id);
+      result = await preview(skip, order, user.id, onlyNew);
     } catch (cause) {
       if (!(cause instanceof HttpError)) throw cause;
       error = cause.message;
@@ -106,6 +120,7 @@ export default async function ZenlogPreviewPage({
         consultar: "1",
         pedido: order,
         pagina: String(next),
+        ...(onlyNew ? { filtro: "novos" } : {}),
       })
     );
   }
@@ -128,6 +143,7 @@ export default async function ZenlogPreviewPage({
       <span aria-current="page">
         Página {page}
         {totalPages >= page ? " de " + totalPages : ""}
+        {onlyNew ? " do ZenLOG" : ""}
       </span>
       {page < totalPages && (
         <Link
@@ -154,11 +170,18 @@ export default async function ZenlogPreviewPage({
         </div>
         <Link href="/admin/pedidos">Voltar aos pedidos</Link>
       </div>
-      <form className="card mb-4">
+      <form className="card mb-4 orders-filters">
         <input type="hidden" name="consultar" value="1" />
         <label className="field">
           Número do pedido no ZenLOG (opcional)
           <input name="pedido" maxLength={20} defaultValue={order} />
+        </label>
+        <label className="field">
+          Mostrar
+          <select name="filtro" defaultValue={onlyNew ? "novos" : "todos"}>
+            <option value="todos">Todos os pedidos</option>
+            <option value="novos">Só novos no portal</option>
+          </select>
         </label>
         <button className="button" type="submit">
           Consultar prévia
@@ -173,6 +196,7 @@ export default async function ZenlogPreviewPage({
               <input type="hidden" name="consultar" value="1" />
               <input type="hidden" name="pedido" value={order} />
               <input type="hidden" name="pagina" value={page} />
+              {onlyNew && <input type="hidden" name="filtro" value="novos" />}
               <button className="button secondary" type="submit">
                 Atualizar esta página
               </button>
@@ -212,16 +236,24 @@ export default async function ZenlogPreviewPage({
                 {!result.rows.length && (
                   <tr>
                     <td colSpan={4}>
-                      Nenhuma expedição da instalação configurada nesta página.
+                      {onlyNew
+                        ? page < totalPages
+                          ? "Nenhum pedido novo nesta página. Use Próxima página para continuar."
+                          : "Nenhum pedido novo nesta página."
+                        : "Nenhuma expedição da instalação configurada nesta página."}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-          {result.rows.length > 0 && (
-            <ZenlogImportForm key={pageHref(page)} order={order} page={page} />
-          )}
+          <ZenlogImportForm
+            key={pageHref(page)}
+            order={order}
+            page={page}
+            onlyNew={onlyNew}
+            hasRows={result.rows.length > 0}
+          />
           {pagination}
         </>
       )}
