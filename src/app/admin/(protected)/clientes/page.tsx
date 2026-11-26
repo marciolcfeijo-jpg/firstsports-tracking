@@ -96,9 +96,17 @@ export default async function Customers({
             Defina o responsável padrão pelos pedidos e NFs de cada cliente.
           </p>
         </div>
-        <Link className="button" href={href({ novo: "1" }) + "#cadastro"}>
-          Cadastrar cliente
-        </Link>
+        <div className="actions">
+          <Link className="button" href="/admin/clientes/importar">
+            Importar vínculos
+          </Link>
+          <Link
+            className="button secondary"
+            href={href({ novo: "1" }) + "#cadastro"}
+          >
+            Cadastrar cliente
+          </Link>
+        </div>
       </div>
       <form action={searchCustomers} className="card mb-4 orders-filters">
         <label className="field">
