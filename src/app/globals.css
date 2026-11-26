@@ -1278,6 +1278,9 @@ tr:last-child td {
 }
 
 .order-journey-stages dt {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
   color: var(--muted);
   font-size: 12px;
 }

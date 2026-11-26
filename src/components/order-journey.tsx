@@ -58,11 +58,12 @@ function eventCatalog(): Record<string, string> {
   }
 }
 
+const invoiceEventId = 10;
 const expeditionSteps = [
   [5, "Solicitado"],
   [6, "Separado"],
   [7, "Conferido"],
-  [10, "Nota Fiscal"],
+  [invoiceEventId, "Nota Fiscal"],
   [8, "Embarcado"],
   [9, "Expedido"],
 ] as const;
@@ -273,9 +274,8 @@ export async function OrderJourney({
         .filter(Boolean),
     ),
   ];
-  const firstInvoice = shipments
-    .filter(({ invoices }) => invoices.length)
-    .sort((a, b) => +a.issuedAt - +b.issuedAt)[0];
+  const hasInvoice = shipments.some(({ invoices }) => invoices.length > 0);
+  const invoiceEventAt = completedSteps.get(invoiceEventId);
   const activeShipments = shipments.filter(
     ({ status }) => status !== "CANCELLED",
   );
@@ -313,9 +313,13 @@ export async function OrderJourney({
   );
   const portalStages = [
     {
-      label: "NF impressa · data de emissão",
-      complete: !!firstInvoice,
-      value: firstInvoice ? dateOnly(firstInvoice.issuedAt) : "Aguardando NF",
+      label: "NF impressa",
+      complete: hasInvoice,
+      value: !hasInvoice
+        ? "Aguardando NF"
+        : invoiceEventAt
+          ? dateTime(invoiceEventAt)
+          : "Data não informada",
     },
     {
       label: "Entrega ao cliente",
@@ -396,7 +400,7 @@ function JourneyStages({
       {stages.map(({ label, complete, value }) => (
         <div key={label}>
           <dt>
-            {label}{" "}
+            <span>{label}</span>
             {complete && <span className="badge DELIVERED">Concluído</span>}
           </dt>
           <dd>{value}</dd>
