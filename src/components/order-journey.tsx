@@ -58,20 +58,14 @@ function eventCatalog(): Record<string, string> {
   }
 }
 
-const logisticsSteps = [
-  "Importado",
-  "Gerado",
-  "NF impressa",
-  "Separado",
-  "Conferido",
-  "Pesado",
-  "Expedido",
-  "Entregue",
+const expeditionSteps = [
+  [5, "Solicitado"],
+  [6, "Separado"],
+  [7, "Conferido"],
+  [10, "Nota Fiscal"],
+  [8, "Embarcado"],
+  [9, "Expedido"],
 ] as const;
-
-function normalizedLabel(value: string | undefined) {
-  return value?.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
-}
 
 function zenlogDate(value: string | null | undefined) {
   if (!value) return;
@@ -174,7 +168,7 @@ export async function OrderJourney({
       });
   }
 
-  const completedSteps = new Map<string, Date>();
+  const completedSteps = new Map<number, Date>();
   const seenZenlogEvents = new Set<number>();
   for (const expedition of expeditions) {
     expedition.events.forEach((event, index) => {
@@ -187,11 +181,10 @@ export async function OrderJourney({
         event.name || (code === null ? undefined : catalog[String(code)]);
       const start = zenlogDate(event.start);
       const end = zenlogDate(event.end);
-      const step = normalizedLabel(label);
       const time = end ?? start;
-      if (step && time && event.status === "S") {
-        const previous = completedSteps.get(step);
-        if (!previous || time < previous) completedSteps.set(step, time);
+      if (code !== null && time && event.status === "S") {
+        const previous = completedSteps.get(code);
+        if (!previous || time < previous) completedSteps.set(code, time);
       }
       timeline.push({
         key: expedition.id + "-" + index,
@@ -297,37 +290,45 @@ export async function OrderJourney({
         : latest,
     undefined,
   );
-  const stages = logisticsSteps.map((label) => {
-    if (label === "NF impressa") {
+  const zenlogStages = [
+    {
+      label: "Inclusão no ZenLOG",
+      complete: !!registered,
+      value: registered ? dateTime(registered) : "Data não informada",
+    },
+    ...expeditionSteps.map(([id, label]) => {
+      const time = completedSteps.get(id);
       return {
         label,
-        complete: !!firstInvoice,
-        value: firstInvoice ? dateOnly(firstInvoice.issuedAt) : "Aguardando NF",
+        complete: !!time,
+        value: time ? dateTime(time) : "Aguardando registro",
       };
-    }
-    if (label === "Entregue") {
-      const complete =
-        deliveredShipments.length > 0 &&
-        deliveredShipments.length === activeShipments.length;
-      const missingDate = deliveredShipments.some(
-        ({ deliveredAt }) => !deliveredAt,
-      );
-      const value = complete
+    }),
+  ];
+  const delivered =
+    deliveredShipments.length > 0 &&
+    deliveredShipments.length === activeShipments.length;
+  const missingDate = deliveredShipments.some(
+    ({ deliveredAt }) => !deliveredAt,
+  );
+  const portalStages = [
+    {
+      label: "NF impressa · data de emissão",
+      complete: !!firstInvoice,
+      value: firstInvoice ? dateOnly(firstInvoice.issuedAt) : "Aguardando NF",
+    },
+    {
+      label: "Entrega ao cliente",
+      complete: delivered,
+      value: delivered
         ? !missingDate && lastDelivery?.deliveredAt
           ? deliveryDateTime(lastDelivery.deliveredAt, lastDelivery.events)
           : "Data não informada"
         : shipments.length > 0 || stage === "CANCELLED"
           ? orderStatus(stage, shipments)
-          : "Aguardando remessa";
-      return { label, complete, value };
-    }
-    const time = completedSteps.get(label.toLowerCase());
-    return {
-      label,
-      complete: !!time,
-      value: time ? dateTime(time) : "Aguardando registro",
-    };
-  });
+          : "Aguardando remessa",
+    },
+  ];
 
   return (
     <section
@@ -336,17 +337,20 @@ export async function OrderJourney({
       aria-labelledby="order-journey-title"
     >
       <h2 id="order-journey-title">Jornada do pedido e da entrega</h2>
-      <dl className="order-journey-stages">
-        {stages.map(({ label, complete, value }) => (
-          <div key={label}>
-            <dt>
-              {label}{" "}
-              {complete && <span className="badge DELIVERED">Concluído</span>}
-            </dt>
-            <dd>{value}</dd>
-          </div>
-        ))}
-      </dl>
+      {includeZenlog && (
+        <>
+          <h3>Expedição no ZenLOG</h3>
+          <JourneyStages stages={zenlogStages} />
+          {expeditions.length > 0 && (
+            <p className="small mb-4">
+              Os horários detalhados de separação, conferência e pesagem do
+              Senior WMS ainda não estão disponíveis nesta integração.
+            </p>
+          )}
+        </>
+      )}
+      <h3>Faturamento e entrega no portal</h3>
+      <JourneyStages stages={portalStages} />
       {expeditionStatuses.length > 0 && (
         <details className="mb-4">
           <summary>Status técnicos do ZenLOG</summary>
@@ -379,5 +383,25 @@ export async function OrderJourney({
         </ol>
       </details>
     </section>
+  );
+}
+
+function JourneyStages({
+  stages,
+}: {
+  stages: { label: string; complete: boolean; value: string }[];
+}) {
+  return (
+    <dl className="order-journey-stages">
+      {stages.map(({ label, complete, value }) => (
+        <div key={label}>
+          <dt>
+            {label}{" "}
+            {complete && <span className="badge DELIVERED">Concluído</span>}
+          </dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
