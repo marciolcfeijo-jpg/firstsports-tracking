@@ -120,6 +120,12 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     skipped: 1,
     reused: 0,
   });
+  expect(
+    await zenlogOrderPage("novos", number, 0, 50, undefined, "sem"),
+  ).toEqual([order.id]);
+  expect(
+    await zenlogOrderPage("novos", number, 0, 50, undefined, "com"),
+  ).toEqual([]);
   expect(await zenlogOrderPage("novos", number, 0, 50)).toEqual([order.id]);
   expect(await zenlogOrderPage("atualizados", number, 0, 50)).toEqual([]);
   expect(order.issuedAt?.toISOString()).toBe("2026-11-24T00:00:00.000Z");
@@ -222,6 +228,12 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
   expect(
     await zenlogOrderPage("atualizados", "00064321", 0, 50, "64321"),
   ).toEqual([]);
+  expect(
+    await zenlogOrderPage("novos", number, 0, 50, undefined, "sem"),
+  ).toEqual([]);
+  expect(
+    await zenlogOrderPage("novos", number, 0, 50, undefined, "com"),
+  ).toEqual([order.id]);
   const entries = await db.auditLog.findMany({
     where: { entityId: order.id, action: "ZENLOG_STATUS" },
   });
