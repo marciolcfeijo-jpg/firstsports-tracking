@@ -1,4 +1,4 @@
-import { ZenlogStatusHistory } from "@/components/zenlog-status-history";
+import { OrderJourney } from "@/components/order-journey";
 import { ZenlogExpedition } from "@/components/zenlog-expedition";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,11 +7,7 @@ import { OrderShipmentSync } from "@/components/order-shipment-sync";
 import { TrackingAvailability } from "@/components/tracking-availability";
 import { TrackingHistory } from "@/components/tracking-history";
 import { db } from "@/lib/db";
-import {
-  orderStatus,
-  orderAuditStageLabel,
-  orderStageLabels,
-} from "@/lib/order-status";
+import { orderStatus, orderStageLabels } from "@/lib/order-status";
 import { requirePageAdmin } from "@/lib/page-auth";
 import {
   dateOnly,
@@ -60,14 +56,6 @@ export default async function OrderDetails({
   });
   if (!order) notFound();
 
-  const history = await db.auditLog.findMany({
-    where: {
-      entityId: id,
-      action: { in: ["ORDER_CREATE", "ORDER_STAGE_UPDATE"] },
-    },
-    select: { id: true, action: true, createdAt: true, snapshot: true },
-    orderBy: { createdAt: "asc" },
-  });
   const canWrite = user.role !== "VIEWER";
   const status = orderStatus(order.stage, order.shipments);
 
@@ -88,8 +76,14 @@ export default async function OrderDetails({
           </Link>
         )}
       </div>
+      <OrderJourney
+        orderId={id}
+        createdAt={order.createdAt}
+        issuedAt={order.issuedAt}
+        stage={order.stage}
+        shipments={order.shipments}
+      />
       <div className="grid-2">
-        <ZenlogStatusHistory orderId={id} />
         <section className="card">
           <h2>Dados do pedido</h2>
           <Details
@@ -125,24 +119,6 @@ export default async function OrderDetails({
           />
         )}
       </div>
-
-      <section className="card mt-4">
-        <h2>Histórico do pedido</h2>
-        {history.length ? (
-          <ol>
-            {history.map((entry) => {
-              return (
-                <li key={entry.id}>
-                  {dateTime(entry.createdAt)} ·{" "}
-                  {orderAuditStageLabel(entry.action, entry.snapshot)}
-                </li>
-              );
-            })}
-          </ol>
-        ) : (
-          <p>Nenhuma etapa do pedido registrada.</p>
-        )}
-      </section>
 
       {canWrite && process.env.ZENLOG_API_ORIGIN && (
         <ZenlogExpedition orderId={order.id} />

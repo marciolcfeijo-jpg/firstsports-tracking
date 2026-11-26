@@ -99,6 +99,8 @@ const status = z.union([z.string(), z.number()]).nullish();
 const zenlogEvent = z.object({
   id: z.number().int().nullish(),
   eventoId: z.number().int().nullish(),
+  nome: optionalText,
+  evento: z.object({ nome: optionalText }).nullish(),
   sequencia: z.number().int().nullish(),
   status,
   inicio: optionalText,

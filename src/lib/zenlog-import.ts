@@ -23,12 +23,14 @@ function timestamp(value: string | null | undefined) {
 function snapshot(expedition: Expedition, doc: Document) {
   return {
     importedAt: new Date().toISOString(),
+    registeredAt: timestamp(expedition.data),
     expeditionStatus: statusCode(expedition.situacao),
     integrationStatus: statusCode(expedition.situacaoIntegracao),
     documentStatus: statusCode(doc.situacao),
     events: (expedition.eventos ?? []).map((event) => ({
       id: event.id ?? null,
       code: event.eventoId ?? null,
+      name: statusCode(event.evento?.nome ?? event.nome),
       sequence: event.sequencia ?? null,
       status: statusCode(event.status),
       start: timestamp(event.inicio),
