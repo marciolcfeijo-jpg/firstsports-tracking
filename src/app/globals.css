@@ -1263,3 +1263,26 @@ tr:last-child td {
   color: var(--muted);
   margin-top: 4px;
 }
+
+.order-journey-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 16px 0 24px;
+}
+
+.order-journey-stages > div {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.order-journey-stages dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.order-journey-stages dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}

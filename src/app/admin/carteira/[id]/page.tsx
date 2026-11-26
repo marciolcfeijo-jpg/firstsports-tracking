@@ -1,12 +1,10 @@
-import { ZenlogStatusHistory } from "@/components/zenlog-status-history";
+import { OrderJourney } from "@/components/order-journey";
 import { OrderForm } from "@/components/order-form";
 import { OrderShipmentSync } from "@/components/order-shipment-sync";
 import { TrackingAvailability } from "@/components/tracking-availability";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { TrackingHistory } from "@/components/tracking-history";
 import { db } from "@/lib/db";
-import { orderAuditStageLabel } from "@/lib/order-status";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { salesOrdersWhere, salesShipmentsWhere } from "@/lib/sales-portfolio";
 import { dateOnly, dateTime, statusLabels } from "@/lib/status";
@@ -26,6 +24,7 @@ export default async function SalesOrder({
       sellerId: true,
       _count: { select: { shipments: true } },
       createdAt: true,
+      issuedAt: true,
       customer: { select: { name: true } },
       shipments: {
         where: salesShipmentsWhere(seller.id),
@@ -34,6 +33,7 @@ export default async function SalesOrder({
           status: true,
           issuedAt: true,
           estimatedDelivery: true,
+          deliveredAt: true,
           lastSyncError: true,
           carrier: { select: { name: true, enabled: true } },
           invoices: { select: { number: true, series: true } },
@@ -43,15 +43,6 @@ export default async function SalesOrder({
     },
   });
   if (!order) notFound();
-
-  const history = await db.auditLog.findMany({
-    where: {
-      entityId: id,
-      action: { in: ["ORDER_CREATE", "ORDER_STAGE_UPDATE"] },
-    },
-    select: { id: true, action: true, createdAt: true, snapshot: true },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-  });
 
   return (
     <>
@@ -64,29 +55,19 @@ export default async function SalesOrder({
           </p>
         </div>
       </div>
-      {(order.sellerId === seller.id ||
-        (!order.sellerId &&
-          order.shipments.length > 0 &&
-          order.shipments.length === order._count.shipments)) && (
-        <ZenlogStatusHistory orderId={id} />
-      )}
-      <section className="card">
-        <h2>Etapas internas</h2>
-        {history.length ? (
-          <ol className="timeline">
-            {history.map((entry) => (
-              <li key={entry.id}>
-                <strong>
-                  {orderAuditStageLabel(entry.action, entry.snapshot)}
-                </strong>
-                <p>{dateTime(entry.createdAt)}</p>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p>Nenhuma etapa interna registrada.</p>
-        )}
-      </section>
+      <OrderJourney
+        orderId={id}
+        createdAt={order.createdAt}
+        issuedAt={order.issuedAt}
+        stage={order.stage}
+        shipments={order.shipments}
+        includeZenlog={
+          order.sellerId === seller.id ||
+          (!order.sellerId &&
+            order.shipments.length > 0 &&
+            order.shipments.length === order._count.shipments)
+        }
+      />
       {order.sellerId === seller.id && order._count.shipments === 0 && (
         <OrderForm
           key={order.stage ?? "unregistered"}
@@ -129,7 +110,6 @@ export default async function SalesOrder({
                 enabled={shipment.carrier.enabled}
               />
             </div>
-            <TrackingHistory events={shipment.events} />
           </article>
         ))}
       </section>
