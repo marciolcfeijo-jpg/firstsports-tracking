@@ -32,6 +32,7 @@ export async function zenlogOrderPage(
   number: string,
   skip: number,
   take: number,
+  invoiceNumber?: string,
 ) {
   const condition =
     source === "novos"
@@ -41,10 +42,16 @@ export async function zenlogOrderPage(
         : source === "origem-indisponivel"
           ? Prisma.sql`${hasImport} AND NOT ${importedWithOrder} AND NOT ${importedExistingOrder}`
           : Prisma.sql`NOT ${hasImport}`;
+  const invoiceMatch = invoiceNumber
+    ? Prisma.sql`OR EXISTS (
+        SELECT 1 FROM "Shipment" s JOIN "ShipmentInvoice" nf ON nf."shipmentId" = s.id
+        WHERE s."orderId" = o.id AND nf.number = ${invoiceNumber}
+      )`
+    : Prisma.empty;
   const matches = await db.$queryRaw<{ id: string }[]>`
     SELECT o.id FROM "Order" o
     WHERE ${condition}
-      ${number ? Prisma.sql`AND o.number = ${number}` : Prisma.empty}
+      ${number ? Prisma.sql`AND (o.number = ${number} ${invoiceMatch})` : Prisma.empty}
     ORDER BY o."createdAt" DESC, o.id DESC OFFSET ${skip} LIMIT ${take}
   `;
   return matches.map(({ id }) => id);

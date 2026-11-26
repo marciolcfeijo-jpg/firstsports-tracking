@@ -4,7 +4,6 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   ChartNoAxesColumn,
-  Package,
   ClipboardList,
   Upload,
   Truck,
@@ -18,7 +17,6 @@ const entries = [
   ["/admin", "Visão geral", LayoutDashboard],
   ["/admin/relatorios", "Relatórios", ChartNoAxesColumn],
   ["/admin/pedidos", "Pedidos", ClipboardList],
-  ["/admin/remessas", "Remessas", Package],
   ["/admin/importacoes", "Importações", Upload],
   ["/admin/transportadoras", "Transportadoras", Truck],
   ["/admin/clientes", "Clientes", Contact],
@@ -73,6 +71,9 @@ export function AdminShell({
                     href === "/admin"
                       ? path === href
                       : path === href ||
+                        (href === "/admin/pedidos" &&
+                          (path === "/admin/remessas" ||
+                            path.startsWith("/admin/remessas/"))) ||
                         (path.startsWith(href + "/") &&
                           !navigation.some(
                             ([nested]) =>

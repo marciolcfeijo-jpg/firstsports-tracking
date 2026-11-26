@@ -216,6 +216,12 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     city: "Campinas",
     state: "SP",
   });
+  expect(await zenlogOrderPage("novos", "00064321", 0, 50, "64321")).toEqual([
+    order.id,
+  ]);
+  expect(
+    await zenlogOrderPage("atualizados", "00064321", 0, 50, "64321"),
+  ).toEqual([]);
   const entries = await db.auditLog.findMany({
     where: { entityId: order.id, action: "ZENLOG_STATUS" },
   });
