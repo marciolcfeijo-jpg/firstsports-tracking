@@ -71,6 +71,9 @@ async function preview(
           code: item.codigo,
           number,
           orderId: matchingOrder?.id,
+          recipientRef: validOrder
+            ? hashToken(documentHash(recipient))
+            : undefined,
           status: matchingOrder
             ? "Pedido já cadastrado"
             : validOrder
@@ -250,11 +253,15 @@ export default async function ZenlogPreviewPage({
                                 ? " · série " + invoice.series
                                 : ""}{" "}
                               · {invoice.status}
-                              {row.orderId &&
+                              {row.number &&
+                                row.number.length <= 20 &&
+                                row.recipientRef &&
                                 invoice.reference &&
                                 /^\d{1,9}$/.test(invoice.number) && (
                                   <LinkInvoiceForm
                                     orderId={row.orderId}
+                                    orderNumber={row.number}
+                                    recipientRef={row.recipientRef}
                                     invoiceHash={invoice.reference}
                                     invoiceNumber={invoice.number}
                                     pendingLink={

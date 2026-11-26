@@ -66,27 +66,40 @@ export async function linkZenlogInvoice(
     const actor = await requireAdmin(["ADMIN", "OPERATOR"]);
     const parsed = z
       .object({
-        orderId: z.string().min(1).max(100),
+        orderId: z
+          .string()
+          .max(100)
+          .transform((value) => value || undefined),
+        orderNumber: z.string().trim().min(1).max(20),
+        recipientRef: z.string().regex(/^[a-f0-9]{64}$/),
         invoiceHash: z.string().regex(/^[a-f0-9]{64}$/),
         invoiceNumber: z.string().regex(/^\d{1,9}$/),
       })
       .safeParse({
-        orderId: formData.get("orderId"),
+        orderId: formData.get("orderId") ?? "",
+        orderNumber: formData.get("orderNumber"),
+        recipientRef: formData.get("recipientRef"),
         invoiceHash: formData.get("invoiceHash"),
         invoiceNumber: formData.get("invoiceNumber"),
       });
     if (!parsed.success)
       throw new HttpError(400, "Atualize a prévia para conferir esta NF.");
     const target = parsed.data;
-    const order = await db.order.findUnique({
-      where: { id: target.orderId },
-      select: { number: true, stage: true },
-    });
-    if (!order || order.number.length > 20 || order.stage === "CANCELLED")
-      throw new HttpError(409, "Confira o pedido antes de vincular a NF.");
+    if (target.orderId) {
+      const order = await db.order.findUnique({
+        where: { id: target.orderId },
+        select: { number: true, stage: true },
+      });
+      if (
+        !order ||
+        order.number !== target.orderNumber ||
+        order.stage === "CANCELLED"
+      )
+        throw new HttpError(409, "Confira o pedido antes de vincular a NF.");
+    }
     await rateLimit("zenlog:import:global", 20, 60);
     await rateLimit("zenlog:import:" + actor.id, 10, 60);
-    const result = await importZenlogPage(0, order.number, actor.id, {
+    const result = await importZenlogPage(0, target.orderNumber, actor.id, {
       target,
     });
     if (!result.linked && !result.existing)
@@ -99,8 +112,11 @@ export async function linkZenlogInvoice(
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin/carteira");
     return {
+      orderId: result.linkedOrderId,
       message: result.linked
-        ? "NF vinculada ao pedido."
+        ? result.created
+          ? "Pedido importado e NF vinculada."
+          : "NF vinculada ao pedido."
         : "A NF já estava vinculada ao pedido.",
     };
   } catch (error) {
