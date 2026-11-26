@@ -65,7 +65,12 @@ export default async function Orders({
       number: true,
       stage: true,
       createdAt: true,
-      customer: { select: { name: true } },
+      customer: {
+        select: {
+          name: true,
+          responsible: { select: { email: true, active: true } },
+        },
+      },
       seller: { select: { email: true } },
       shipments: {
         select: {
@@ -174,6 +179,7 @@ export default async function Orders({
                     ].filter(Boolean),
                   ),
                 ];
+                const responsible = order.customer.responsible;
                 return (
                   <ShipmentRow key={order.id} href={details}>
                     <td>
@@ -185,9 +191,15 @@ export default async function Orders({
                       {order.customer.name}
                       <small className="order-row-detail">
                         {sellers.length
-                          ? sellers.join(", ")
-                          : "Sem vendedor vinculado"}
+                          ? "Vendedor vinculado: " + sellers.join(", ")
+                          : "Sem vendedor no pedido ou na NF"}
                       </small>
+                      {responsible && (
+                        <small className="order-row-detail">
+                          Responsável do cliente: {responsible.email}
+                          {!responsible.active && " · acesso inativo"}
+                        </small>
+                      )}
                     </td>
                     <td>
                       {invoices.length
