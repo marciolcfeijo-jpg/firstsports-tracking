@@ -29,6 +29,7 @@ export default async function Orders({
     pending?: string | string[];
     page?: string | string[];
     origem?: string | string[];
+    nf?: string | string[];
   }>;
 }) {
   const user = await requirePageAdmin();
@@ -39,6 +40,7 @@ export default async function Orders({
     pending,
     page: pageParam,
     origem,
+    nf,
   } = await searchParams;
   const filter = pendingOrderFilter(pending);
   const days =
@@ -59,9 +61,17 @@ export default async function Orders({
       ? String(Number(number))
       : undefined;
   const source = days ? null : zenlogOrderSource(origem);
+  const invoiceLink = !days && (nf === "sem" || nf === "com") ? nf : undefined;
   const skip = (page - 1) * pageSize;
   const ids = source
-    ? await zenlogOrderPage(source, number, skip, pageSize + 1, invoiceNumber)
+    ? await zenlogOrderPage(
+        source,
+        number,
+        skip,
+        pageSize + 1,
+        invoiceNumber,
+        invoiceLink,
+      )
     : null;
   const orders = await db.order.findMany({
     where: {
@@ -81,6 +91,15 @@ export default async function Orders({
           : number
             ? { number }
             : {}),
+      ...(!ids && invoiceLink
+        ? {
+            shipments: {
+              [invoiceLink === "sem" ? "none" : "some"]: {
+                invoices: { some: {} },
+              },
+            },
+          }
+        : {}),
       ...(days
         ? { AND: [agedOrdersWithoutShipments(new Date(), days, filter)] }
         : {}),
@@ -121,6 +140,7 @@ export default async function Orders({
     if (days) query.set("pendingDays", String(days));
     if (filter) query.set("pending", filter);
     if (source) query.set("origem", source);
+    if (invoiceLink) query.set("nf", invoiceLink);
     return "?" + query;
   }
 
@@ -173,8 +193,18 @@ export default async function Orders({
             </select>
           </label>
         )}
+        {!days && (
+          <label className="field">
+            Situação da NF
+            <select name="nf" defaultValue={invoiceLink ?? ""}>
+              <option value="">Todas as situações</option>
+              <option value="sem">Sem NF vinculada</option>
+              <option value="com">Com NF vinculada</option>
+            </select>
+          </label>
+        )}
         <button className="button">Filtrar</button>
-        {!days && (source || number) && (
+        {!days && (source || number || invoiceLink) && (
           <Link href="/admin/pedidos">Limpar filtros</Link>
         )}
       </form>
@@ -194,6 +224,11 @@ export default async function Orders({
             <tbody>
               {visibleOrders.map((order) => {
                 const details = `/admin/pedidos/${order.id}`;
+                const canLinkInvoice =
+                  user.role !== "VIEWER" &&
+                  !!process.env.ZENLOG_API_ORIGIN &&
+                  order.stage !== "CANCELLED" &&
+                  order.number.length <= 20;
                 const summary = zenlog.get(order.id);
                 const invoices = order.shipments.flatMap(
                   (shipment) => shipment.invoices,
@@ -235,15 +270,36 @@ export default async function Orders({
                       </small>
                     </td>
                     <td>
-                      {listedInvoices.length
-                        ? listedInvoices.slice(0, 2).map((invoice) => (
-                            <div key={invoice.id}>
-                              <Link href={details + "#nf-" + invoice.id}>
-                                NF {invoice.number} · série {invoice.series}
+                      {listedInvoices.length ? (
+                        listedInvoices.slice(0, 2).map((invoice) => (
+                          <div key={invoice.id}>
+                            <Link href={details + "#nf-" + invoice.id}>
+                              NF {invoice.number} · série {invoice.series}
+                            </Link>
+                          </div>
+                        ))
+                      ) : (
+                        <>
+                          Sem NF vinculada
+                          {canLinkInvoice && (
+                            <div className="mt-2">
+                              <Link
+                                className="button secondary"
+                                prefetch={false}
+                                href={
+                                  "/admin/pedidos/zenlog?" +
+                                  new URLSearchParams({
+                                    consultar: "1",
+                                    pedido: order.number,
+                                  })
+                                }
+                              >
+                                Vincular NF do ZenLOG
                               </Link>
                             </div>
-                          ))
-                        : "Sem NF vinculada"}
+                          )}
+                        </>
+                      )}
                       {invoices.length > Math.min(listedInvoices.length, 2) && (
                         <small className="order-row-detail">
                           <Link href={details + "#notas-fiscais"}>

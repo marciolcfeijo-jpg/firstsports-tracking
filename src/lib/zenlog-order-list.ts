@@ -33,6 +33,7 @@ export async function zenlogOrderPage(
   skip: number,
   take: number,
   invoiceNumber?: string,
+  invoiceLink?: "sem" | "com",
 ) {
   const condition =
     source === "novos"
@@ -48,9 +49,20 @@ export async function zenlogOrderPage(
         WHERE s."orderId" = o.id AND nf.number = ${invoiceNumber}
       )`
     : Prisma.empty;
+  const hasInvoice = Prisma.sql`EXISTS (
+    SELECT 1 FROM "Shipment" s JOIN "ShipmentInvoice" nf ON nf."shipmentId" = s.id
+    WHERE s."orderId" = o.id
+  )`;
+  const invoiceLinkFilter =
+    invoiceLink === "sem"
+      ? Prisma.sql`AND NOT ${hasInvoice}`
+      : invoiceLink === "com"
+        ? Prisma.sql`AND ${hasInvoice}`
+        : Prisma.empty;
   const matches = await db.$queryRaw<{ id: string }[]>`
     SELECT o.id FROM "Order" o
     WHERE ${condition}
+      ${invoiceLinkFilter}
       ${number ? Prisma.sql`AND (o.number = ${number} ${invoiceMatch})` : Prisma.empty}
     ORDER BY o."createdAt" DESC, o.id DESC OFFSET ${skip} LIMIT ${take}
   `;
