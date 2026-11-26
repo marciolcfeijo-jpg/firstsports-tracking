@@ -57,6 +57,30 @@ function invoiceReferences(doc: Document) {
   return [...unique.values()];
 }
 
+function documentAttributes(doc: Document) {
+  const attributes = new Map<string, Set<string>>();
+  for (const { nome, valor } of doc.atributos ?? []) {
+    const label = nome
+      ?.normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const value = valor?.trim();
+    if (!label || !value) continue;
+    const values = attributes.get(label) ?? new Set<string>();
+    values.add(value);
+    attributes.set(label, values);
+  }
+  return (...labels: string[]) => {
+    const values = new Set(
+      labels.flatMap((label) => [...(attributes.get(label) ?? [])]),
+    );
+    return values.size === 1 ? values.values().next().value : undefined;
+  };
+}
+
 async function importDocument(
   expedition: Expedition,
   doc: Document,
@@ -69,10 +93,55 @@ async function importDocument(
   if (!number || number.length > 120 || !validDocument(recipient) || !name)
     return null;
 
+  const attribute = documentAttributes(doc);
   const address = doc.enderecoCustomizado;
-  const city = address?.cidade?.nome?.trim().slice(0, 120) || "";
-  const rawState = address?.uf || address?.cidade?.uf;
-  const state = shipmentSchema.shape.uf_destino.safeParse(rawState);
+  const city = (
+    address?.cidade?.nome ||
+    attribute("cidade de destino", "cidade do destinatario") ||
+    ""
+  )
+    .trim()
+    .slice(0, 120);
+  const rawState =
+    address?.uf ||
+    address?.cidade?.uf ||
+    attribute("uf de destino", "uf do destinatario");
+  const state = shipmentSchema.shape.uf_destino.safeParse(
+    rawState?.trim().toUpperCase(),
+  ).data;
+  const email =
+    shipmentSchema.shape.email_cliente.safeParse(
+      attribute(
+        "e mail do cliente",
+        "email do cliente",
+        "e mail do destinatario",
+        "email do destinatario",
+      ),
+    ).data || undefined;
+  const payer =
+    shipmentSchema.shape.cnpj_tomador.safeParse(
+      attribute("cnpj do tomador", "cnpj tomador", "cnpj do tomador do frete"),
+    ).data || undefined;
+  const cteValue = attribute(
+    "ct e",
+    "cte",
+    "numero do ct e",
+    "numero do cte",
+    "conhecimento de transporte",
+  );
+  const cte = cteValue && /^\d{1,44}$/.test(cteValue) ? cteValue : undefined;
+  const objectCode =
+    shipmentSchema.shape.codigo_rastreio.safeParse(
+      doc.codigoRastreio ||
+        attribute("codigo do objeto correios", "codigo de rastreio correios"),
+    ).data || undefined;
+  const forecast = attribute("previsao de entrega", "data prevista de entrega");
+  const etaDate = forecast
+    ?.replace(/^(\d{2})\/(\d{2})\/(\d{4})$/, "$3-$2-$1")
+    .slice(0, 10);
+  const eta = shipmentSchema.shape.data_emissao.safeParse(etaDate).success
+    ? new Date(etaDate + "T15:00:00Z")
+    : undefined;
   const sellerEmails = [
     ...new Set(
       (doc.atributos ?? [])
@@ -105,13 +174,27 @@ async function importDocument(
           documentHash: hash,
           name,
           city,
-          state: state.success ? state.data : "",
+          state: state ?? "",
+          email,
         },
         update: {},
       });
+      const customerFields = {
+        email: customer.email?.trim() ? undefined : email,
+        city: !customer.city.trim() && city ? city : undefined,
+        state: customer.state.trim() ? undefined : state,
+      };
+      if (Object.values(customerFields).some((value) => value !== undefined))
+        await tx.customer.update({
+          where: { id: customer.id },
+          data: customerFields,
+        });
       const orderDate = shipmentSchema.shape.data_emissao.safeParse(
         expedition.data?.slice(0, 10),
       );
+      const issuedAt = orderDate.success
+        ? new Date(orderDate.data + "T00:00:00Z")
+        : undefined;
       const identity = { number, customerId: customer.id };
       let order = await tx.order.findUnique({
         where: { number_customerId: identity },
@@ -121,20 +204,24 @@ async function importDocument(
         data: {
           ...identity,
           stage: "RECEIVED",
-          issuedAt: orderDate.success
-            ? new Date(orderDate.data + "T00:00:00Z")
-            : null,
+          issuedAt,
           sellerId: seller?.id,
           destinationCity: city || null,
-          destinationState: state.success ? state.data : null,
+          destinationState: state,
         },
       });
-      if (seller && !order.sellerId) {
-        await tx.order.updateMany({
-          where: { id: order.id, sellerId: null },
-          data: { sellerId: seller.id },
+      const orderFields = {
+        sellerId: order.sellerId ? undefined : seller?.id,
+        issuedAt: order.issuedAt ? undefined : issuedAt,
+        destinationCity:
+          !order.destinationCity?.trim() && city ? city : undefined,
+        destinationState: order.destinationState?.trim() ? undefined : state,
+      };
+      if (Object.values(orderFields).some((value) => value !== undefined))
+        order = await tx.order.update({
+          where: { id: order.id },
+          data: orderFields,
         });
-      }
       const snapshotId =
         "zenlog-" +
         createHash("sha256")
@@ -177,7 +264,33 @@ async function importDocument(
       let linked = 0;
       let existing = 0;
       let pending = 0;
-      for (const invoice of invoiceReferences(doc)) {
+      const invoices = invoiceReferences(doc);
+      const carrierRef = doc.transportador?.trim() || "";
+      const carrierDocument = digits(carrierRef);
+      const mappedCarrier = carrierCodes[carrierDocument];
+      const carrierByCnpj =
+        invoices.length &&
+        carrierDocument.length === 14 &&
+        /^[\d./-]+$/.test(carrierRef)
+          ? await tx.carrier.findUnique({
+              where: { cnpj: carrierDocument },
+              select: { id: true, code: true },
+            })
+          : null;
+      const carrier =
+        carrierByCnpj ??
+        (invoices.length && carrierRef
+          ? await tx.carrier.findFirst({
+              where: {
+                OR: [
+                  { code: mappedCarrier ?? carrierRef.toUpperCase() },
+                  { name: { equals: carrierRef, mode: "insensitive" } },
+                ],
+              },
+              select: { id: true, code: true },
+            })
+          : null);
+      for (const invoice of invoices) {
         // NF-e key encodes the issuer, series and number.
         const issuer = invoice.key.slice(6, 20);
         const date = expedition.dataEmissao?.slice(0, 10);
@@ -206,7 +319,23 @@ async function importDocument(
           select: {
             id: true,
             accessKey: true,
-            shipment: { select: { orderId: true } },
+            shipment: {
+              select: {
+                id: true,
+                orderId: true,
+                sellerId: true,
+                payerDocument: true,
+                senderDocument: true,
+                destinationCity: true,
+                destinationState: true,
+                trackingCode: true,
+                cte: true,
+                estimatedDelivery: true,
+                lastSyncedAt: true,
+                version: true,
+                carrier: { select: { code: true } },
+              },
+            },
           },
         });
         if (matches.length) {
@@ -224,6 +353,58 @@ async function importDocument(
               where: { id: match.id },
               data: { accessKey: invoice.key },
             });
+          const shipment = match.shipment;
+          const replaceProvisionalCarrier =
+            carrier &&
+            !carrier.code.startsWith("ZENLOG_") &&
+            (shipment.carrier.code === "ZENLOG_PENDENTE" ||
+              shipment.carrier.code === "ZENLOG_" + carrierDocument);
+          const shipmentFields = {
+            sellerId: shipment.sellerId
+              ? undefined
+              : (order.sellerId ?? undefined),
+            payerDocument:
+              !shipment.payerDocument ||
+              (!shipment.lastSyncedAt &&
+                shipment.payerDocument === shipment.senderDocument)
+                ? payer
+                : undefined,
+            destinationCity: shipment.destinationCity.trim()
+              ? undefined
+              : city || order.destinationCity || customer.city || undefined,
+            destinationState: shipment.destinationState.trim()
+              ? undefined
+              : state || order.destinationState || customer.state || undefined,
+            trackingCode:
+              shipment.trackingCode ||
+              (replaceProvisionalCarrier
+                ? carrier.code
+                : shipment.carrier.code) !== "CORREIOS"
+                ? undefined
+                : objectCode,
+            cte: shipment.cte ? undefined : cte,
+            estimatedDelivery: shipment.estimatedDelivery ? undefined : eta,
+            carrierId: replaceProvisionalCarrier ? carrier.id : undefined,
+          };
+          if (
+            Object.values(shipmentFields).some((value) => value !== undefined)
+          ) {
+            const now = new Date();
+            await tx.shipment.updateMany({
+              where: {
+                id: shipment.id,
+                version: shipment.version,
+                OR: [{ leaseUntil: null }, { leaseUntil: { lte: now } }],
+              },
+              data: {
+                ...shipmentFields,
+                version: { increment: 1 },
+                ...(replaceProvisionalCarrier && !shipment.lastSyncedAt
+                  ? { nextSyncAt: now, lastSyncError: null, syncFailures: 0 }
+                  : {}),
+              },
+            });
+          }
           existing++;
           continue;
         }
@@ -234,29 +415,6 @@ async function importDocument(
           pending++;
           continue;
         }
-        const carrierRef = doc.transportador?.trim() || "";
-        const carrierDocument = digits(carrierRef);
-        const mappedCarrier = carrierCodes[carrierDocument];
-        const carrierByCnpj =
-          carrierDocument.length === 14 && /^[\d./-]+$/.test(carrierRef)
-            ? await tx.carrier.findUnique({
-                where: { cnpj: carrierDocument },
-                select: { code: true },
-              })
-            : null;
-        const carrier =
-          carrierByCnpj ??
-          (carrierRef
-            ? await tx.carrier.findFirst({
-                where: {
-                  OR: [
-                    { code: mappedCarrier ?? carrierRef.toUpperCase() },
-                    { name: { equals: carrierRef, mode: "insensitive" } },
-                  ],
-                },
-                select: { code: true },
-              })
-            : null);
         const code =
           carrier?.code ??
           (validDocument(carrierDocument) && carrierDocument.length === 14
@@ -272,14 +430,17 @@ async function importDocument(
           cnpj_remetente: issuer,
           data_emissao: date,
           transportadora: code,
-          cidade_destino: city || customer.city.trim().slice(0, 120),
-          uf_destino: state.success
-            ? state.data
-            : shipmentSchema.shape.uf_destino.safeParse(customer.state).data ||
-              "",
-          codigo_rastreio: shipmentSchema.shape.codigo_rastreio.safeParse(
-            doc.codigoRastreio ?? undefined,
-          ).data,
+          cidade_destino: (city || order.destinationCity || customer.city)
+            .trim()
+            .slice(0, 120),
+          uf_destino:
+            shipmentSchema.shape.uf_destino.safeParse(
+              state || order.destinationState || customer.state,
+            ).data || "",
+          codigo_rastreio: code === "CORREIOS" ? objectCode : undefined,
+          numero_cte: cte,
+          cnpj_tomador: payer,
+          email_cliente: email,
         };
         if (!carrier) {
           await tx.carrier.upsert({
@@ -303,7 +464,14 @@ async function importDocument(
           "zenlog",
         );
         if (shipment.duplicate) existing++;
-        else linked++;
+        else {
+          if (eta)
+            await tx.shipment.update({
+              where: { id: shipment.id },
+              data: { estimatedDelivery: eta },
+            });
+          linked++;
+        }
       }
       return { created, linked, existing, pending };
     },

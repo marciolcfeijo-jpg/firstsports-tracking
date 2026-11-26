@@ -14,7 +14,7 @@ vi.mock("../src/lib/zenlog", () => ({ zenlogExpeditions: vi.fn() }));
 const carrierCode = "ZENLOG_CNPJ_TEST";
 const sellerId = "zenlog-import-test-seller";
 const number = "ZENLOG-IMPORT-TEST";
-const recipient = "04252011000110";
+const recipient = "39724061850";
 const issuer = "11222333000181";
 const key = "352611" + issuer + "55001" + "000064321" + "1000000000";
 
@@ -32,6 +32,9 @@ afterEach(async () => {
     db.shipment.deleteMany({ where: { orderId: { in: orderIds } } }),
     db.order.deleteMany({ where: { id: { in: orderIds } } }),
     db.adminUser.deleteMany({ where: { id: sellerId } }),
+    db.customer.deleteMany({
+      where: { documentHash: documentHash(recipient), orders: { none: {} } },
+    }),
     db.carrier.deleteMany({
       where: { code: { in: [carrierCode, carrierCode + "_OTHER"] } },
     }),
@@ -126,6 +129,57 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     sellerId,
     status: "INVOICED",
     carrierId: carrier.id,
+  });
+  const enrichedDocument = {
+    ...document,
+    numero: "64321",
+    serie: "1",
+    chave: key,
+    enderecoCustomizado: { cidade: { nome: "Campinas", uf: "SP" } },
+    atributos: [
+      ...document.atributos,
+      { nome: "E-mail do cliente", valor: "cliente-zenlog@example.test" },
+      { nome: "CNPJ do tomador", valor: "04.252.011/0001-10" },
+      { nome: "Número do CT-e", valor: "12345" },
+      { nome: "Previsão de entrega", valor: "30/11/2026" },
+    ],
+  };
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      {
+        ...payload,
+        situacao: "3",
+        eventos: [{ id: 4, eventoId: 52, status: "S" }],
+        documentos: [enrichedDocument],
+      },
+    ],
+  });
+  await db.shipment.update({
+    where: { id: invoice.shipmentId },
+    data: { destinationCity: "Cidade ajustada no painel" },
+  });
+  expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
+    existing: 1,
+    linked: 0,
+  });
+  expect(
+    await db.shipment.findUniqueOrThrow({ where: { id: invoice.shipmentId } }),
+  ).toMatchObject({
+    destinationCity: "Cidade ajustada no painel",
+    destinationState: "SP",
+    payerDocument: "04252011000110",
+    cte: "12345",
+    estimatedDelivery: new Date("2026-11-30T15:00:00Z"),
+  });
+  expect(
+    await db.customer.findUniqueOrThrow({
+      where: { documentHash: documentHash(recipient) },
+    }),
+  ).toMatchObject({
+    email: "cliente-zenlog@example.test",
+    city: "Campinas",
+    state: "SP",
   });
   const entries = await db.auditLog.findMany({
     where: { entityId: order.id, action: "ZENLOG_STATUS" },
