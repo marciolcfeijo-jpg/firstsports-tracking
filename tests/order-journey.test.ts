@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 it("shows ZenLOG registration, named milestones, invoices and delivery chronologically", async () => {
-  vi.stubEnv("ZENLOG_EVENT_NAMES", '{"5":"Separação do pedido"}');
+  vi.stubEnv("ZENLOG_EVENT_NAMES", '{"5":"Separado"}');
   vi.mocked(db.auditLog.findMany).mockResolvedValue([
     {
       id: "snapshot",
@@ -72,15 +72,20 @@ it("shows ZenLOG registration, named milestones, invoices and delivery chronolog
   );
   const milestones = [
     "Pedido registrado no ZenLOG",
-    "Separação do pedido",
+    "Separado",
     "Conferência do pedido",
     "Evento ZenLOG · código 10",
     "Nota fiscal emitida",
     "Entrega confirmada",
   ];
-  const indices = milestones.map((label) => html.indexOf(label));
+  const indices = milestones.map((label) =>
+    html.indexOf(label, html.indexOf("Movimentações em ordem cronológica")),
+  );
   expect(indices.every((index) => index >= 0)).toBe(true);
   expect(indices).toEqual([...indices].sort((a, b) => a - b));
+  expect(html).toMatch(/NF impressa[^]*?Concluído[^]*?18\/11\/2026/);
+  expect(html).toMatch(/Separado[^]*?Concluído[^]*?13\/11\/2026/);
+  expect(html).toContain("Aguardando registro");
   expect(html).toContain("NF 34227");
   expect(html).toContain("Status técnicos do ZenLOG");
 });

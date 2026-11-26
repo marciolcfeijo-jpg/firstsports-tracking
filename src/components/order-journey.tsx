@@ -49,6 +49,21 @@ function eventCatalog(): Record<string, string> {
   }
 }
 
+const logisticsSteps = [
+  "Importado",
+  "Gerado",
+  "NF impressa",
+  "Separado",
+  "Conferido",
+  "Pesado",
+  "Expedido",
+  "Entregue",
+] as const;
+
+function normalizedLabel(value: string | undefined) {
+  return value?.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+}
+
 function zenlogDate(value: string | null | undefined) {
   if (!value) return;
   const date = new Date(
@@ -150,6 +165,7 @@ export async function OrderJourney({
       });
   }
 
+  const completedSteps = new Map<string, Date>();
   const seenZenlogEvents = new Set<number>();
   for (const expedition of expeditions) {
     expedition.events.forEach((event, index) => {
@@ -162,6 +178,12 @@ export async function OrderJourney({
         event.name || (code === null ? undefined : catalog[String(code)]);
       const start = zenlogDate(event.start);
       const end = zenlogDate(event.end);
+      const step = normalizedLabel(label);
+      const time = end ?? start;
+      if (step && time && event.status === "S") {
+        const previous = completedSteps.get(step);
+        if (!previous || time < previous) completedSteps.set(step, time);
+      }
       timeline.push({
         key: expedition.id + "-" + index,
         title:
@@ -249,36 +271,54 @@ export async function OrderJourney({
         .filter(Boolean),
     ),
   ];
-  const invoiceCount = shipments.reduce(
-    (count, shipment) => count + shipment.invoices.length,
-    0,
+  const firstInvoice = shipments
+    .filter(({ invoices }) => invoices.length)
+    .sort((a, b) => +a.issuedAt - +b.issuedAt)[0];
+  const activeShipments = shipments.filter(
+    ({ status }) => status !== "CANCELLED",
   );
-  const stages = [
-    [
-      "Pedido",
-      timeline.find(({ key }) => key === "received")?.displayTime ??
-        dateTime(registered ?? createdAt),
-    ],
-    [
-      "Expedição",
-      expeditions.some(({ events }) => events.length > 0)
-        ? "Movimentações do ZenLOG"
-        : "Sem eventos ZenLOG disponíveis",
-    ],
-    [
-      "Faturamento",
-      invoiceCount
-        ? invoiceCount +
-          (invoiceCount === 1 ? " NF vinculada" : " NFs vinculadas")
-        : "Nenhuma NF vinculada",
-    ],
-    [
-      "Entrega",
-      shipments.length || stage === "CANCELLED"
-        ? orderStatus(stage, shipments)
-        : "Aguardando remessa",
-    ],
-  ];
+  const deliveredShipments = activeShipments.filter(
+    ({ status }) => status === "DELIVERED",
+  );
+  const lastDelivery = deliveredShipments.reduce<Shipment | undefined>(
+    (latest, shipment) =>
+      shipment.deliveredAt &&
+      (!latest?.deliveredAt || shipment.deliveredAt > latest.deliveredAt)
+        ? shipment
+        : latest,
+    undefined,
+  );
+  const stages = logisticsSteps.map((label) => {
+    if (label === "NF impressa") {
+      return {
+        label,
+        complete: !!firstInvoice,
+        value: firstInvoice ? dateOnly(firstInvoice.issuedAt) : "Aguardando NF",
+      };
+    }
+    if (label === "Entregue") {
+      const complete =
+        deliveredShipments.length > 0 &&
+        deliveredShipments.length === activeShipments.length;
+      const missingDate = deliveredShipments.some(
+        ({ deliveredAt }) => !deliveredAt,
+      );
+      const value = complete
+        ? !missingDate && lastDelivery?.deliveredAt
+          ? deliveryDateTime(lastDelivery.deliveredAt, lastDelivery.events)
+          : "Data não informada"
+        : shipments.length > 0 || stage === "CANCELLED"
+          ? orderStatus(stage, shipments)
+          : "Aguardando remessa";
+      return { label, complete, value };
+    }
+    const time = completedSteps.get(label.toLowerCase());
+    return {
+      label,
+      complete: !!time,
+      value: time ? dateTime(time) : "Aguardando registro",
+    };
+  });
 
   return (
     <section
@@ -288,9 +328,12 @@ export async function OrderJourney({
     >
       <h2 id="order-journey-title">Jornada do pedido e da entrega</h2>
       <dl className="order-journey-stages">
-        {stages.map(([label, value]) => (
+        {stages.map(({ label, complete, value }) => (
           <div key={label}>
-            <dt>{label}</dt>
+            <dt>
+              {label}{" "}
+              {complete && <span className="badge DELIVERED">Concluído</span>}
+            </dt>
             <dd>{value}</dd>
           </div>
         ))}
