@@ -14,12 +14,15 @@ vi.mock("../src/lib/zenlog", () => ({ zenlogExpeditions: vi.fn() }));
 const carrierCode = "ZENLOG_CNPJ_TEST";
 const sellerId = "zenlog-import-test-seller";
 const number = "ZENLOG-IMPORT-TEST";
+const directNumber = "ZENLOG-DIRECT-TEST";
 const recipient = "39724061850";
 const issuer = "11222333000181";
 const key = "352611" + issuer + "55001" + "000064321" + "1000000000";
 
 afterEach(async () => {
-  const orders = await db.order.findMany({ where: { number } });
+  const orders = await db.order.findMany({
+    where: { number: { in: [number, directNumber] } },
+  });
   const orderIds = orders.map(({ id }) => id);
   await db.$transaction([
     db.auditLog.deleteMany({ where: { actorId: sellerId } }),
@@ -273,6 +276,50 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     expeditionStatus: "3",
     integrationStatus: "0",
     events: [{ code: 52, status: "S" }],
+  });
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      {
+        ...payload,
+        codigo: directNumber,
+        documentos: [
+          {
+            ...document,
+            pedido: directNumber,
+            numero: "64322",
+            serie: "1",
+            chave: extraKey,
+          },
+        ],
+      },
+    ],
+  });
+  const newTarget = {
+    recipientRef: hashToken(documentHash(recipient)),
+    invoiceHash: hashToken(extraKey),
+    invoiceNumber: "64322",
+  };
+  expect(
+    await importZenlogPage(0, directNumber, sellerId, {
+      target: { ...newTarget, recipientRef: hashToken("another-recipient") },
+    }),
+  ).toMatchObject({ created: 0, linked: 0 });
+  const linked = await importZenlogPage(0, directNumber, sellerId, {
+    target: newTarget,
+  });
+  expect(linked).toMatchObject({
+    created: 1,
+    linked: 1,
+    linkedOrderId: expect.any(String),
+  });
+  expect(
+    await importZenlogPage(0, directNumber, sellerId, { target: newTarget }),
+  ).toMatchObject({
+    created: 0,
+    linked: 0,
+    existing: 1,
+    linkedOrderId: linked.linkedOrderId,
   });
 });
 

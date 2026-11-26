@@ -89,7 +89,7 @@ async function importDocument(
   actorId: string,
   carrierCodes: Record<string, string>,
   onlyNew: boolean,
-  target?: { orderId: string; invoiceHash: string },
+  target?: { orderId?: string; recipientRef?: string; invoiceHash: string },
 ) {
   const number = doc.pedido?.trim();
   const recipient = digits(doc.destinatario?.cpfCnpj ?? "");
@@ -170,7 +170,13 @@ async function importDocument(
   return db.$transaction(
     async (tx) => {
       const hash = documentHash(recipient);
-      if (target) {
+      if (
+        target &&
+        ((!target.orderId && !target.recipientRef) ||
+          (target.recipientRef && hashToken(hash) !== target.recipientRef))
+      )
+        return null;
+      if (target?.orderId) {
         const expectedOrder = await tx.order.findFirst({
           where: {
             id: target.orderId,
@@ -546,7 +552,9 @@ async function importDocument(
           linked++;
         }
       }
-      return { created, linked, existing, pending };
+      if (target && pending && !linked && !existing)
+        throw new HttpError(422, "NF pendente de revisão.");
+      return { created, linked, existing, pending, orderId: order.id };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
@@ -561,7 +569,12 @@ export async function importZenlogPage(
     target,
   }: {
     onlyNew?: boolean;
-    target?: { orderId: string; invoiceHash: string; invoiceNumber: string };
+    target?: {
+      orderId?: string;
+      recipientRef?: string;
+      invoiceHash: string;
+      invoiceNumber: string;
+    };
   } = {},
 ) {
   const carrierCodes = Object.fromEntries(
@@ -584,6 +597,7 @@ export async function importZenlogPage(
     existing: 0,
     pending: 0,
     skipped: 0,
+    linkedOrderId: undefined as string | undefined,
   };
   for (const expedition of items) {
     const documents = (expedition.documentos ?? []).filter(
@@ -610,7 +624,10 @@ export async function importZenlogPage(
             attempt < 2
           )
             continue;
-          if (error instanceof HttpError && error.status < 500) break;
+          if (error instanceof HttpError && error.status < 500) {
+            if (target && error.status === 422) summary.pending++;
+            break;
+          }
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
             ["P2034", "P2002"].includes(error.code)
@@ -628,6 +645,8 @@ export async function importZenlogPage(
         continue;
       }
       summary[result.created ? "created" : "reused"]++;
+      if (target && (result.linked || result.existing))
+        summary.linkedOrderId = result.orderId;
       summary.linked += result.linked;
       summary.existing += result.existing;
       summary.pending += result.pending;
