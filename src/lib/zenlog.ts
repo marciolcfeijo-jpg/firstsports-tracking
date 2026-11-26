@@ -171,7 +171,11 @@ const expeditionList = z.object({
 
 export const zenlogPageSize = 10;
 
-export async function zenlogExpeditions(skip: number, order: string) {
+export async function zenlogExpeditions(
+  skip: number,
+  order: string,
+  invoiceNumber?: string,
+) {
   const operator = digits(formatDocument(process.env.ZENLOG_OPERATOR_DOCUMENT));
   const depositor = digits(
     formatDocument(process.env.ZENLOG_DEPOSITOR_DOCUMENT),
@@ -181,6 +185,7 @@ export async function zenlogExpeditions(skip: number, order: string) {
   url.searchParams.set("SkipCount", String(skip));
   url.searchParams.set("MaxResultCount", String(zenlogPageSize));
   if (order) url.searchParams.set("Pedido", order);
+  if (invoiceNumber) url.searchParams.set("NumeroNf", invoiceNumber);
   const parsed = expeditionList.safeParse(
     await zenlogFetch(url, "listagem de expedições", { headers }),
   );

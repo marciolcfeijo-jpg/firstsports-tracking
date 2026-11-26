@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
-import { documentHash, HttpError } from "./security";
+import { documentHash, hashToken, HttpError } from "./security";
 import { createShipment } from "./shipments";
 import { digits, shipmentSchema, validDocument } from "./validation";
 import { zenlogExpeditions } from "./zenlog";
@@ -89,6 +89,7 @@ async function importDocument(
   actorId: string,
   carrierCodes: Record<string, string>,
   onlyNew: boolean,
+  target?: { orderId: string; invoiceHash: string },
 ) {
   const number = doc.pedido?.trim();
   const recipient = digits(doc.destinatario?.cpfCnpj ?? "");
@@ -96,6 +97,11 @@ async function importDocument(
   if (!number || number.length > 120 || !validDocument(recipient) || !name)
     return null;
 
+  const invoices = invoiceReferences(doc).filter(
+    (invoice) =>
+      !target || (invoice.key && hashToken(invoice.key) === target.invoiceHash),
+  );
+  if (target && !invoices.length) return null;
   const attribute = documentAttributes(doc);
   const address = doc.enderecoCustomizado;
   const city = (
@@ -164,6 +170,17 @@ async function importDocument(
   return db.$transaction(
     async (tx) => {
       const hash = documentHash(recipient);
+      if (target) {
+        const expectedOrder = await tx.order.findFirst({
+          where: {
+            id: target.orderId,
+            number,
+            customer: { documentHash: hash },
+          },
+          select: { id: true },
+        });
+        if (!expectedOrder) return null;
+      }
       if (onlyNew) {
         const existing = await tx.order.findFirst({
           where: { number, customer: { documentHash: hash } },
@@ -321,7 +338,6 @@ async function importDocument(
       let linked = 0;
       let existing = 0;
       let pending = 0;
-      const invoices = invoiceReferences(doc);
       const carrierRef = doc.transportador?.trim() || "";
       const carrierDocument = digits(carrierRef);
       const mappedCarrier = carrierCodes[carrierDocument];
@@ -540,7 +556,13 @@ export async function importZenlogPage(
   skip: number,
   order: string,
   actorId: string,
-  { onlyNew = false } = {},
+  {
+    onlyNew = false,
+    target,
+  }: {
+    onlyNew?: boolean;
+    target?: { orderId: string; invoiceHash: string; invoiceNumber: string };
+  } = {},
 ) {
   const carrierCodes = Object.fromEntries(
     (process.env.ZENLOG_CARRIER_CODES ?? "").split(",").flatMap((pair) => {
@@ -553,7 +575,7 @@ export async function importZenlogPage(
         : [];
     }),
   );
-  const { items } = await zenlogExpeditions(skip, order);
+  const { items } = await zenlogExpeditions(skip, order, target?.invoiceNumber);
   const summary = {
     created: 0,
     reused: 0,
@@ -578,6 +600,7 @@ export async function importZenlogPage(
             actorId,
             carrierCodes,
             onlyNew,
+            target,
           );
           break;
         } catch (error) {

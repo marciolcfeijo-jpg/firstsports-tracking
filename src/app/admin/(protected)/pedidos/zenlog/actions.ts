@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+import { db } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { HttpError, rateLimit } from "@/lib/security";
@@ -52,6 +54,62 @@ export async function importZenlog(
         error instanceof HttpError && error.status < 600
           ? error.message
           : "A importação foi interrompida. Você pode repetir a página para concluir os registros restantes.",
+    };
+  }
+}
+
+export async function linkZenlogInvoice(
+  _previous: { message: string; error?: boolean } | null,
+  formData: FormData,
+) {
+  try {
+    const actor = await requireAdmin(["ADMIN", "OPERATOR"]);
+    const parsed = z
+      .object({
+        orderId: z.string().min(1).max(100),
+        invoiceHash: z.string().regex(/^[a-f0-9]{64}$/),
+        invoiceNumber: z.string().regex(/^\d{1,9}$/),
+      })
+      .safeParse({
+        orderId: formData.get("orderId"),
+        invoiceHash: formData.get("invoiceHash"),
+        invoiceNumber: formData.get("invoiceNumber"),
+      });
+    if (!parsed.success)
+      throw new HttpError(400, "Atualize a prévia para conferir esta NF.");
+    const target = parsed.data;
+    const order = await db.order.findUnique({
+      where: { id: target.orderId },
+      select: { number: true, stage: true },
+    });
+    if (!order || order.number.length > 20 || order.stage === "CANCELLED")
+      throw new HttpError(409, "Confira o pedido antes de vincular a NF.");
+    await rateLimit("zenlog:import:global", 20, 60);
+    await rateLimit("zenlog:import:" + actor.id, 10, 60);
+    const result = await importZenlogPage(0, order.number, actor.id, {
+      target,
+    });
+    if (!result.linked && !result.existing)
+      throw new HttpError(
+        409,
+        result.pending
+          ? "NF pendente de revisão. Confira os dados fiscais ou o vínculo existente."
+          : "Não foi possível confirmar esta NF neste pedido. Atualize a prévia.",
+      );
+    revalidatePath("/admin/pedidos");
+    revalidatePath("/admin/carteira");
+    return {
+      message: result.linked
+        ? "NF vinculada ao pedido."
+        : "A NF já estava vinculada ao pedido.",
+    };
+  } catch (error) {
+    return {
+      error: true,
+      message:
+        error instanceof HttpError
+          ? error.message
+          : "Não foi possível concluir o vínculo. Tente novamente.",
     };
   }
 }

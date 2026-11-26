@@ -1,7 +1,7 @@
 import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { setCarrierCnpj } from "../src/lib/carriers";
 import { db } from "../src/lib/db";
-import { documentHash } from "../src/lib/security";
+import { documentHash, hashToken } from "../src/lib/security";
 import { importZenlogPage } from "../src/lib/zenlog-import";
 import {
   zenlogOrderPage,
@@ -130,6 +130,7 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
   expect(await zenlogOrderPage("atualizados", number, 0, 50)).toEqual([]);
   expect(order.issuedAt?.toISOString()).toBe("2026-11-24T00:00:00.000Z");
 
+  const extraKey = key.replace("000064321", "000064322");
   vi.mocked(zenlogExpeditions).mockResolvedValue({
     totalCount: 1,
     items: [
@@ -137,7 +138,15 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
         ...payload,
         situacao: "3",
         eventos: [{ id: 4, eventoId: 52, status: "S" }],
-        documentos: [{ ...document, numero: "64321", serie: "1", chave: key }],
+        documentos: [
+          {
+            ...document,
+            numero: "64321",
+            serie: "1",
+            chave: key,
+            notas: [{ numero: "64322", serie: "1", chave: extraKey }],
+          },
+        ],
       },
     ],
   });
@@ -151,16 +160,34 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
   expect(
     await db.shipmentInvoice.findUnique({ where: { accessKey: key } }),
   ).toBeNull();
-  expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
-    reused: 1,
-    linked: 1,
-    pending: 0,
-  });
-  expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
-    reused: 1,
-    linked: 0,
-    existing: 1,
-  });
+  const target = {
+    orderId: order.id,
+    invoiceHash: hashToken(key),
+    invoiceNumber: "64321",
+  };
+  expect(
+    await importZenlogPage(0, number, sellerId, {
+      target: { ...target, orderId: "another-order" },
+    }),
+  ).toMatchObject({ linked: 0 });
+  expect(await importZenlogPage(0, number, sellerId, { target })).toMatchObject(
+    {
+      reused: 1,
+      linked: 1,
+      pending: 0,
+    },
+  );
+  expect(zenlogExpeditions).toHaveBeenLastCalledWith(0, number, "64321");
+  expect(await importZenlogPage(0, number, sellerId, { target })).toMatchObject(
+    {
+      reused: 1,
+      linked: 0,
+      existing: 1,
+    },
+  );
+  expect(
+    await db.shipmentInvoice.findUnique({ where: { accessKey: extraKey } }),
+  ).toBeNull();
   const invoice = await db.shipmentInvoice.findUniqueOrThrow({
     where: { accessKey: key },
     include: { shipment: true },
