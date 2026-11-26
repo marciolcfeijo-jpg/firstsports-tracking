@@ -126,8 +126,7 @@ export async function portfolioPlan(
     else if (customer.erpCode && customer.erpCode !== row.code)
       status = "Cliente já tem outro código ERP";
     else if (!seller) status = "Código do vendedor não encontrado";
-    else if (!seller.active || seller.role !== "SALES")
-      status = "Vendedor sem acesso ativo";
+    else if (seller.role !== "SALES") status = "Usuário sem perfil de vendedor";
     else if (customer.responsibleId && customer.responsibleId !== seller.id)
       status = "Cliente já tem outro responsável";
     else if (customer.erpCode && customer.responsibleId)
@@ -145,6 +144,7 @@ export async function portfolioPlan(
       code: row.code.slice(0, 60),
       sellerCode: row.sellerCode.slice(0, 60),
       email: seller?.email,
+      inactive: seller?.active === false,
       status,
     };
   });
