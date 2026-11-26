@@ -24,17 +24,21 @@ export async function importZenlog(
       throw new HttpError(400, "Confira o pedido e a página selecionada.");
     await rateLimit("zenlog:import:global", 20, 60);
     await rateLimit("zenlog:import:" + actor.id, 10, 60);
+    const onlyNew = formData.get("filtro") === "novos";
     const result = await importZenlogPage(
       (page - 1) * zenlogPageSize,
       order,
       actor.id,
+      { onlyNew },
     );
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin/carteira");
     return {
       message: [
         `Pedidos criados: ${result.created}`,
-        `Pedidos reaproveitados: ${result.reused}`,
+        onlyNew
+          ? `Já estavam no portal: ${result.alreadyInPortal}`
+          : `Pedidos reaproveitados: ${result.reused}`,
         `NFs vinculadas: ${result.linked}`,
         `NFs já vinculadas: ${result.existing}`,
         `NFs para revisão: ${result.pending}`,

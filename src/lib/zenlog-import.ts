@@ -88,6 +88,7 @@ async function importDocument(
   doc: Document,
   actorId: string,
   carrierCodes: Record<string, string>,
+  onlyNew: boolean,
 ) {
   const number = doc.pedido?.trim();
   const recipient = digits(doc.destinatario?.cpfCnpj ?? "");
@@ -163,6 +164,13 @@ async function importDocument(
   return db.$transaction(
     async (tx) => {
       const hash = documentHash(recipient);
+      if (onlyNew) {
+        const existing = await tx.order.findFirst({
+          where: { number, customer: { documentHash: hash } },
+          select: { id: true },
+        });
+        if (existing) return "already-in-portal" as const;
+      }
       const seller =
         sellerEmails.length === 1
           ? await tx.adminUser.findFirst({
@@ -485,6 +493,7 @@ export async function importZenlogPage(
   skip: number,
   order: string,
   actorId: string,
+  { onlyNew = false } = {},
 ) {
   const carrierCodes = Object.fromEntries(
     (process.env.ZENLOG_CARRIER_CODES ?? "").split(",").flatMap((pair) => {
@@ -501,6 +510,7 @@ export async function importZenlogPage(
   const summary = {
     created: 0,
     reused: 0,
+    alreadyInPortal: 0,
     linked: 0,
     existing: 0,
     pending: 0,
@@ -515,7 +525,13 @@ export async function importZenlogPage(
       let result;
       for (let attempt = 0; attempt < 3; attempt++) {
         try {
-          result = await importDocument(expedition, doc, actorId, carrierCodes);
+          result = await importDocument(
+            expedition,
+            doc,
+            actorId,
+            carrierCodes,
+            onlyNew,
+          );
           break;
         } catch (error) {
           if (
@@ -532,6 +548,10 @@ export async function importZenlogPage(
             break;
           throw error;
         }
+      }
+      if (result === "already-in-portal") {
+        summary.alreadyInPortal++;
+        continue;
       }
       if (!result) {
         summary.skipped++;
