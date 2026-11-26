@@ -313,10 +313,10 @@ export async function OrderJourney({
   );
   const portalStages = [
     {
-      label: "NF impressa",
+      label: hasInvoice ? "NF impressa" : "NF no portal",
       complete: hasInvoice,
       value: !hasInvoice
-        ? "Aguardando NF"
+        ? "Sem NF vinculada"
         : invoiceEventAt
           ? dateTime(invoiceEventAt)
           : "Data não informada",

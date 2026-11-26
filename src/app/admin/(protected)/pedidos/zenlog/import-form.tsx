@@ -9,11 +9,15 @@ export function ZenlogImportForm({
   page,
   onlyNew,
   hasRows,
+  hasPendingInvoice,
+  orderHref,
 }: {
   order: string;
   page: number;
   onlyNew: boolean;
   hasRows: boolean;
+  hasPendingInvoice: boolean;
+  orderHref?: string;
 }) {
   const [result, action, pending] = useActionState(importZenlog, null);
   if (!hasRows && !result && !pending) return null;
@@ -33,7 +37,9 @@ export function ZenlogImportForm({
             {pending
               ? "Importando…"
               : order
-                ? "Importar pedido"
+                ? hasPendingInvoice && orderHref
+                  ? "Vincular NF e atualizar pedido"
+                  : "Importar pedido"
                 : onlyNew
                   ? "Importar pedidos novos"
                   : "Importar esta página"}
@@ -45,6 +51,11 @@ export function ZenlogImportForm({
           <p role={result.error ? "alert" : "status"}>{result.message}</p>
           {!result.error && (
             <div className="actions">
+              {orderHref && (
+                <Link className="button secondary" href={orderHref}>
+                  Ver notas na ficha do pedido
+                </Link>
+              )}
               <Link href="/admin/pedidos?origem=novos">
                 Ver pedidos criados pelo ZenLOG
               </Link>

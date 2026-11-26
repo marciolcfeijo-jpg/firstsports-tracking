@@ -99,7 +99,7 @@ it("shows ZenLOG registration, named milestones, invoices and delivery chronolog
 
 it("does not load ZenLOG snapshots outside the seller's authorized order scope", async () => {
   vi.mocked(db.auditLog.findMany).mockResolvedValue([]);
-  await OrderJourney({
+  const journey = await OrderJourney({
     orderId: "order",
     createdAt: new Date("2026-11-25T12:00:00Z"),
     issuedAt: null,
@@ -107,6 +107,7 @@ it("does not load ZenLOG snapshots outside the seller's authorized order scope",
     shipments: [],
     includeZenlog: false,
   });
+  expect(renderToStaticMarkup(journey)).toContain("Sem NF vinculada");
   expect(db.auditLog.findMany).toHaveBeenCalledWith(
     expect.objectContaining({
       where: { entityId: "order", action: { in: ["ORDER_STAGE_UPDATE"] } },

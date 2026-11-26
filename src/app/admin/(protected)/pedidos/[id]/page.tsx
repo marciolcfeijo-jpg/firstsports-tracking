@@ -69,6 +69,11 @@ export default async function OrderDetails({
   const canWrite = user.role !== "VIEWER";
   const status = orderStatus(order.stage, order.shipments);
   const invoices = order.shipments.flatMap((shipment) => shipment.invoices);
+  const zenlogHref =
+    canWrite && process.env.ZENLOG_API_ORIGIN && order.number.length <= 20
+      ? "/admin/pedidos/zenlog?" +
+        new URLSearchParams({ consultar: "1", pedido: order.number })
+      : null;
 
   return (
     <>
@@ -79,12 +84,21 @@ export default async function OrderDetails({
           <p>{status}</p>
         </div>
         {canWrite && order.stage !== "CANCELLED" && (
-          <Link
-            className="button"
-            href={`/admin/remessas/nova?pedido=${encodeURIComponent(id)}`}
-          >
-            Cadastrar remessa
-          </Link>
+          <div className="actions">
+            {zenlogHref && (
+              <Link className="button" href={zenlogHref}>
+                {invoices.length
+                  ? "Consultar NF no ZenLOG"
+                  : "Buscar e vincular NF do ZenLOG"}
+              </Link>
+            )}
+            <Link
+              className={zenlogHref ? "button secondary" : "button"}
+              href={`/admin/remessas/nova?pedido=${encodeURIComponent(id)}`}
+            >
+              Cadastrar remessa
+            </Link>
+          </div>
         )}
       </div>
       <nav className="actions mb-4" aria-label="Seções do pedido">
@@ -95,6 +109,13 @@ export default async function OrderDetails({
           Notas fiscais ({invoices.length})
         </Link>
       </nav>
+      {!invoices.length && (
+        <p className="notice mb-4">
+          Nenhuma NF está vinculada a este pedido no portal.
+          {zenlogHref &&
+            " Consulte o ZenLOG para verificar se há uma nota disponível para vínculo."}
+        </p>
+      )}
       <OrderJourney
         orderId={id}
         createdAt={order.createdAt}
@@ -154,7 +175,7 @@ export default async function OrderDetails({
           <p>
             {order.stage === null
               ? "O pedido está sem remessa vinculada e sem etapa interna registrada. Confira o faturamento e o histórico antes de vincular outra remessa."
-              : "Aguardando NF vinculada para iniciar o rastreio."}
+              : "O rastreio fica disponível quando uma NF for vinculada."}
           </p>
         )}
         {order.shipments.map((shipment) => (

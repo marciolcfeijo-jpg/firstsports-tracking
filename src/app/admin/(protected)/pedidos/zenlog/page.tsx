@@ -53,10 +53,10 @@ async function preview(
                   : null;
               const status = existing
                 ? existing.shipment.orderId === matchingOrder?.id
-                  ? "Já vinculada"
+                  ? "Já vinculada neste pedido"
                   : "Revisar vínculo existente"
                 : key.length === 44 && number && validDocument(recipient)
-                  ? "Candidata a vínculo"
+                  ? "Vínculo pendente no portal"
                   : "Revisar dados da NF";
               return {
                 number: invoice?.numero?.trim() || "—",
@@ -68,8 +68,9 @@ async function preview(
         return {
           code: item.codigo,
           number,
+          orderId: matchingOrder?.id,
           status: matchingOrder
-            ? "Já existe no portal"
+            ? "Pedido já cadastrado"
             : validOrder
               ? "Novo no portal"
               : "Revisar dados do pedido",
@@ -128,6 +129,18 @@ export default async function ZenlogPreviewPage({
   const totalPages = Math.min(
     100_000,
     Math.ceil((result?.totalCount ?? 0) / zenlogPageSize),
+  );
+  const orderIds = [
+    ...new Set(result?.rows.flatMap((row) => row.orderId ?? []) ?? []),
+  ];
+  const orderHref =
+    order && orderIds.length === 1
+      ? `/admin/pedidos/${orderIds[0]}#notas-fiscais`
+      : undefined;
+  const hasPendingInvoice = !!result?.rows.some((row) =>
+    row.invoices.some(
+      (invoice) => invoice.status === "Vínculo pendente no portal",
+    ),
   );
   const pagination = (
     <nav aria-label="Páginas da prévia" className="actions spaced mb-4">
@@ -208,15 +221,23 @@ export default async function ZenlogPreviewPage({
                 <tr>
                   <th>Expedição</th>
                   <th>Pedido</th>
-                  <th>Situação no portal</th>
-                  <th>NFs</th>
+                  <th>Cadastro do pedido</th>
+                  <th>NFs retornadas pelo ZenLOG</th>
                 </tr>
               </thead>
               <tbody>
                 {result.rows.map((row, index) => (
                   <tr key={index}>
                     <td>{row.code}</td>
-                    <td>{row.number || "—"}</td>
+                    <td>
+                      {row.orderId ? (
+                        <Link href={`/admin/pedidos/${row.orderId}`}>
+                          {row.number}
+                        </Link>
+                      ) : (
+                        row.number || "—"
+                      )}
+                    </td>
                     <td>{row.status}</td>
                     <td>
                       {row.invoices.length
@@ -229,7 +250,7 @@ export default async function ZenlogPreviewPage({
                               · {invoice.status}
                             </div>
                           ))
-                        : "Sem NF informada"}
+                        : "ZenLOG retornou o pedido sem NF"}
                     </td>
                   </tr>
                 ))}
@@ -253,6 +274,8 @@ export default async function ZenlogPreviewPage({
             page={page}
             onlyNew={onlyNew}
             hasRows={result.rows.length > 0}
+            hasPendingInvoice={hasPendingInvoice}
+            orderHref={orderHref}
           />
           {pagination}
         </>
