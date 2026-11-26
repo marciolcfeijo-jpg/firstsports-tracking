@@ -69,10 +69,14 @@ export function PortfolioForm() {
         <>
           <section className="card mb-4">
             <h2>Resultado da prévia</h2>
+            <p>
+              {result.detail?.length ?? 0} linhas de clientes no arquivo. Um
+              vendedor pode aparecer em várias linhas.
+            </p>
             <ul>
               {Object.entries(result.summary).map(([label, count]) => (
                 <li key={label}>
-                  {label} · {count}
+                  {label} · {count} {count === 1 ? "linha" : "linhas"}
                 </li>
               ))}
             </ul>
@@ -111,7 +115,14 @@ export function PortfolioForm() {
                   <tr key={index}>
                     <td>{row.code || "—"}</td>
                     <td>{row.sellerCode || "—"}</td>
-                    <td>{row.email ?? "—"}</td>
+                    <td>
+                      {row.email ?? "—"}
+                      {row.inactive && (
+                        <small className="order-row-detail">
+                          Acesso inativo
+                        </small>
+                      )}
+                    </td>
                     <td>{row.status}</td>
                   </tr>
                 ))}

@@ -18,6 +18,7 @@ afterAll(async () => {
 it("matches a CNPJ with a missing leading zero and applies the reviewed assignment once", async () => {
   const seller = await db.adminUser.create({
     data: {
+      active: false,
       id: "portfolio-test-seller",
       email: "portfolio@example.test",
       role: "SALES",
@@ -45,12 +46,18 @@ it("matches a CNPJ with a missing leading zero and applies the reviewed assignme
   );
   const preview = await importPortfolio(form);
   expect(preview.summary).toEqual({ "Pronto para atualizar": 1 });
-  expect(preview.detail?.[0]?.email).toBe(seller.email);
+  expect(preview.detail?.[0]).toMatchObject({
+    email: seller.email,
+    inactive: true,
+  });
   expect(
     await db.customer.findUnique({ where: { id: customer.id } }),
   ).toMatchObject({ responsibleId: null });
   form.set("confirmacao", preview.confirmation!);
   expect(await importPortfolio(form)).toEqual({ updated: 1 });
+  expect(
+    await db.adminUser.findUnique({ where: { id: seller.id } }),
+  ).toMatchObject({ active: false });
   expect(
     await db.customer.findUnique({ where: { id: customer.id } }),
   ).toMatchObject({
