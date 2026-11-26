@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 it("shows ZenLOG registration, named milestones, invoices and delivery chronologically", async () => {
-  vi.stubEnv("ZENLOG_EVENT_NAMES", '{"5":"Separado"}');
+  vi.stubEnv("ZENLOG_EVENT_NAMES", "{}");
   vi.mocked(db.auditLog.findMany).mockResolvedValue([
     {
       id: "snapshot",
@@ -34,7 +34,7 @@ it("shows ZenLOG registration, named milestones, invoices and delivery chronolog
             end: null,
           },
           {
-            code: 5,
+            code: 6,
             sequence: null,
             status: "S",
             start: "2026-11-13T09:00:00",
@@ -74,7 +74,7 @@ it("shows ZenLOG registration, named milestones, invoices and delivery chronolog
     "Pedido registrado no ZenLOG",
     "Separado",
     "Conferência do pedido",
-    "Evento ZenLOG · código 10",
+    "Nota Fiscal",
     "Nota fiscal emitida",
     "Entrega confirmada",
   ];
