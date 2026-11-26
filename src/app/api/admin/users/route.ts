@@ -5,6 +5,12 @@ import { db } from "@/lib/db";
 import { apiError, checkOrigin, HttpError } from "@/lib/security";
 import { z } from "zod";
 const role = z.enum(["ADMIN", "OPERATOR", "VIEWER", "SALES"]);
+const sellerCode = z
+  .string()
+  .trim()
+  .max(60)
+  .transform((value) => value || null)
+  .optional();
 const permissions = z.object({ role, active: z.boolean() });
 
 function validateOwnAccess(
@@ -34,14 +40,24 @@ export async function POST(r: Request) {
     checkOrigin(r);
     const actor = await requireAdmin(["ADMIN"]);
     const body = z
-      .object({ id: z.uuid(), email: z.email(), ...permissions.shape })
+      .object({
+        id: z.uuid(),
+        email: z.email(),
+        erpSellerCode: sellerCode,
+        ...permissions.shape,
+      })
       .parse(await r.json());
     validateOwnAccess(actor.id, body.id, body);
     await db.$transaction(async (tx) => {
       await tx.adminUser.upsert({
         where: { id: body.id },
         create: body,
-        update: { role: body.role, active: body.active, email: body.email },
+        update: {
+          role: body.role,
+          active: body.active,
+          email: body.email,
+          erpSellerCode: body.erpSellerCode,
+        },
       });
       await tx.auditLog.create({
         data: {
@@ -66,6 +82,7 @@ export async function PATCH(request: Request) {
         id: z.uuid(),
         newId: z.string().trim().toLowerCase().pipe(z.uuid()).optional(),
         previous: permissions,
+        erpSellerCode: sellerCode,
       })
       .parse(await request.json());
     validateOwnAccess(actor.id, id, access);
@@ -118,7 +135,8 @@ export async function PATCH(request: Request) {
         if (
           changedId ||
           previous.role !== access.role ||
-          previous.active !== access.active
+          previous.active !== access.active ||
+          access.erpSellerCode !== undefined
         )
           await tx.auditLog.create({
             data: {

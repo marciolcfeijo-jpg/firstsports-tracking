@@ -43,18 +43,26 @@ model AdminUser {
   createdAt      DateTime   @default(now())
   salesShipments Shipment[] @relation("ShipmentSeller")
   salesOrders    Order[]    @relation("OrderSeller")
+  erpSellerCode  String?    @unique
+  customers      Customer[]
 }
 
 model Customer {
-  id           String   @id @default(cuid())
-  name         String
-  documentHash String   @unique
-  email        String?
-  city         String
-  state        String
-  orders       Order[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String     @id @default(cuid())
+  name              String
+  documentHash      String     @unique
+  email             String?
+  city              String
+  state             String
+  erpCode           String?    @unique
+  zenlogRecipientId Int?       @unique
+  responsibleId     String?
+  responsible       AdminUser? @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
+  orders            Order[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([responsibleId])
 }
 
 model Order {

@@ -63,12 +63,22 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
   await expect(
     setCarrierCnpj(other.id, issuer, sellerId),
   ).rejects.toMatchObject({ status: 409 });
+  await db.customer.create({
+    data: {
+      documentHash: documentHash(recipient),
+      name: "Cliente de teste",
+      city: "",
+      state: "",
+      responsibleId: sellerId,
+    },
+  });
   const document = {
     id: 98,
     pedido: number,
     destinatario: { cpfCnpj: recipient, nome: "Cliente de teste" },
     transportador: "11.222.333/0001-81",
-    atributos: [{ nome: "Vendedor", valor: "seller-zenlog@example.test" }],
+    destinatarioId: 62041,
+    atributos: [],
     situacao: "ATIVO",
     notas: [],
   };
@@ -97,6 +107,19 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     where: { number, customer: { documentHash: documentHash(recipient) } },
   });
   expect(order.sellerId).toBe(sellerId);
+  expect(
+    await db.customer.findUnique({ where: { zenlogRecipientId: 62041 } }),
+  ).toMatchObject({ id: order.customerId });
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      { ...payload, documentos: [{ ...document, destinatarioId: 62042 }] },
+    ],
+  });
+  expect(await importZenlogPage(0, number, sellerId)).toMatchObject({
+    skipped: 1,
+    reused: 0,
+  });
   expect(await zenlogOrderPage("novos", number, 0, 50)).toEqual([order.id]);
   expect(await zenlogOrderPage("atualizados", number, 0, 50)).toEqual([]);
   expect(order.issuedAt?.toISOString()).toBe("2026-11-24T00:00:00.000Z");

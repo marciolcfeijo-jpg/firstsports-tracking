@@ -11,7 +11,13 @@ export default async function Users({
   await requirePageAdmin(["ADMIN"]);
   const { editar } = await searchParams;
   const users = await db.adminUser.findMany({
-    select: { id: true, email: true, role: true, active: true },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      active: true,
+      erpSellerCode: true,
+    },
     orderBy: { email: "asc" },
   });
   const selected = users.find((user) => user.id === editar);
@@ -33,6 +39,7 @@ export default async function Users({
               <th>E-mail</th>
               <th>Papel</th>
               <th>Status</th>
+              <th>Código ERP</th>
               <th>UUID</th>
               <th>Ações</th>
             </tr>
@@ -43,6 +50,7 @@ export default async function Users({
                 <td>{u.email}</td>
                 <td>{userRoleLabels[u.role]}</td>
                 <td>{u.active ? "Ativo" : "Inativo"}</td>
+                <td>{u.erpSellerCode || "—"}</td>
                 <td>{u.id}</td>
                 <td>
                   <Link

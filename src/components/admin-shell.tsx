@@ -9,6 +9,7 @@ import {
   Upload,
   Truck,
   Users,
+  Contact,
   Settings,
   LogOut,
   ExternalLink,
@@ -20,6 +21,7 @@ const entries = [
   ["/admin/remessas", "Remessas", Package],
   ["/admin/importacoes", "Importações", Upload],
   ["/admin/transportadoras", "Transportadoras", Truck],
+  ["/admin/clientes", "Clientes", Contact],
   ["/admin/usuarios", "Usuários", Users],
   ["/admin/configuracoes", "Configurações", Settings],
 ] as const;
@@ -55,7 +57,13 @@ export function AdminShell({
         {brand}
         <nav>
           {navigation
-            .filter(([href]) => role === "ADMIN" || href !== "/admin/usuarios")
+            .filter(
+              ([href]) =>
+                (href !== "/admin/usuarios" || role === "ADMIN") &&
+                (href !== "/admin/clientes" ||
+                  role === "ADMIN" ||
+                  role === "OPERATOR"),
+            )
             .map(([href, label, Icon]) => (
               <Link
                 key={href}
