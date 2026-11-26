@@ -37,15 +37,24 @@ const catalogSchema = z.record(
   z.string().trim().min(1).max(120),
 );
 
+// From Evento/GetAll for the First Sports installation.
+const confirmedEventNames: Record<string, string> = {
+  5: "Solicitado",
+  6: "Separado",
+  7: "Conferido",
+  8: "Embarcado",
+  9: "Expedido",
+  10: "Nota Fiscal",
+};
+
 function eventCatalog(): Record<string, string> {
   try {
-    return (
-      catalogSchema.safeParse(
-        JSON.parse(process.env.ZENLOG_EVENT_NAMES ?? "{}"),
-      ).data ?? {}
-    );
+    const configured = catalogSchema.safeParse(
+      JSON.parse(process.env.ZENLOG_EVENT_NAMES ?? "{}"),
+    ).data;
+    return { ...confirmedEventNames, ...configured };
   } catch {
-    return {};
+    return confirmedEventNames;
   }
 }
 
