@@ -4,6 +4,7 @@ import {
   salesReportShipmentWhere,
   salesShipmentsWhere,
 } from "../src/lib/sales-portfolio";
+import { updateOrderStage } from "../src/lib/orders";
 import { agedOrdersWithoutShipments } from "../src/lib/operational-report";
 import { deliveryMetrics } from "../src/lib/delivery-metrics";
 import { shipmentWhere } from "../src/lib/filters";
@@ -450,4 +451,51 @@ it("faz a busca comercial por vendedor e protege as demais remessas do mesmo ped
       where: salesPortfolioShipmentFilter(own, status, "77661", now),
     }),
   ).toBe(0);
+  await db.customer.update({
+    where: { id: customer.id },
+    data: { responsibleId: own },
+  });
+  const inheritedShipment = await createShipmentTransaction(
+    {
+      ...shipmentFixture,
+      numero_pedido: "CARTEIRA-CLIENTE",
+      numero_nf: "77664",
+    },
+    "fixture",
+  );
+  expect(
+    await db.shipment.findFirst({
+      where: { id: inheritedShipment.id, ...salesShipmentsWhere(own) },
+    }),
+  ).toBeTruthy();
+  expect(
+    await db.shipmentInvoice.count({
+      where: {
+        number: { in: ["77662", "77663"] },
+        shipment: salesShipmentsWhere(own),
+      },
+    }),
+  ).toBe(0);
+  const inheritedOrder = await db.order.create({
+    data: {
+      number: "CARTEIRA-CLIENTE-PRE-NF",
+      customerId: customer.id,
+      stage: "RECEIVED",
+    },
+  });
+  await expect(
+    updateOrderStage(
+      { id: inheritedOrder.id, from: "RECEIVED", stage: "PREPARING" },
+      other,
+      other,
+    ),
+  ).rejects.toMatchObject({ status: 404 });
+  await updateOrderStage(
+    { id: inheritedOrder.id, from: "RECEIVED", stage: "PREPARING" },
+    own,
+    own,
+  );
+  expect(
+    await db.order.findUnique({ where: { id: inheritedOrder.id } }),
+  ).toMatchObject({ stage: "PREPARING" });
 });

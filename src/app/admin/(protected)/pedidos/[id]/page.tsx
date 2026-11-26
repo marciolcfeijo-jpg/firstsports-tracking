@@ -62,6 +62,10 @@ export default async function OrderDetails({
   });
   if (!order) notFound();
 
+  const responsible = order.customer.responsible;
+  const defaultSeller = responsible
+    ? responsible.email + (responsible.active ? "" : " · acesso inativo")
+    : null;
   const canWrite = user.role !== "VIEWER";
   const status = orderStatus(order.stage, order.shipments);
 
@@ -104,16 +108,7 @@ export default async function OrderDetails({
                     }).format(order.issuedAt)
                   : null,
               ],
-              ["Vendedor do pedido", order.seller?.email ?? null],
-              [
-                "Responsável do cliente",
-                order.customer.responsible
-                  ? order.customer.responsible.email +
-                    (order.customer.responsible.active
-                      ? ""
-                      : " · acesso inativo")
-                  : null,
-              ],
+              ["Vendedor do pedido", order.seller?.email ?? defaultSeller],
               ["Cliente", order.customer.name],
               ["E-mail", order.customer.email],
               ["Cidade", order.destinationCity ?? order.customer.city],
@@ -167,7 +162,12 @@ export default async function OrderDetails({
                     .filter(Boolean)
                     .join(" / "),
                 ],
-                ["Vendedor / representante", shipment.seller?.email ?? null],
+                [
+                  "Vendedor / representante",
+                  shipment.seller?.email ??
+                    order.seller?.email ??
+                    defaultSeller,
+                ],
                 ["CNPJ do remetente", shipment.senderDocument],
                 ["CNPJ do tomador", shipment.payerDocument],
                 ["CT-e", shipment.cte],

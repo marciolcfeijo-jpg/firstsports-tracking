@@ -169,17 +169,21 @@ export default async function Orders({
                 const invoices = order.shipments.flatMap(
                   (shipment) => shipment.invoices,
                 );
+                const responsible = order.customer.responsible;
                 const sellers = [
                   ...new Set(
                     [
-                      order.seller?.email,
+                      order.seller?.email ??
+                        (responsible
+                          ? responsible.email +
+                            (responsible.active ? "" : " · acesso inativo")
+                          : undefined),
                       ...order.shipments.map(
                         (shipment) => shipment.seller?.email,
                       ),
                     ].filter(Boolean),
                   ),
                 ];
-                const responsible = order.customer.responsible;
                 return (
                   <ShipmentRow key={order.id} href={details}>
                     <td>
@@ -192,14 +196,8 @@ export default async function Orders({
                       <small className="order-row-detail">
                         {sellers.length
                           ? "Vendedor vinculado: " + sellers.join(", ")
-                          : "Sem vendedor no pedido ou na NF"}
+                          : "Sem vendedor vinculado"}
                       </small>
-                      {responsible && (
-                        <small className="order-row-detail">
-                          Responsável do cliente: {responsible.email}
-                          {!responsible.active && " · acesso inativo"}
-                        </small>
-                      )}
                     </td>
                     <td>
                       {invoices.length
