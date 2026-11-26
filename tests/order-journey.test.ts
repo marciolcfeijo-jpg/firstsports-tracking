@@ -89,7 +89,7 @@ it("shows ZenLOG registration, named milestones, invoices and delivery chronolog
     /Nota Fiscal[^]*?Concluído<\/span><\/dt><dd>14\/11\/2026, 08:03/,
   );
   expect(html).toMatch(
-    /NF impressa[^]*?Concluído<\/span><\/dt><dd>13\/11\/2026/,
+    /NF impressa<\/span><span[^>]*>Concluído<\/span><\/dt><dd>14\/11\/2026, 08:03/,
   );
   expect(html).toContain("Senior WMS");
   expect(html).toContain("Aguardando registro");
