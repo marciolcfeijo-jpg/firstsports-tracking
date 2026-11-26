@@ -243,7 +243,7 @@ export default async function Orders({
                               </Link>
                             </div>
                           ))
-                        : "Aguardando NF"}
+                        : "Sem NF vinculada"}
                       {invoices.length > Math.min(listedInvoices.length, 2) && (
                         <small className="order-row-detail">
                           <Link href={details + "#notas-fiscais"}>
