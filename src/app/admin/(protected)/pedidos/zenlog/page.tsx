@@ -110,6 +110,37 @@ export default async function ZenlogPreviewPage({
     );
   }
 
+  const totalPages = Math.min(
+    100_000,
+    Math.ceil((result?.totalCount ?? 0) / zenlogPageSize),
+  );
+  const pagination = (
+    <nav aria-label="Páginas da prévia" className="actions spaced mb-4">
+      {page > 1 && (
+        <Link
+          className="button secondary"
+          prefetch={false}
+          href={pageHref(page - 1)}
+        >
+          Página anterior
+        </Link>
+      )}
+      <span aria-current="page">
+        Página {page}
+        {totalPages >= page ? " de " + totalPages : ""}
+      </span>
+      {page < totalPages && (
+        <Link
+          className="button secondary"
+          prefetch={false}
+          href={pageHref(page + 1)}
+        >
+          Próxima página
+        </Link>
+      )}
+    </nav>
+  );
+
   return (
     <>
       <div className="page-heading">
@@ -117,8 +148,8 @@ export default async function ZenlogPreviewPage({
           <h1>Importar pedidos do ZenLOG</h1>
           <p>
             Consulte um pedido pelo número ou deixe o campo em branco para
-            listar até 10 expedições por página. Confira a tabela e confirme a
-            importação.
+            consultar a primeira página. Use Próxima página para ver as demais
+            expedições, em grupos de até 10.
           </p>
         </div>
         <Link href="/admin/pedidos">Voltar aos pedidos</Link>
@@ -136,6 +167,17 @@ export default async function ZenlogPreviewPage({
       {error && <p role="alert">{error}</p>}
       {result && (
         <>
+          <div className="actions">
+            {pagination}
+            <form method="get" className="spaced mb-4">
+              <input type="hidden" name="consultar" value="1" />
+              <input type="hidden" name="pedido" value={order} />
+              <input type="hidden" name="pagina" value={page} />
+              <button className="button secondary" type="submit">
+                Atualizar esta página
+              </button>
+            </form>
+          </div>
           <div className="table-wrap">
             <table>
               <thead>
@@ -180,19 +222,7 @@ export default async function ZenlogPreviewPage({
           {result.rows.length > 0 && (
             <ZenlogImportForm key={pageHref(page)} order={order} page={page} />
           )}
-          <nav aria-label="Páginas da prévia">
-            {page > 1 && (
-              <Link prefetch={false} href={pageHref(page - 1)}>
-                Anterior
-              </Link>
-            )}
-            {" Página " + page + " "}
-            {page < 100_000 && skip + zenlogPageSize < result.totalCount && (
-              <Link prefetch={false} href={pageHref(page + 1)}>
-                Próxima
-              </Link>
-            )}
-          </nav>
+          {pagination}
         </>
       )}
     </>
