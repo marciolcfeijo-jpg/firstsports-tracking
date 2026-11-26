@@ -25,7 +25,7 @@ export default async function SalesOrder({
       _count: { select: { shipments: true } },
       createdAt: true,
       issuedAt: true,
-      customer: { select: { name: true } },
+      customer: { select: { name: true, responsibleId: true } },
       shipments: {
         where: salesShipmentsWhere(seller.id),
         select: {
@@ -43,6 +43,8 @@ export default async function SalesOrder({
     },
   });
   if (!order) notFound();
+  const ownsOrder =
+    (order.sellerId ?? order.customer.responsibleId) === seller.id;
 
   return (
     <>
@@ -64,11 +66,11 @@ export default async function SalesOrder({
         includeZenlog={
           order.sellerId === seller.id ||
           (!order.sellerId &&
-            order.shipments.length > 0 &&
+            (ownsOrder || order.shipments.length > 0) &&
             order.shipments.length === order._count.shipments)
         }
       />
-      {order.sellerId === seller.id && order._count.shipments === 0 && (
+      {ownsOrder && order._count.shipments === 0 && (
         <OrderForm
           key={order.stage ?? "unregistered"}
           order={{ id, stage: order.stage }}

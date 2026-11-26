@@ -1,3 +1,4 @@
+import { salesOrderOwnerWhere } from "./sales-portfolio";
 import { Prisma, type OrderStage } from "@prisma/client";
 import { z } from "zod";
 import { readSpreadsheet } from "./imports";
@@ -475,7 +476,7 @@ export async function updateOrderStage(
     if (
       sellerId &&
       !(await tx.order.findFirst({
-        where: { id, sellerId },
+        where: { id, ...salesOrderOwnerWhere(sellerId) },
         select: { id: true },
       }))
     )
@@ -483,7 +484,7 @@ export async function updateOrderStage(
     const result = await tx.order.updateMany({
       where: {
         id,
-        ...(sellerId ? { sellerId } : {}),
+        ...(sellerId ? salesOrderOwnerWhere(sellerId) : {}),
         stage: from,
         shipments: { none: {} },
       },
