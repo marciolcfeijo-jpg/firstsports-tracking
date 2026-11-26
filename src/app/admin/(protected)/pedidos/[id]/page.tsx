@@ -68,6 +68,7 @@ export default async function OrderDetails({
     : null;
   const canWrite = user.role !== "VIEWER";
   const status = orderStatus(order.stage, order.shipments);
+  const invoices = order.shipments.flatMap((shipment) => shipment.invoices);
 
   return (
     <>
@@ -86,6 +87,14 @@ export default async function OrderDetails({
           </Link>
         )}
       </div>
+      <nav className="actions mb-4" aria-label="Seções do pedido">
+        <Link className="button secondary" href="#status-zenlog">
+          Jornada do pedido
+        </Link>
+        <Link className="button secondary" href="#notas-fiscais">
+          Notas fiscais ({invoices.length})
+        </Link>
+      </nav>
       <OrderJourney
         orderId={id}
         createdAt={order.createdAt}
@@ -134,8 +143,8 @@ export default async function OrderDetails({
         <ZenlogExpedition orderId={order.id} />
       )}
 
-      <section className="mt-6">
-        <h2>Notas fiscais e remessas</h2>
+      <section className="mt-6" id="notas-fiscais">
+        <h2>Notas fiscais do pedido</h2>
         {order.shipments.length ? (
           <p className="small">
             Após o faturamento, o status do pedido acompanha as remessas
@@ -145,7 +154,7 @@ export default async function OrderDetails({
           <p>
             {order.stage === null
               ? "O pedido está sem remessa vinculada e sem etapa interna registrada. Confira o faturamento e o histórico antes de vincular outra remessa."
-              : "Nenhuma remessa vinculada."}
+              : "Aguardando NF vinculada para iniciar o rastreio."}
           </p>
         )}
         {order.shipments.map((shipment) => (
@@ -202,7 +211,11 @@ export default async function OrderDetails({
                   </thead>
                   <tbody>
                     {shipment.invoices.map((invoice) => (
-                      <tr key={invoice.id}>
+                      <tr
+                        className="order-invoice"
+                        key={invoice.id}
+                        id={`nf-${invoice.id}`}
+                      >
                         <td>{invoice.number}</td>
                         <td>{invoice.series}</td>
                         <td>{invoice.issuerDocument}</td>

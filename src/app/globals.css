@@ -1289,3 +1289,8 @@ tr:last-child td {
   margin: 4px 0 0;
   font-weight: 600;
 }
+
+.order-invoice:target {
+  scroll-margin-top: 24px;
+  background: #f0eafa;
+}

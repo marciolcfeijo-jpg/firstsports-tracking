@@ -24,6 +24,7 @@ export default async function Orders({
 }: {
   searchParams: Promise<{
     pedido?: string | string[];
+    busca?: string | string[];
     pendingDays?: string | string[];
     pending?: string | string[];
     page?: string | string[];
@@ -33,6 +34,7 @@ export default async function Orders({
   const user = await requirePageAdmin();
   const {
     pedido,
+    busca,
     pendingDays,
     pending,
     page: pageParam,
@@ -48,16 +50,40 @@ export default async function Orders({
     Number.isSafeInteger(requestedPage) && requestedPage >= 1
       ? Math.min(requestedPage, 100_000)
       : 1;
-  const number = typeof pedido === "string" ? pedido.trim().slice(0, 120) : "";
+  const unifiedSearch = typeof busca === "string";
+  const rawNumber = unifiedSearch ? busca : pedido;
+  const number =
+    typeof rawNumber === "string" ? rawNumber.trim().slice(0, 120) : "";
+  const invoiceNumber =
+    unifiedSearch && /^\d{1,12}$/.test(number)
+      ? String(Number(number))
+      : undefined;
   const source = days ? null : zenlogOrderSource(origem);
   const skip = (page - 1) * pageSize;
   const ids = source
-    ? await zenlogOrderPage(source, number, skip, pageSize + 1)
+    ? await zenlogOrderPage(source, number, skip, pageSize + 1, invoiceNumber)
     : null;
   const orders = await db.order.findMany({
     where: {
-      ...(ids ? { id: { in: ids } } : number ? { number } : {}),
-      ...(days ? agedOrdersWithoutShipments(new Date(), days, filter) : {}),
+      ...(ids
+        ? { id: { in: ids } }
+        : invoiceNumber
+          ? {
+              OR: [
+                { number },
+                {
+                  shipments: {
+                    some: { invoices: { some: { number: invoiceNumber } } },
+                  },
+                },
+              ],
+            }
+          : number
+            ? { number }
+            : {}),
+      ...(days
+        ? { AND: [agedOrdersWithoutShipments(new Date(), days, filter)] }
+        : {}),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: {
@@ -76,7 +102,7 @@ export default async function Orders({
         select: {
           status: true,
           seller: { select: { email: true } },
-          invoices: { select: { number: true, series: true } },
+          invoices: { select: { id: true, number: true, series: true } },
         },
       },
     },
@@ -91,7 +117,7 @@ export default async function Orders({
 
   function pageHref(nextPage: number) {
     const query = new URLSearchParams({ page: String(nextPage) });
-    if (number) query.set("pedido", number);
+    if (number) query.set(unifiedSearch ? "busca" : "pedido", number);
     if (days) query.set("pendingDays", String(days));
     if (filter) query.set("pending", filter);
     if (source) query.set("origem", source);
@@ -111,25 +137,28 @@ export default async function Orders({
           </h1>
           {days && <p>Pedidos em aberto cadastrados há {days} dias ou mais.</p>}
         </div>
-        {user.role !== "VIEWER" && (
-          <div className="actions">
-            {(user.role === "ADMIN" || user.role === "OPERATOR") && (
-              <Link className="button" href="/admin/pedidos/zenlog">
-                Consultar e importar do ZenLOG
-              </Link>
-            )}
+        <div className="actions">
+          <Link className="button secondary" href="/admin/remessas">
+            Operações de remessas
+          </Link>
+          {(user.role === "ADMIN" || user.role === "OPERATOR") && (
+            <Link className="button" href="/admin/pedidos/zenlog">
+              Consultar e importar do ZenLOG
+            </Link>
+          )}
+          {user.role !== "VIEWER" && (
             <Link className="button secondary" href="/admin/pedidos/importar">
               Importar planilha
             </Link>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <form className="card mb-4 orders-filters">
         {filter && <input type="hidden" name="pending" value={filter} />}
         {days && <input type="hidden" name="pendingDays" value={days} />}
         <label className="field">
-          Número do pedido
-          <input name="pedido" defaultValue={number} maxLength={120} />
+          Número do pedido ou da NF
+          <input name="busca" defaultValue={number} maxLength={120} />
         </label>
         {!days && (
           <label className="field">
@@ -169,6 +198,12 @@ export default async function Orders({
                 const invoices = order.shipments.flatMap(
                   (shipment) => shipment.invoices,
                 );
+                const matchedInvoices = invoices.filter(
+                  (invoice) => invoice.number === invoiceNumber,
+                );
+                const listedInvoices = matchedInvoices.length
+                  ? matchedInvoices
+                  : invoices;
                 const responsible = order.customer.responsible;
                 const sellers = [
                   ...new Set(
@@ -200,16 +235,20 @@ export default async function Orders({
                       </small>
                     </td>
                     <td>
-                      {invoices.length
-                        ? invoices.slice(0, 2).map((invoice, index) => (
-                            <div key={index}>
-                              {invoice.number} · série {invoice.series}
+                      {listedInvoices.length
+                        ? listedInvoices.slice(0, 2).map((invoice) => (
+                            <div key={invoice.id}>
+                              <Link href={details + "#nf-" + invoice.id}>
+                                NF {invoice.number} · série {invoice.series}
+                              </Link>
                             </div>
                           ))
-                        : "Sem NF vinculada"}
-                      {invoices.length > 2 && (
+                        : "Aguardando NF"}
+                      {invoices.length > Math.min(listedInvoices.length, 2) && (
                         <small className="order-row-detail">
-                          + {invoices.length - 2} NFs
+                          <Link href={details + "#notas-fiscais"}>
+                            Ver todas as NFs ({invoices.length})
+                          </Link>
                         </small>
                       )}
                     </td>
@@ -263,7 +302,11 @@ export default async function Orders({
           </table>
         </div>
       ) : (
-        <p>Nenhum pedido encontrado.</p>
+        <p>
+          {number
+            ? "Nenhum pedido ou NF encontrado com esse número."
+            : "Nenhum pedido encontrado."}
+        </p>
       )}
       <div className="actions spaced">
         {page > 1 && (
