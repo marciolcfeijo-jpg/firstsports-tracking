@@ -43,21 +43,35 @@ function snapshot(expedition: Expedition, doc: Document) {
   };
 }
 
-function invoiceReferences(doc: Document) {
+export function invoiceReferences(doc: Document) {
   const unique = new Map<
     string,
-    { key: string; number: string; series: string }
+    { key: string; number: string; series: string; issuedAt?: string | null }
   >();
   for (const invoice of [doc, ...(doc.notas ?? [])]) {
-    const number = invoice.numero?.trim() || "";
-    const series = invoice.serie?.trim() || "";
     const key = digits(invoice.chave ?? "");
+    const completeKey = key.length === 44;
+    const number =
+      invoice.numero?.trim() ||
+      (completeKey ? String(Number(key.slice(25, 34))) : "");
+    const series =
+      invoice.serie?.trim() ||
+      (completeKey ? String(Number(key.slice(22, 25))) : "");
     if (!number && !key && !series) continue;
     const reference =
       number && series ? Number(series) + ":" + Number(number) : key;
     const previous = unique.get(reference);
+    if (previous?.key && previous.key === key) {
+      if (!previous.issuedAt) previous.issuedAt = invoice.dataEmissao;
+      continue;
+    }
     if (!previous?.key || (key && key !== previous.key)) {
-      unique.set(previous?.key ? key : reference, { key, number, series });
+      unique.set(previous?.key ? key : reference, {
+        key,
+        number,
+        series,
+        issuedAt: invoice.dataEmissao,
+      });
     }
   }
   return [...unique.values()];
@@ -94,7 +108,7 @@ async function importDocument(
   carrierCodes: Record<string, string>,
   onlyNew: boolean,
   pendingOnly: boolean,
-  target?: { orderId?: string; recipientRef?: string; invoiceHash: string },
+  target?: { orderId?: string; recipientRef?: string; invoiceHash?: string },
 ) {
   const number = doc.pedido?.trim();
   const recipient = digits(doc.destinatario?.cpfCnpj ?? "");
@@ -104,7 +118,8 @@ async function importDocument(
 
   const invoices = invoiceReferences(doc).filter(
     (invoice) =>
-      !target || (invoice.key && hashToken(invoice.key) === target.invoiceHash),
+      !target?.invoiceHash ||
+      (invoice.key && hashToken(invoice.key) === target.invoiceHash),
   );
   if (target && !invoices.length) return null;
   const attribute = documentAttributes(doc);
@@ -368,6 +383,7 @@ async function importDocument(
       let linked = 0;
       let existing = 0;
       let pending = 0;
+      const issues = new Set<string>();
       const carrierRef = doc.transportador?.trim() || "";
       const carrierDocument = digits(carrierRef);
       const mappedCarrier = carrierCodes[carrierDocument];
@@ -396,7 +412,12 @@ async function importDocument(
       for (const invoice of invoices) {
         // NF-e key encodes the issuer, series and number.
         const issuer = invoice.key.slice(6, 20);
-        const date = expedition.dataEmissao?.slice(0, 10);
+        const date = [invoice.issuedAt, expedition.dataEmissao]
+          .map((value) => value?.trim().slice(0, 10))
+          .find(
+            (value) =>
+              shipmentSchema.shape.data_emissao.safeParse(value).success,
+          );
         const validKey = /^\d{44}$/.test(invoice.key) && validDocument(issuer);
         const validNumber =
           /^\d{1,9}$/.test(invoice.number) &&
@@ -405,6 +426,11 @@ async function importDocument(
           /^\d{1,3}$/.test(invoice.series) &&
           Number(invoice.series) === Number(invoice.key.slice(22, 25));
         if (!validKey || !validNumber || !validSeries) {
+          issues.add(
+            !validKey
+              ? "O ZenLOG não retornou uma chave de acesso válida para a NF."
+              : "O número ou a série da NF diverge da chave de acesso no ZenLOG.",
+          );
           pending++;
           continue;
         }
@@ -448,6 +474,11 @@ async function importDocument(
             match.shipment.orderId !== order.id ||
             (match.accessKey && match.accessKey !== invoice.key)
           ) {
+            issues.add(
+              matches.some(({ shipment }) => shipment.orderId !== order.id)
+                ? "A NF já está vinculada a outro pedido no portal."
+                : "A chave da NF diverge do cadastro fiscal existente no portal.",
+            );
             pending++;
             continue;
           }
@@ -511,10 +542,12 @@ async function importDocument(
           existing++;
           continue;
         }
-        if (
-          order.stage === "CANCELLED" ||
-          !shipmentSchema.shape.data_emissao.safeParse(date).success
-        ) {
+        if (order.stage === "CANCELLED" || !date) {
+          issues.add(
+            order.stage === "CANCELLED"
+              ? "O pedido está cancelado no portal."
+              : "O ZenLOG não retornou uma data de emissão válida para a NF.",
+          );
           pending++;
           continue;
         }
@@ -577,7 +610,7 @@ async function importDocument(
         }
       }
       if (target && pending && !linked && !existing)
-        throw new HttpError(422, "NF pendente de revisão.");
+        throw new HttpError(422, [...issues].join(" "));
       if (actorId === zenlogSchedulerActor)
         await tx.auditLog.create({
           data: {
@@ -587,7 +620,14 @@ async function importDocument(
             snapshot: { created, linked },
           },
         });
-      return { created, linked, existing, pending, orderId: order.id };
+      return {
+        created,
+        linked,
+        existing,
+        pending,
+        issues: [...issues],
+        orderId: order.id,
+      };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
   );
@@ -609,8 +649,8 @@ export async function importZenlogPage(
     target?: {
       orderId?: string;
       recipientRef?: string;
-      invoiceHash: string;
-      invoiceNumber: string;
+      invoiceHash?: string;
+      invoiceNumber?: string;
     };
   } = {},
 ) {
@@ -628,6 +668,7 @@ export async function importZenlogPage(
   const { items, totalCount } = pendingOnly
     ? await readPage(skip, order, target?.invoiceNumber, "id asc")
     : await readPage(skip, order, target?.invoiceNumber);
+  const issues = new Set<string>();
   const summary = {
     totalCount,
     created: 0,
@@ -666,7 +707,10 @@ export async function importZenlogPage(
           )
             continue;
           if (error instanceof HttpError && error.status < 500) {
-            if (target && error.status === 422) summary.pending++;
+            if (target) {
+              issues.add(error.message);
+              if (error.status === 422) summary.pending++;
+            }
             break;
           }
           if (
@@ -688,10 +732,11 @@ export async function importZenlogPage(
       summary[result.created ? "created" : "reused"]++;
       if (target && (result.linked || result.existing))
         summary.linkedOrderId = result.orderId;
+      for (const issue of result.issues) issues.add(issue);
       summary.linked += result.linked;
       summary.existing += result.existing;
       summary.pending += result.pending;
     }
   }
-  return summary;
+  return { ...summary, issues: [...issues] };
 }

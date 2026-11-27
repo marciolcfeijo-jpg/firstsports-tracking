@@ -45,6 +45,7 @@ export async function importZenlog(
         `NFs já vinculadas: ${result.existing}`,
         `NFs para revisão: ${result.pending}`,
         `Registros não importados: ${result.skipped}`,
+        ...result.issues,
       ].join(" · "),
     };
   } catch (error) {
@@ -105,8 +106,9 @@ export async function linkZenlogInvoice(
     if (!result.linked && !result.existing)
       throw new HttpError(
         409,
-        result.pending
-          ? "NF pendente de revisão. Confira os dados fiscais ou o vínculo existente."
+        result.pending || result.issues.length
+          ? result.issues.join(" ") ||
+              "O ZenLOG retornou uma NF com dados fiscais incompletos."
           : "Não foi possível confirmar esta NF neste pedido. Atualize a prévia.",
       );
     revalidatePath("/admin/pedidos");
@@ -126,6 +128,54 @@ export async function linkZenlogInvoice(
         error instanceof HttpError
           ? error.message
           : "Não foi possível concluir o vínculo. Tente novamente.",
+    };
+  }
+}
+
+export async function syncOrderInvoices(
+  _previous: { message: string; error?: boolean } | null,
+  formData: FormData,
+) {
+  try {
+    const actor = await requireAdmin(["ADMIN", "OPERATOR"]);
+    const id = z.string().min(1).max(100).parse(formData.get("orderId"));
+    const order = await db.order.findUnique({
+      where: { id },
+      select: { number: true, stage: true },
+    });
+    if (!order || order.stage === "CANCELLED" || order.number.length > 20)
+      throw new HttpError(409, "Confira o pedido antes de vincular a NF.");
+
+    await rateLimit("zenlog:import:global", 20, 60);
+    await rateLimit("zenlog:import:" + actor.id, 10, 60);
+    const result = await importZenlogPage(0, order.number, actor.id, {
+      target: { orderId: id },
+    });
+    revalidatePath("/admin/pedidos");
+    revalidatePath("/admin/pedidos/" + id);
+    revalidatePath("/admin/carteira");
+    const issues = result.issues.join(" ");
+    if (result.linked)
+      return {
+        message:
+          (result.linked === 1
+            ? "NF vinculada ao pedido."
+            : result.linked + " NFs vinculadas ao pedido.") +
+          (issues ? " " + issues : ""),
+      };
+    if (issues) return { error: true, message: issues };
+    return {
+      message: result.existing
+        ? "As NFs encontradas já estão vinculadas ao pedido."
+        : "Nenhuma NF foi encontrada no ZenLOG para este pedido e destinatário.",
+    };
+  } catch (error) {
+    return {
+      error: true,
+      message:
+        error instanceof HttpError
+          ? error.message
+          : "A consulta ao ZenLOG falhou. Tente novamente.",
     };
   }
 }

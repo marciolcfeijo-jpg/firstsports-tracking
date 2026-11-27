@@ -134,6 +134,7 @@ const expeditionList = z.object({
                 numero: z.string().nullish(),
                 serie: z.string().nullish(),
                 chave: z.string().nullish(),
+                dataEmissao: optionalText,
                 id: z.number().int().nullish(),
                 destinatario: party,
                 destinatarioId: z.number().int().nullish(),
@@ -157,6 +158,7 @@ const expeditionList = z.object({
                       numero: z.string().nullish(),
                       serie: z.string().nullish(),
                       chave: z.string().nullish(),
+                      dataEmissao: optionalText,
                     }),
                   )
                   .nullish(),

@@ -29,6 +29,7 @@ it("advances one page per interval and retries a failed page", async () => {
     pending: 0,
     alreadyInPortal: 0,
     linkedOrderId: undefined,
+    issues: [],
   });
   expect(await syncZenlogPendingPage()).toMatchObject({
     status: "processed",
@@ -73,6 +74,7 @@ it("processes at most 100 pages in the daily run and shares one ZenLOG session",
     pending: 0,
     alreadyInPortal: 0,
     linkedOrderId: undefined,
+    issues: [],
   });
   expect(await syncZenlogPendingPage({ daily: true })).toMatchObject({
     status: "processed",

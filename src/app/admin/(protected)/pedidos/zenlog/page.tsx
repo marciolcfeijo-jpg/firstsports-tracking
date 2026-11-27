@@ -1,4 +1,5 @@
 import { LinkInvoiceForm } from "./link-invoice-form";
+import { invoiceReferences } from "@/lib/zenlog-import";
 import { ZenlogImportForm } from "./import-form";
 import Link from "next/link";
 import { db } from "@/lib/db";
@@ -39,33 +40,29 @@ async function preview(
             : null;
         if (onlyNew && (matchingOrder || !validOrder)) return null;
         const invoices = await Promise.all(
-          [doc, ...(doc?.notas ?? [])]
-            .filter(
-              (invoice) => invoice?.numero?.trim() || invoice?.chave?.trim(),
-            )
-            .map(async (invoice) => {
-              const key = digits(invoice?.chave ?? "");
-              const existing =
-                key.length === 44
-                  ? await db.shipmentInvoice.findUnique({
-                      where: { accessKey: key },
-                      select: { shipment: { select: { orderId: true } } },
-                    })
-                  : null;
-              const status = existing
-                ? existing.shipment.orderId === matchingOrder?.id
-                  ? "Já vinculada neste pedido"
-                  : "Revisar vínculo existente"
-                : key.length === 44 && number && validDocument(recipient)
-                  ? "Vínculo pendente no portal"
-                  : "Revisar dados da NF";
-              return {
-                number: invoice?.numero?.trim() || "—",
-                reference: key.length === 44 ? hashToken(key) : undefined,
-                series: invoice?.serie?.trim(),
-                status,
-              };
-            }),
+          (doc ? invoiceReferences(doc) : []).map(async (invoice) => {
+            const key = invoice.key;
+            const existing =
+              key.length === 44
+                ? await db.shipmentInvoice.findUnique({
+                    where: { accessKey: key },
+                    select: { shipment: { select: { orderId: true } } },
+                  })
+                : null;
+            const status = existing
+              ? existing.shipment.orderId === matchingOrder?.id
+                ? "Já vinculada neste pedido"
+                : "Revisar vínculo existente"
+              : key.length === 44 && number && validDocument(recipient)
+                ? "Vínculo pendente no portal"
+                : "Revisar dados da NF";
+            return {
+              number: invoice.number || "—",
+              reference: key.length === 44 ? hashToken(key) : undefined,
+              series: invoice.series,
+              status,
+            };
+          }),
         );
         return {
           code: item.codigo,
@@ -295,8 +292,9 @@ export default async function ZenlogPreviewPage({
             order={order}
             page={page}
             onlyNew={onlyNew}
-            hasRows={result.rows.length > 0}
-            hasPendingInvoice={hasPendingInvoice}
+            hasRows={
+              result.rows.length > 0 && !(orderHref && hasPendingInvoice)
+            }
             orderHref={orderHref}
           />
           {pagination}

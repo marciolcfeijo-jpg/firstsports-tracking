@@ -1,3 +1,4 @@
+import { OrderInvoiceSyncForm } from "./zenlog/order-invoice-sync-form";
 import {
   agedOrdersWithoutShipments,
   pendingOrderFilter,
@@ -270,35 +271,20 @@ export default async function Orders({
                       </small>
                     </td>
                     <td>
-                      {listedInvoices.length ? (
-                        listedInvoices.slice(0, 2).map((invoice) => (
-                          <div key={invoice.id}>
-                            <Link href={details + "#nf-" + invoice.id}>
-                              NF {invoice.number} · série {invoice.series}
-                            </Link>
-                          </div>
-                        ))
-                      ) : (
-                        <>
-                          Sem NF vinculada
-                          {canLinkInvoice && (
-                            <div className="mt-2">
-                              <Link
-                                className="button secondary"
-                                prefetch={false}
-                                href={
-                                  "/admin/pedidos/zenlog?" +
-                                  new URLSearchParams({
-                                    consultar: "1",
-                                    pedido: order.number,
-                                  })
-                                }
-                              >
-                                Vincular NF do ZenLOG
+                      {listedInvoices.length
+                        ? listedInvoices.slice(0, 2).map((invoice) => (
+                            <div key={invoice.id}>
+                              <Link href={details + "#nf-" + invoice.id}>
+                                NF {invoice.number} · série {invoice.series}
                               </Link>
                             </div>
-                          )}
-                        </>
+                          ))
+                        : "Sem NF vinculada"}
+                      {canLinkInvoice && (
+                        <OrderInvoiceSyncForm
+                          orderId={order.id}
+                          hasInvoices={invoices.length > 0}
+                        />
                       )}
                       {invoices.length > Math.min(listedInvoices.length, 2) && (
                         <small className="order-row-detail">
