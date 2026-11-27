@@ -102,6 +102,9 @@ export default async function Customers({
           <Link className="button" href="/admin/clientes/importar">
             Importar vínculos
           </Link>
+          <Link className="button secondary" href="/admin/clientes/importar-uf">
+            Importar UFs
+          </Link>
           <Link
             className="button secondary"
             href={href({ novo: "1" }) + "#cadastro"}
