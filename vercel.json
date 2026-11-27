@@ -4,6 +4,10 @@
   "buildCommand": "npm run build:vercel",
   "crons": [
     {
+      "path": "/api/internal/zenlog-pending",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/internal/sync",
       "schedule": "0 9 * * *"
     }

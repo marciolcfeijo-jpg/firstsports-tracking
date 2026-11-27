@@ -40,8 +40,10 @@ A jornada separa as etapas de expedição do ZenLOG, a emissão da NF e a entreg
 
 O catálogo de expedição da First Sports retornado por `GET /api/services/app/Evento/GetAll` identifica os IDs 5 a 10 como Solicitado, Separado, Conferido, Embarcado, Expedido e Nota Fiscal. Esses nomes estão disponíveis na jornada. Os IDs de recebimento ficam fora desse catálogo de expedição. O evento Nota Fiscal aparece no histórico. A etapa NF impressa depende de uma NF vinculada e usa o horário do evento Nota Fiscal quando disponível.
 
-## Importação automática de pendências a cada minuto
+## Importação diária de pendências na Vercel
 
-Configure um agendador externo para enviar `POST /api/internal/zenlog-pending` a cada minuto, com `Authorization: Bearer <CRON_SECRET>` do ambiente de produção. O plano Hobby da Vercel exige frequência diária para Cron Jobs nativos. O agendamento das transportadoras continua separado.
+O cron nativo chama `GET /api/internal/zenlog-pending` diariamente às 08:00 UTC, ou 05:00 em Brasília, com o `CRON_SECRET` de produção. No plano Hobby, a execução pode iniciar entre 05:00 e 05:59. O agendamento das transportadoras permanece separado.
 
-A rota consulta uma página de até 10 expedições, em ordem crescente de ID, e grava pedidos novos e NFs pendentes. Pedidos existentes sem uma NF nova são pulados. A rotina guarda o próximo deslocamento, impede sobreposição de execuções e espera pelo menos 60 segundos entre os inícios. Em caso de falha de consulta, a próxima execução retoma a página pendente. A varredura volta à primeira página quando chega ao fim.
+Cada execução percorre até 100 páginas consecutivas de até 10 expedições em ordem crescente de ID. Ela reaproveita uma única sessão ZenLOG, importa pedidos novos e vincula NFs faltantes. O portal salva a posição após cada página processada, mantém o bloqueio durante a execução e retoma da próxima página no dia seguinte. Em caso de falha em uma página, ela é tentada novamente na próxima execução. Ao chegar ao fim da lista, a próxima varredura recomeça na primeira página.
+
+A rota `POST` continua disponível para agendadores externos já configurados e processa uma página por chamada usando a mesma posição e o mesmo bloqueio. Para operar somente com o cron diário da Vercel, desative a tarefa externa se ela estiver ativa.
