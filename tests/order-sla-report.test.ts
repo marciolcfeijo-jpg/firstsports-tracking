@@ -1,6 +1,10 @@
 import { afterAll, expect, it } from "vitest";
 import { db } from "../src/lib/db";
-import { orderSlaReport, slaFilters } from "../src/lib/order-sla-report";
+import {
+  missingShipmentState,
+  orderSlaReport,
+  slaFilters,
+} from "../src/lib/order-sla-report";
 
 const prefix = "order-sla-fixture";
 const order = prefix + "-order";
@@ -117,4 +121,25 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
     total: 0,
     count: 0,
   });
+  const detail = await orderSlaReport(filters, { state: "RJ", page: 1 });
+  expect(detail.matchingShipments).toBe(1);
+  expect(detail.shipmentDetails).toMatchObject([
+    { id: shipmentId, state: "RJ", groupedState: "RJ" },
+  ]);
+  expect(
+    (await orderSlaReport(filters, { state: "RJ", page: 2 })).shipmentDetails,
+  ).toEqual([]);
+  await db.shipment.update({
+    where: { id: shipmentId },
+    data: { destinationState: "" },
+  });
+  const missing = await orderSlaReport(filters, {
+    state: missingShipmentState,
+    page: 1,
+  });
+  expect(missing.missingShipmentStates).toBe(1);
+  expect(missing.matchingShipments).toBe(1);
+  expect(missing.shipmentDetails).toMatchObject([
+    { id: shipmentId, state: undefined, groupedState: "SP" },
+  ]);
 });

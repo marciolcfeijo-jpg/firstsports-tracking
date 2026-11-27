@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { orderSlaReport, slaColumns, slaFilters } from "@/lib/order-sla-report";
+import {
+  missingShipmentState,
+  orderSlaReport,
+  slaColumns,
+  slaFilters,
+  slaShipmentPageSize,
+} from "@/lib/order-sla-report";
+import { statusLabels } from "@/lib/status";
 import { requirePageAdmin } from "@/lib/page-auth";
 
-const format = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+const format = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
 export default async function SlaByState({
   searchParams,
@@ -11,7 +18,34 @@ export default async function SlaByState({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requirePageAdmin();
-  const filters = slaFilters(await searchParams);
+  const params = await searchParams;
+  const filters = slaFilters(params);
+  const selectedState =
+    typeof params.uf === "string" &&
+    (/^[A-Z]{2}$/.test(params.uf) ||
+      ["Sem UF", "Múltiplas UFs", missingShipmentState].includes(params.uf))
+      ? params.uf
+      : "";
+  const requestedPage =
+    typeof params.pagina === "string" ? Number(params.pagina) : 1;
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? Math.min(requestedPage, 100_000)
+      : 1;
+  function reportHref(state = "", nextPage = 1) {
+    const query = new URLSearchParams();
+    if (filters.start) query.set("de", filters.start);
+    if (filters.end) query.set("ate", filters.end);
+    if (filters.customer) query.set("cliente", filters.customer);
+    if (filters.sellerId) query.set("vendedor", filters.sellerId);
+    if (state) query.set("uf", state);
+    if (nextPage > 1) query.set("pagina", String(nextPage));
+    return (
+      "/admin/relatorios/sla-por-uf" +
+      (query.size ? "?" + query : "") +
+      (state ? "#remessas" : "")
+    );
+  }
   const invalidRange =
     !!filters.start && !!filters.end && filters.start > filters.end;
   const [sellers, report] = await Promise.all([
@@ -20,7 +54,12 @@ export default async function SlaByState({
       select: { id: true, email: true, active: true },
       orderBy: { email: "asc" },
     }),
-    invalidRange ? null : orderSlaReport(filters),
+    invalidRange
+      ? null
+      : orderSlaReport(
+          filters,
+          selectedState ? { state: selectedState, page } : undefined,
+        ),
   ]);
   return (
     <>
@@ -28,7 +67,7 @@ export default async function SlaByState({
         <div>
           <h1>SLA por UF</h1>
           <p>
-            Tempo médio em horas corridas por etapa do pedido, agrupado pela UF
+            Tempo médio em dias corridos por etapa do pedido, agrupado pela UF
             de destino.
           </p>
         </div>
@@ -64,6 +103,9 @@ export default async function SlaByState({
             ))}
           </select>
         </label>
+        {selectedState && (
+          <input type="hidden" name="uf" value={selectedState} />
+        )}
         <button className="button" type="submit">
           Filtrar
         </button>
@@ -90,6 +132,18 @@ export default async function SlaByState({
                 : " Eles não entram na média de Inclusão → NF."}
             </p>
           )}
+          {report.missingShipmentStates > 0 && (
+            <p className="mb-4">
+              <Link
+                className="button secondary"
+                prefetch={false}
+                href={reportHref(missingShipmentState)}
+              >
+                Remessas sem UF no cadastro (
+                {report.missingShipmentStates.toLocaleString("pt-BR")})
+              </Link>
+            </p>
+          )}
           {report.groups.length ? (
             <div className="table-wrap">
               <table>
@@ -107,13 +161,27 @@ export default async function SlaByState({
                 <tbody>
                   {report.groups.map(({ state, orders, measures }) => (
                     <tr key={state}>
-                      <th scope="row">{state}</th>
+                      <th scope="row">
+                        <Link
+                          className="shipment-order-link"
+                          prefetch={false}
+                          href={reportHref(state)}
+                          aria-label={`Ver remessas do grupo ${state}`}
+                          aria-current={
+                            selectedState === state ? "location" : undefined
+                          }
+                        >
+                          {state}
+                        </Link>
+                      </th>
                       <td>{orders.toLocaleString("pt-BR")}</td>
                       {measures.map(({ total, count }, index) => (
                         <td key={slaColumns[index]}>
                           {count ? (
                             <>
-                              <strong>{format.format(total / count)} h</strong>
+                              <strong>
+                                {format.format(total / count / 24)} d
+                              </strong>
                               <small className="order-row-detail">
                                 {count.toLocaleString("pt-BR")}{" "}
                                 {count === 1 ? "pedido" : "pedidos"}
@@ -131,6 +199,90 @@ export default async function SlaByState({
             </div>
           ) : (
             <p>Nenhum pedido do ZenLOG encontrado com esses filtros.</p>
+          )}
+          {selectedState && (
+            <section id="remessas" className="card spaced">
+              <div className="page-heading">
+                <div>
+                  <h2>
+                    {selectedState === missingShipmentState
+                      ? "Remessas sem UF no cadastro"
+                      : `Remessas · ${selectedState}`}
+                  </h2>
+                  <p>
+                    {report.matchingShipments.toLocaleString("pt-BR")}{" "}
+                    {report.matchingShipments === 1 ? "remessa" : "remessas"}{" "}
+                    nos filtros selecionados.
+                  </p>
+                </div>
+                <Link href={reportHref()}>Fechar lista de remessas</Link>
+              </div>
+              {report.shipmentDetails.length ? (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pedido</th>
+                        <th>Cliente</th>
+                        <th>NF</th>
+                        <th>UF da remessa</th>
+                        <th>Grupo no SLA</th>
+                        <th>Transportadora</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.shipmentDetails.map((shipment) => (
+                        <tr key={shipment.id}>
+                          <td>
+                            <Link href={`/admin/pedidos/${shipment.orderId}`}>
+                              {shipment.orderNumber}
+                            </Link>
+                          </td>
+                          <td>{shipment.customer}</td>
+                          <td>
+                            <Link href={`/admin/remessas/${shipment.id}`}>
+                              {shipment.invoices
+                                .map(
+                                  ({ number, series }) =>
+                                    `NF ${number} · série ${series}`,
+                                )
+                                .join(" / ")}
+                            </Link>
+                          </td>
+                          <td>{shipment.state || "Sem UF"}</td>
+                          <td>{shipment.groupedState}</td>
+                          <td>{shipment.carrier}</td>
+                          <td>{statusLabels[shipment.status]}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p>Nenhuma remessa encontrada neste grupo e nesta página.</p>
+              )}
+              <nav className="actions mt-4" aria-label="Páginas de remessas">
+                {page > 1 && (
+                  <Link
+                    className="button secondary"
+                    prefetch={false}
+                    href={reportHref(selectedState, page - 1)}
+                  >
+                    Anterior
+                  </Link>
+                )}
+                {page * slaShipmentPageSize < report.matchingShipments && (
+                  <Link
+                    className="button secondary"
+                    prefetch={false}
+                    href={reportHref(selectedState, page + 1)}
+                  >
+                    Próxima
+                  </Link>
+                )}
+              </nav>
+            </section>
           )}
         </>
       )}

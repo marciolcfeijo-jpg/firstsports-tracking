@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, ShipmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
 import { salesOrdersWhere, salesShipmentsWhere } from "./sales-portfolio";
@@ -84,9 +84,38 @@ function addDuration(
   metric.count++;
 }
 
-export async function orderSlaReport(filters: ReturnType<typeof slaFilters>) {
+export const slaShipmentPageSize = 50;
+export const missingShipmentState = "sem-uf-na-remessa";
+
+type ShipmentDetail = {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customer: string;
+  state: string | undefined;
+  groupedState: string;
+  invoices: { number: string; series: string }[];
+  carrier: string;
+  status: ShipmentStatus;
+};
+
+function destinationState(value: string) {
+  return shipmentSchema.shape.uf_destino.safeParse(value.trim().toUpperCase())
+    .data;
+}
+
+export async function orderSlaReport(
+  filters: ReturnType<typeof slaFilters>,
+  drilldown?: { state: string; page: number },
+) {
   const groups = new Map<string, Group>();
   let missingInclusion = 0;
+  let missingShipmentStates = 0;
+  let matchingShipments = 0;
+  const shipmentDetails: ShipmentDetail[] = [];
+  const detailOffset = drilldown
+    ? (drilldown.page - 1) * slaShipmentPageSize
+    : 0;
   let after: string | undefined;
   const where: Prisma.OrderWhereInput = {
     ...(filters.sellerId ? salesOrdersWhere(filters.sellerId) : {}),
@@ -108,15 +137,23 @@ export async function orderSlaReport(filters: ReturnType<typeof slaFilters>) {
       take: 500,
       select: {
         id: true,
+        number: true,
         destinationState: true,
-        customer: { select: { state: true } },
+        customer: { select: { state: true, name: true } },
         shipments: {
           where: {
             ...(filters.sellerId ? salesShipmentsWhere(filters.sellerId) : {}),
             status: { not: "CANCELLED" },
             invoices: { some: {} },
           },
+          orderBy: { id: "asc" },
           select: {
+            id: true,
+            carrier: { select: { name: true } },
+            invoices: {
+              select: { number: true, series: true },
+              orderBy: { id: "asc" },
+            },
             destinationState: true,
             status: true,
             deliveredAt: true,
@@ -161,12 +198,7 @@ export async function orderSlaReport(filters: ReturnType<typeof slaFilters>) {
       const shipmentStates = [
         ...new Set(
           order.shipments
-            .map(
-              ({ destinationState }) =>
-                shipmentSchema.shape.uf_destino.safeParse(
-                  destinationState.trim().toUpperCase(),
-                ).data,
-            )
+            .map((shipment) => destinationState(shipment.destinationState))
             .filter(Boolean),
         ),
       ];
@@ -174,12 +206,36 @@ export async function orderSlaReport(filters: ReturnType<typeof slaFilters>) {
         shipmentStates.length > 1
           ? "Múltiplas UFs"
           : (shipmentStates[0] ??
-            shipmentSchema.shape.uf_destino.safeParse(
-              (order.destinationState || order.customer.state)
-                .trim()
-                .toUpperCase(),
-            ).data ??
+            destinationState(order.destinationState ?? "") ??
+            destinationState(order.customer.state) ??
             "Sem UF");
+      for (const shipment of order.shipments) {
+        const recordedState = destinationState(shipment.destinationState);
+        if (!recordedState) missingShipmentStates++;
+        if (
+          !drilldown ||
+          (drilldown.state !== state &&
+            (drilldown.state !== missingShipmentState || recordedState))
+        )
+          continue;
+        matchingShipments++;
+        if (
+          matchingShipments <= detailOffset ||
+          shipmentDetails.length >= slaShipmentPageSize
+        )
+          continue;
+        shipmentDetails.push({
+          id: shipment.id,
+          orderId: order.id,
+          orderNumber: order.number,
+          customer: order.customer.name,
+          state: recordedState,
+          groupedState: state,
+          invoices: shipment.invoices,
+          carrier: shipment.carrier.name,
+          status: shipment.status,
+        });
+      }
       const group = groups.get(state) ?? {
         state,
         orders: 0,
@@ -211,5 +267,8 @@ export async function orderSlaReport(filters: ReturnType<typeof slaFilters>) {
       a.state.localeCompare(b.state, "pt-BR"),
     ),
     missingInclusion,
+    missingShipmentStates,
+    matchingShipments,
+    shipmentDetails,
   };
 }
