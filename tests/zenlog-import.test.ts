@@ -1,5 +1,9 @@
 import { afterAll, afterEach, expect, it, vi } from "vitest";
 import { setCarrierCnpj } from "../src/lib/carriers";
+import {
+  automaticUpdates,
+  zenlogSchedulerActor,
+} from "../src/lib/automatic-updates";
 import { db } from "../src/lib/db";
 import { documentHash, hashToken } from "../src/lib/security";
 import { importZenlogPage } from "../src/lib/zenlog-import";
@@ -25,7 +29,14 @@ afterEach(async () => {
   });
   const orderIds = orders.map(({ id }) => id);
   await db.$transaction([
-    db.auditLog.deleteMany({ where: { actorId: sellerId } }),
+    db.auditLog.deleteMany({
+      where: {
+        OR: [
+          { actorId: sellerId },
+          { entityId: { in: orderIds }, actorId: zenlogSchedulerActor },
+        ],
+      },
+    }),
     db.trackingEvent.deleteMany({
       where: { shipment: { orderId: { in: orderIds } } },
     }),
@@ -210,6 +221,11 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     status: "INVOICED",
     carrierId: carrier.id,
   });
+  expect(
+    (await automaticUpdates(7)).pedidos.some(
+      ({ entityId }) => entityId === order.id,
+    ),
+  ).toBe(false);
   const enrichedDocument = {
     ...document,
     numero: "64321",
@@ -330,6 +346,29 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     existing: 1,
     linkedOrderId: linked.linkedOrderId,
   });
+
+  const scheduledKey = key.replace("000064321", "000064323");
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      {
+        ...payload,
+        documentos: [
+          { ...document, numero: "64323", serie: "1", chave: scheduledKey },
+        ],
+      },
+    ],
+  });
+  expect(
+    await importZenlogPage(0, number, zenlogSchedulerActor, {
+      pendingOnly: true,
+    }),
+  ).toMatchObject({ linked: 1 });
+  expect(
+    (await automaticUpdates(7)).pedidos.find(
+      ({ entityId }) => entityId === order.id,
+    )?.snapshot,
+  ).toMatchObject({ created: false, linked: 1 });
 });
 
 it("separates a pre-existing order from a ZenLOG-created order after import", async () => {

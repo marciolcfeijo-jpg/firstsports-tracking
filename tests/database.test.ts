@@ -6,6 +6,7 @@ import {
 } from "../src/lib/sales-portfolio";
 import { updateOrderStage } from "../src/lib/orders";
 import { agedOrdersWithoutShipments } from "../src/lib/operational-report";
+import { automaticUpdates } from "../src/lib/automatic-updates";
 import { deliveryMetrics } from "../src/lib/delivery-metrics";
 import { shipmentWhere } from "../src/lib/filters";
 import { beforeAll, afterAll, describe, it, expect } from "vitest";
@@ -127,6 +128,41 @@ describe("PostgreSQL workflow", () => {
     expect(s.status).toBe("IN_TRANSIT");
     expect(s.lastSyncError).toBe("INTEGRATION_DISABLED");
     expect(s.lastSyncedAt).toBeTruthy();
+    expect((await automaticUpdates(7)).remessas).toEqual([]);
+    await db.carrier.update({
+      where: { id: s.carrierId },
+      data: { enabled: true },
+    });
+    try {
+      await db.shipment.update({
+        where: { id },
+        data: { nextSyncAt: new Date(0) },
+      });
+      expect(
+        (
+          await syncShipment(
+            id,
+            fixtureAdapter,
+            undefined,
+            new Date(),
+            undefined,
+            undefined,
+            "scheduled",
+          )
+        ).ok,
+      ).toBe(true);
+      expect((await automaticUpdates(7)).remessas).toMatchObject([
+        {
+          entityId: id,
+          snapshot: { invoiceNumber: "123", invoiceSeries: "1" },
+        },
+      ]);
+    } finally {
+      await db.carrier.update({
+        where: { id: s.carrierId },
+        data: { enabled: false },
+      });
+    }
   });
   it("uses leases to prevent concurrent sync and logs updates", async () => {
     await db.shipment.update({
@@ -134,7 +170,7 @@ describe("PostgreSQL workflow", () => {
       data: { leaseUntil: new Date(Date.now() + 60000) },
     });
     await expect(syncShipment(id)).rejects.toThrow("andamento");
-    expect(await db.syncLog.count({ where: { shipmentId: id } })).toBe(3);
+    expect(await db.syncLog.count({ where: { shipmentId: id } })).toBe(4);
   });
   it("rate limits atomically and validates origin", async () => {
     await rateLimit("test", 2, 60);

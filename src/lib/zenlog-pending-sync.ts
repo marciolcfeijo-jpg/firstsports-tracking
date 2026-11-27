@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { db } from "./db";
+import { zenlogSchedulerActor } from "./automatic-updates";
 import { HttpError } from "./security";
 import { importZenlogPage } from "./zenlog-import";
 import { zenlogExpeditionReader, zenlogPageSize } from "./zenlog";
 
 const jobId = "zenlog-pending-sync";
-const actorId = "scheduler:zenlog";
+const actorId = zenlogSchedulerActor;
 const saoPauloDay = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "America/Sao_Paulo",
   year: "numeric",
