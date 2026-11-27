@@ -5,6 +5,7 @@ import {
   missingShipmentState,
   orderSlaReport,
   slaFilters,
+  slaShipmentPageSize,
 } from "../src/lib/order-sla-report";
 
 const prefix = "order-sla-fixture";
@@ -15,11 +16,11 @@ const carrierId = prefix + "-carrier";
 const shipmentId = prefix + "-shipment";
 
 afterAll(async () => {
-  await db.auditLog.deleteMany({ where: { entityId: order } });
+  await db.auditLog.deleteMany({ where: { entityId: { startsWith: order } } });
   await db.trackingEvent.deleteMany({ where: { shipmentId } });
   await db.shipmentInvoice.deleteMany({ where: { shipmentId } });
   await db.shipment.deleteMany({ where: { id: shipmentId } });
-  await db.order.deleteMany({ where: { id: order } });
+  await db.order.deleteMany({ where: { id: { startsWith: order } } });
   await db.customer.deleteMany({ where: { id: customerId } });
   await db.carrier.deleteMany({ where: { id: carrierId } });
   await db.adminUser.deleteMany({ where: { id: sellerId } });
@@ -168,4 +169,57 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
       }),
     ),
   ).toEqual({ orders: 0, shipments: 0 });
+
+  await db.customer.update({ where: { id: customerId }, data: { state: "" } });
+  await db.order.update({
+    where: { id: order },
+    data: { destinationState: "" },
+  });
+  await db.shipment.update({
+    where: { id: shipmentId },
+    data: { destinationState: "" },
+  });
+  const ordersWithoutShipments = Array.from(
+    { length: slaShipmentPageSize },
+    (_, i) => ({
+      id: order + "-" + i,
+      number: "TEST-SLA-" + i,
+      customerId,
+    }),
+  );
+  await db.order.createMany({ data: ordersWithoutShipments });
+  await db.auditLog.createMany({
+    data: ordersWithoutShipments.map(({ id }) => ({
+      entityId: id,
+      actorId: sellerId,
+      action: "ZENLOG_STATUS",
+      snapshot: { registeredAt: "2026-11-17T23:30:00" },
+    })),
+  });
+
+  const groupDetail = await orderSlaReport(filters, {
+    state: "Sem UF",
+    page: 1,
+  });
+  expect(groupDetail.groups[0]).toMatchObject({ state: "Sem UF", orders: 51 });
+  expect(groupDetail).toMatchObject({
+    matchingOrders: 51,
+    matchingShipments: 1,
+  });
+  expect(groupDetail.shipmentDetails).toHaveLength(slaShipmentPageSize);
+  expect(groupDetail.shipmentDetails[0]).toMatchObject({ id: shipmentId });
+  expect(groupDetail.shipmentDetails[1]).toMatchObject({
+    orderId: order + "-0",
+    invoices: [],
+  });
+  expect(
+    (await orderSlaReport(filters, { state: "Sem UF", page: 2 }))
+      .shipmentDetails,
+  ).toHaveLength(1);
+
+  const shipmentDetail = await orderSlaReport(filters, {
+    state: missingShipmentState,
+    page: 1,
+  });
+  expect(shipmentDetail.shipmentDetails).toMatchObject([{ id: shipmentId }]);
 });

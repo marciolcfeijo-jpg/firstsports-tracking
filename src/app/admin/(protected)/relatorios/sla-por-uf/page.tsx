@@ -61,6 +61,11 @@ export default async function SlaByState({
           selectedState ? { state: selectedState, page } : undefined,
         ),
   ]);
+  const shipmentView = selectedState === missingShipmentState;
+  const totalDetails = shipmentView
+    ? report?.matchingShipments
+    : report?.matchingOrders;
+  const detailLabel = shipmentView ? "remessas" : "pedidos";
   return (
     <>
       <div className="page-heading">
@@ -166,7 +171,7 @@ export default async function SlaByState({
                           className="shipment-order-link"
                           prefetch={false}
                           href={reportHref(state)}
-                          aria-label={`Ver remessas do grupo ${state}`}
+                          aria-label={`Ver pedidos do grupo ${state}`}
                           aria-current={
                             selectedState === state ? "location" : undefined
                           }
@@ -205,17 +210,19 @@ export default async function SlaByState({
               <div className="page-heading">
                 <div>
                   <h2>
-                    {selectedState === missingShipmentState
+                    {shipmentView
                       ? "Remessas sem UF no cadastro"
-                      : `Remessas · ${selectedState}`}
+                      : `Pedidos · ${selectedState}`}
                   </h2>
                   <p>
-                    {report.matchingShipments.toLocaleString("pt-BR")}{" "}
-                    {report.matchingShipments === 1 ? "remessa" : "remessas"}{" "}
+                    {totalDetails?.toLocaleString("pt-BR")}{" "}
+                    {totalDetails === 1
+                      ? detailLabel.slice(0, -1)
+                      : detailLabel}
                     nos filtros selecionados.
                   </p>
                 </div>
-                <Link href={reportHref()}>Fechar lista de remessas</Link>
+                <Link href={reportHref()}>Fechar lista</Link>
               </div>
               {report.shipmentDetails.length ? (
                 <div className="table-wrap">
@@ -233,7 +240,7 @@ export default async function SlaByState({
                     </thead>
                     <tbody>
                       {report.shipmentDetails.map((shipment) => (
-                        <tr key={shipment.id}>
+                        <tr key={shipment.id ?? shipment.orderId}>
                           <td>
                             <Link href={`/admin/pedidos/${shipment.orderId}`}>
                               {shipment.orderNumber}
@@ -241,28 +248,41 @@ export default async function SlaByState({
                           </td>
                           <td>{shipment.customer}</td>
                           <td>
-                            <Link href={`/admin/remessas/${shipment.id}`}>
-                              {shipment.invoices
-                                .map(
-                                  ({ number, series }) =>
-                                    `NF ${number} · série ${series}`,
-                                )
-                                .join(" / ")}
-                            </Link>
+                            {shipment.id ? (
+                              <Link href={`/admin/remessas/${shipment.id}`}>
+                                {shipment.invoices
+                                  .map(
+                                    ({ number, series }) =>
+                                      `NF ${number} · série ${series}`,
+                                  )
+                                  .join(" / ")}
+                              </Link>
+                            ) : (
+                              "Sem remessa com NF"
+                            )}
                           </td>
-                          <td>{shipment.state || "Sem UF"}</td>
+                          <td>
+                            {shipment.id ? shipment.state || "Sem UF" : "—"}
+                          </td>
                           <td>{shipment.groupedState}</td>
-                          <td>{shipment.carrier}</td>
-                          <td>{statusLabels[shipment.status]}</td>
+                          <td>{shipment.carrier ?? "—"}</td>
+                          <td>
+                            {shipment.status
+                              ? statusLabels[shipment.status]
+                              : "—"}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <p>Nenhuma remessa encontrada neste grupo e nesta página.</p>
+                <p>Nenhum resultado nesta página.</p>
               )}
-              <nav className="actions mt-4" aria-label="Páginas de remessas">
+              <nav
+                className="actions mt-4"
+                aria-label={`Páginas de ${detailLabel}`}
+              >
                 {page > 1 && (
                   <Link
                     className="button secondary"
@@ -272,7 +292,7 @@ export default async function SlaByState({
                     Anterior
                   </Link>
                 )}
-                {page * slaShipmentPageSize < report.matchingShipments && (
+                {page * slaShipmentPageSize < (totalDetails ?? 0) && (
                   <Link
                     className="button secondary"
                     prefetch={false}

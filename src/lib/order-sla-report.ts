@@ -88,15 +88,15 @@ export const slaShipmentPageSize = 50;
 export const missingShipmentState = "sem-uf-na-remessa";
 
 type ShipmentDetail = {
-  id: string;
+  id?: string;
   orderId: string;
   orderNumber: string;
   customer: string;
   state: string | undefined;
   groupedState: string;
   invoices: { number: string; series: string }[];
-  carrier: string;
-  status: ShipmentStatus;
+  carrier?: string;
+  status?: ShipmentStatus;
 };
 
 function destinationState(value: string) {
@@ -112,6 +112,7 @@ export async function orderSlaReport(
   let missingInclusion = 0;
   let missingShipmentStates = 0;
   let matchingShipments = 0;
+  let matchingOrders = 0;
   const shipmentDetails: ShipmentDetail[] = [];
   const detailOffset = drilldown
     ? (drilldown.page - 1) * slaShipmentPageSize
@@ -209,31 +210,44 @@ export async function orderSlaReport(
             destinationState(order.destinationState ?? "") ??
             destinationState(order.customer.state) ??
             "Sem UF");
+      const orderDetail = {
+        orderId: order.id,
+        orderNumber: order.number,
+        customer: order.customer.name,
+        groupedState: state,
+      };
+      const groupSelected = drilldown?.state === state;
+      if (groupSelected) matchingOrders++;
+      const showOrder =
+        groupSelected &&
+        matchingOrders > detailOffset &&
+        matchingOrders <= detailOffset + slaShipmentPageSize;
       for (const shipment of order.shipments) {
         const recordedState = destinationState(shipment.destinationState);
         if (!recordedState) missingShipmentStates++;
-        if (
-          !drilldown ||
-          (drilldown.state !== state &&
-            (drilldown.state !== missingShipmentState || recordedState))
-        )
-          continue;
+        const missingStateSelected =
+          drilldown?.state === missingShipmentState && !recordedState;
+        if (!groupSelected && !missingStateSelected) continue;
         matchingShipments++;
-        if (
-          matchingShipments <= detailOffset ||
-          shipmentDetails.length >= slaShipmentPageSize
-        )
-          continue;
+        const showShipment =
+          missingStateSelected &&
+          matchingShipments > detailOffset &&
+          matchingShipments <= detailOffset + slaShipmentPageSize;
+        if (!showOrder && !showShipment) continue;
         shipmentDetails.push({
+          ...orderDetail,
           id: shipment.id,
-          orderId: order.id,
-          orderNumber: order.number,
-          customer: order.customer.name,
           state: recordedState,
-          groupedState: state,
           invoices: shipment.invoices,
           carrier: shipment.carrier.name,
           status: shipment.status,
+        });
+      }
+      if (showOrder && !order.shipments.length) {
+        shipmentDetails.push({
+          ...orderDetail,
+          state: undefined,
+          invoices: [],
         });
       }
       const group = groups.get(state) ?? {
@@ -269,6 +283,7 @@ export async function orderSlaReport(
     missingInclusion,
     missingShipmentStates,
     matchingShipments,
+    matchingOrders,
     shipmentDetails,
   };
 }
