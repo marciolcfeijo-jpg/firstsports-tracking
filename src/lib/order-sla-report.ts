@@ -1,7 +1,7 @@
 import type { Prisma, ShipmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
-import { salesOrdersWhere, salesShipmentsWhere } from "./sales-portfolio";
+import { salesOrdersWhere } from "./sales-portfolio";
 import { issueDateSchema, shipmentSchema } from "./validation";
 import {
   zenlogDate,
@@ -46,6 +46,7 @@ export function slaFilters(
     end,
     customer: text(input.cliente),
     sellerId: text(input.vendedor, 100),
+    allOrders: input.entrega === "todos",
   };
 }
 
@@ -140,16 +141,14 @@ export async function orderSlaReport(
         id: true,
         number: true,
         destinationState: true,
-        customer: { select: { state: true, name: true } },
+        sellerId: true,
+        customer: { select: { state: true, name: true, responsibleId: true } },
         shipments: {
-          where: {
-            ...(filters.sellerId ? salesShipmentsWhere(filters.sellerId) : {}),
-            status: { not: "CANCELLED" },
-            invoices: { some: {} },
-          },
+          where: { status: { not: "CANCELLED" } },
           orderBy: { id: "asc" },
           select: {
             id: true,
+            sellerId: true,
             carrier: { select: { name: true } },
             invoices: {
               select: { number: true, series: true },
@@ -183,6 +182,21 @@ export async function orderSlaReport(
     for (const order of orders) {
       const history = byOrder.get(order.id);
       if (!history) continue;
+      const deliveries = order.shipments.flatMap(
+        ({ status, deliveredAt, events }) =>
+          status === "DELIVERED" &&
+          deliveredAt &&
+          events.some(({ occurredAt }) => +occurredAt === +deliveredAt)
+            ? [deliveredAt]
+            : [],
+      );
+      const delivered =
+        deliveries.length &&
+        deliveries.length === order.shipments.length &&
+        order.shipments.some(({ invoices }) => invoices.length)
+          ? new Date(Math.max(...deliveries.map(Number)))
+          : undefined;
+      if (!filters.allOrders && !delivered) continue;
       const { included, invoiced, dispatched } = orderSlaMilestones(history);
       if (!included) {
         missingInclusion++;
@@ -196,9 +210,16 @@ export async function orderSlaReport(
         )
           continue;
       }
+      const orderSeller = order.sellerId ?? order.customer.responsibleId;
+      const shipments = order.shipments.filter(
+        (shipment) =>
+          shipment.invoices.length &&
+          (!filters.sellerId ||
+            (shipment.sellerId ?? orderSeller) === filters.sellerId),
+      );
       const shipmentStates = [
         ...new Set(
-          order.shipments
+          shipments
             .map((shipment) => destinationState(shipment.destinationState))
             .filter(Boolean),
         ),
@@ -222,7 +243,7 @@ export async function orderSlaReport(
         groupSelected &&
         matchingOrders > detailOffset &&
         matchingOrders <= detailOffset + slaShipmentPageSize;
-      for (const shipment of order.shipments) {
+      for (const shipment of shipments) {
         const recordedState = destinationState(shipment.destinationState);
         if (!recordedState) missingShipmentStates++;
         const missingStateSelected =
@@ -243,7 +264,7 @@ export async function orderSlaReport(
           status: shipment.status,
         });
       }
-      if (showOrder && !order.shipments.length) {
+      if (showOrder && !shipments.length) {
         shipmentDetails.push({
           ...orderDetail,
           state: undefined,
@@ -256,18 +277,6 @@ export async function orderSlaReport(
         measures: slaColumns.map(() => ({ total: 0, count: 0 })),
       };
       group.orders++;
-      const deliveries = order.shipments.flatMap(
-        ({ status, deliveredAt, events }) =>
-          status === "DELIVERED" &&
-          deliveredAt &&
-          events.some(({ occurredAt }) => +occurredAt === +deliveredAt)
-            ? [deliveredAt]
-            : [],
-      );
-      const delivered =
-        deliveries.length && deliveries.length === order.shipments.length
-          ? new Date(Math.max(...deliveries.map(Number)))
-          : undefined;
       addDuration(group.measures[0], included, invoiced);
       addDuration(group.measures[1], invoiced, dispatched);
       addDuration(group.measures[2], dispatched, delivered);

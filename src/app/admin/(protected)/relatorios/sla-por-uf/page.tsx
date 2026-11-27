@@ -38,6 +38,7 @@ export default async function SlaByState({
     if (filters.end) query.set("ate", filters.end);
     if (filters.customer) query.set("cliente", filters.customer);
     if (filters.sellerId) query.set("vendedor", filters.sellerId);
+    if (filters.allOrders) query.set("entrega", "todos");
     if (state) query.set("uf", state);
     if (nextPage > 1) query.set("pagina", String(nextPage));
     return (
@@ -108,6 +109,16 @@ export default async function SlaByState({
             ))}
           </select>
         </label>
+        <label className="field">
+          Entrega
+          <select
+            name="entrega"
+            defaultValue={filters.allOrders ? "todos" : "concluida"}
+          >
+            <option value="concluida">Pedidos com entrega concluída</option>
+            <option value="todos">Todos os pedidos</option>
+          </select>
+        </label>
         {selectedState && (
           <input type="hidden" name="uf" value={selectedState} />
         )}
@@ -125,8 +136,10 @@ export default async function SlaByState({
         <>
           <p className="small mb-4">
             NF e expedição usam os eventos concluídos do ZenLOG. Entrega usa a
-            última entrega confirmada das remessas consideradas. Cada média usa
-            apenas pedidos com horários válidos para os dois marcos.
+            última entrega confirmada do pedido. Cada média usa apenas pedidos
+            com horários válidos para os dois marcos. Para considerar a entrega
+            concluída, o pedido precisa de pelo menos uma remessa ativa com NF e
+            de entrega confirmada em todas as remessas ativas.
           </p>
           {!!report.missingInclusion && (
             <p className="small mb-4">

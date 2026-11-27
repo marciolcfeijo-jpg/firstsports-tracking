@@ -14,12 +14,15 @@ const customerId = prefix + "-customer";
 const sellerId = prefix + "-seller";
 const carrierId = prefix + "-carrier";
 const shipmentId = prefix + "-shipment";
+const pendingShipmentId = prefix + "-pending-shipment";
 
 afterAll(async () => {
   await db.auditLog.deleteMany({ where: { entityId: { startsWith: order } } });
   await db.trackingEvent.deleteMany({ where: { shipmentId } });
   await db.shipmentInvoice.deleteMany({ where: { shipmentId } });
-  await db.shipment.deleteMany({ where: { id: shipmentId } });
+  await db.shipment.deleteMany({
+    where: { id: { in: [shipmentId, pendingShipmentId] } },
+  });
   await db.order.deleteMany({ where: { id: { startsWith: order } } });
   await db.customer.deleteMany({ where: { id: customerId } });
   await db.carrier.deleteMany({ where: { id: carrierId } });
@@ -115,27 +118,60 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
     (await orderSlaReport({ ...filters, sellerId: "other-seller" })).groups,
   ).toEqual([]);
 
+  await db.shipment.create({
+    data: {
+      id: pendingShipmentId,
+      orderId: order,
+      carrierId,
+      senderDocument: "11222333000181",
+      issuedAt: deliveredAt,
+    },
+  });
+  const allOrders = { ...filters, allOrders: true };
+  const partial = await orderSlaReport(filters, { state: "RJ", page: 1 });
+  expect(partial).toMatchObject({
+    groups: [],
+    matchingOrders: 0,
+    shipmentDetails: [],
+  });
+  expect((await orderSlaReport(allOrders)).groups[0].measures).toEqual([
+    { total: 12, count: 1 },
+    { total: 14, count: 1 },
+    { total: 0, count: 0 },
+  ]);
+  await db.shipment.update({
+    where: { id: pendingShipmentId },
+    data: { status: "CANCELLED" },
+  });
+  expect((await orderSlaReport(filters)).groups[0].measures[2]).toEqual({
+    total: 24,
+    count: 1,
+  });
+
+  await db.shipment.delete({ where: { id: pendingShipmentId } });
+
   await db.trackingEvent.updateMany({
     where: { shipmentId },
     data: { dateOnly: true },
   });
-  expect((await orderSlaReport(filters)).groups[0].measures[2]).toEqual({
+  expect((await orderSlaReport(filters)).groups).toEqual([]);
+  expect((await orderSlaReport(allOrders)).groups[0].measures[2]).toEqual({
     total: 0,
     count: 0,
   });
-  const detail = await orderSlaReport(filters, { state: "RJ", page: 1 });
+  const detail = await orderSlaReport(allOrders, { state: "RJ", page: 1 });
   expect(detail.matchingShipments).toBe(1);
   expect(detail.shipmentDetails).toMatchObject([
     { id: shipmentId, state: "RJ", groupedState: "RJ" },
   ]);
   expect(
-    (await orderSlaReport(filters, { state: "RJ", page: 2 })).shipmentDetails,
+    (await orderSlaReport(allOrders, { state: "RJ", page: 2 })).shipmentDetails,
   ).toEqual([]);
   await db.shipment.update({
     where: { id: shipmentId },
     data: { destinationState: "" },
   });
-  const missing = await orderSlaReport(filters, {
+  const missing = await orderSlaReport(allOrders, {
     state: missingShipmentState,
     page: 1,
   });
@@ -197,7 +233,16 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
     })),
   });
 
-  const groupDetail = await orderSlaReport(filters, {
+  await db.trackingEvent.updateMany({
+    where: { shipmentId },
+    data: { dateOnly: false },
+  });
+  const completed = await orderSlaReport(filters, { state: "Sem UF", page: 1 });
+  expect(completed.groups[0]).toMatchObject({ state: "Sem UF", orders: 1 });
+  expect(completed).toMatchObject({ matchingOrders: 1, matchingShipments: 1 });
+  expect(completed.shipmentDetails).toMatchObject([{ id: shipmentId }]);
+
+  const groupDetail = await orderSlaReport(allOrders, {
     state: "Sem UF",
     page: 1,
   });
@@ -213,11 +258,11 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
     invoices: [],
   });
   expect(
-    (await orderSlaReport(filters, { state: "Sem UF", page: 2 }))
+    (await orderSlaReport(allOrders, { state: "Sem UF", page: 2 }))
       .shipmentDetails,
   ).toHaveLength(1);
 
-  const shipmentDetail = await orderSlaReport(filters, {
+  const shipmentDetail = await orderSlaReport(allOrders, {
     state: missingShipmentState,
     page: 1,
   });
