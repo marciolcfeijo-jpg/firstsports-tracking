@@ -30,7 +30,7 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-it("groups the three elapsed times by destination and filters by the ZenLOG inclusion date and portfolio owner", async () => {
+it("groups the elapsed times by destination and filters by the ZenLOG inclusion date and portfolio owner", async () => {
   const deliveredAt = new Date("2026-11-20T04:30:00Z");
   await db.adminUser.create({
     data: { id: sellerId, email: "sla@example.test", role: "SALES" },
@@ -108,6 +108,7 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
         { total: 12, count: 1 },
         { total: 14, count: 1 },
         { total: 24, count: 1 },
+        { total: 50, count: 1 },
       ],
     },
   ]);
@@ -137,6 +138,7 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
   expect((await orderSlaReport(allOrders)).groups[0].measures).toEqual([
     { total: 12, count: 1 },
     { total: 14, count: 1 },
+    { total: 0, count: 0 },
     { total: 0, count: 0 },
   ]);
   await db.shipment.update({
@@ -267,4 +269,50 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
     page: 1,
   });
   expect(shipmentDetail.shipmentDetails).toMatchObject([{ id: shipmentId }]);
+
+  const otherStateIds = ordersWithoutShipments.slice(0, 2).map(({ id }) => id);
+  await db.order.updateMany({
+    where: { id: { in: otherStateIds } },
+    data: { destinationState: "SP" },
+  });
+  await db.auditLog.updateMany({
+    where: { entityId: { in: otherStateIds } },
+    data: {
+      snapshot: {
+        registeredAt: "2026-11-17T23:30:00",
+        events: [{ code: 10, status: "S", end: "2026-11-19T11:30:00" }],
+      },
+    },
+  });
+  const national = await orderSlaReport(allOrders, { state: "SP", page: 1 });
+  expect(national.matchingOrders).toBe(2);
+  expect(national.brazil).toEqual({
+    orders: 51,
+    measures: [
+      { total: 84, count: 3 },
+      { total: 14, count: 1 },
+      { total: 24, count: 1 },
+      { total: 50, count: 1 },
+    ],
+  });
+  expect((await orderSlaReport(filters)).brazil).toEqual({
+    orders: 1,
+    measures: [
+      { total: 12, count: 1 },
+      { total: 14, count: 1 },
+      { total: 24, count: 1 },
+      { total: 50, count: 1 },
+    ],
+  });
+
+  await db.auditLog.updateMany({
+    where: { entityId: order, action: "ZENLOG_STATUS" },
+    data: { snapshot: { registeredAt: "2026-11-17T23:30:00" } },
+  });
+  expect((await orderSlaReport(filters)).brazil.measures).toEqual([
+    { total: 0, count: 0 },
+    { total: 0, count: 0 },
+    { total: 0, count: 0 },
+    { total: 50, count: 1 },
+  ]);
 });

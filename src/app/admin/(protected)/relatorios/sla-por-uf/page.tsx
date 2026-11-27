@@ -12,6 +12,33 @@ import { requirePageAdmin } from "@/lib/page-auth";
 
 const format = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 
+function SlaMeasures({
+  measures,
+}: {
+  measures: Awaited<ReturnType<typeof orderSlaReport>>["brazil"]["measures"];
+}) {
+  return (
+    <>
+      {" "}
+      {measures.map(({ total, count }, index) => (
+        <td key={slaColumns[index]}>
+          {count ? (
+            <>
+              <strong>{format.format(total / count / 24)} d</strong>
+              <small className="order-row-detail">
+                {count.toLocaleString("pt-BR")}{" "}
+                {count === 1 ? "pedido" : "pedidos"}
+              </small>
+            </>
+          ) : (
+            "Sem amostra"
+          )}
+        </td>
+      ))}
+    </>
+  );
+}
+
 export default async function SlaByState({
   searchParams,
 }: {
@@ -136,10 +163,11 @@ export default async function SlaByState({
         <>
           <p className="small mb-4">
             NF e expedição usam os eventos concluídos do ZenLOG. Entrega usa a
-            última entrega confirmada do pedido. Cada média usa apenas pedidos
-            com horários válidos para os dois marcos. Para considerar a entrega
-            concluída, o pedido precisa de pelo menos uma remessa ativa com NF e
-            de entrega confirmada em todas as remessas ativas.
+            última entrega confirmada do pedido. Inclusão → Entrega mede o prazo
+            total desde a primeira inclusão no ZenLOG. Cada média usa apenas
+            pedidos com horários válidos para os dois marcos. Para considerar a
+            entrega concluída, o pedido precisa de pelo menos uma remessa ativa
+            com NF e de entrega confirmada em todas as remessas ativas.
           </p>
           {!!report.missingInclusion && (
             <p className="small mb-4">
@@ -147,7 +175,7 @@ export default async function SlaByState({
               importado(s) ainda sem data de inclusão no ZenLOG.
               {filters.start || filters.end
                 ? " Esses pedidos ficaram fora do período filtrado."
-                : " Eles não entram na média de Inclusão → NF."}
+                : " Eles ficam fora das médias que começam na inclusão."}
             </p>
           )}
           {report.missingShipmentStates > 0 && (
@@ -177,6 +205,15 @@ export default async function SlaByState({
                   </tr>
                 </thead>
                 <tbody>
+                  <tr>
+                    <th scope="row">Média Brasil</th>
+                    <td>
+                      <strong>
+                        {report.brazil.orders.toLocaleString("pt-BR")}
+                      </strong>
+                    </td>
+                    <SlaMeasures measures={report.brazil.measures} />
+                  </tr>
                   {report.groups.map(({ state, orders, measures }) => (
                     <tr key={state}>
                       <th scope="row">
@@ -193,23 +230,7 @@ export default async function SlaByState({
                         </Link>
                       </th>
                       <td>{orders.toLocaleString("pt-BR")}</td>
-                      {measures.map(({ total, count }, index) => (
-                        <td key={slaColumns[index]}>
-                          {count ? (
-                            <>
-                              <strong>
-                                {format.format(total / count / 24)} d
-                              </strong>
-                              <small className="order-row-detail">
-                                {count.toLocaleString("pt-BR")}{" "}
-                                {count === 1 ? "pedido" : "pedidos"}
-                              </small>
-                            </>
-                          ) : (
-                            "Sem amostra"
-                          )}
-                        </td>
-                      ))}
+                      <SlaMeasures measures={measures} />
                     </tr>
                   ))}
                 </tbody>

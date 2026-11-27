@@ -24,6 +24,7 @@ export const slaColumns = [
   "Inclusão → NF",
   "NF → Expedição",
   "Expedição → Entrega",
+  "Inclusão → Entrega",
 ] as const;
 type Metric = { total: number; count: number };
 type Group = { state: string; orders: number; measures: Metric[] };
@@ -280,15 +281,28 @@ export async function orderSlaReport(
       addDuration(group.measures[0], included, invoiced);
       addDuration(group.measures[1], invoiced, dispatched);
       addDuration(group.measures[2], dispatched, delivered);
+      addDuration(group.measures[3], included, delivered);
       groups.set(state, group);
     }
     after = orders[orders.length - 1].id;
     if (orders.length < 500) break;
   }
+  const brazil = {
+    orders: 0,
+    measures: slaColumns.map(() => ({ total: 0, count: 0 })),
+  };
+  for (const group of groups.values()) {
+    brazil.orders += group.orders;
+    group.measures.forEach(({ total, count }, index) => {
+      brazil.measures[index].total += total;
+      brazil.measures[index].count += count;
+    });
+  }
   return {
     groups: [...groups.values()].sort((a, b) =>
       a.state.localeCompare(b.state, "pt-BR"),
     ),
+    brazil,
     missingInclusion,
     missingShipmentStates,
     matchingShipments,
