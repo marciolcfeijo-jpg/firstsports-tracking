@@ -143,7 +143,7 @@ export default async function SlaByState({
             defaultValue={filters.allOrders ? "todos" : "concluida"}
           >
             <option value="concluida">Pedidos com entrega concluída</option>
-            <option value="todos">Todos os pedidos</option>
+            <option value="todos">Todos com histórico no ZenLOG</option>
           </select>
         </label>
         {selectedState && (
@@ -161,6 +161,38 @@ export default async function SlaByState({
       )}
       {report && (
         <>
+          <section
+            className="card mb-4"
+            aria-label="Pedidos considerados no SLA"
+          >
+            <h2>{format.format(report.brazil.orders)} pedidos no SLA</h2>
+            <p>
+              Cada pedido com histórico no ZenLOG conta uma vez, mesmo com
+              várias remessas. Na visão geral, o total de remessas conta cada
+              remessa separadamente. O período deste relatório usa a data de
+              inclusão no ZenLOG. Na visão geral, o período usa a emissão da
+              remessa.
+            </p>
+            <ul>
+              <li>
+                {format.format(report.excluded.withoutHistory)} pedidos sem
+                histórico no ZenLOG ficaram fora.
+              </li>
+              {!filters.allOrders && (
+                <li>
+                  {format.format(report.excluded.withoutCompletedDelivery)}{" "}
+                  pedidos com histórico ficaram fora pelo critério de entrega
+                  concluída.
+                </li>
+              )}
+              {(filters.start || filters.end) && (
+                <li>
+                  {format.format(report.excluded.byPeriod)} pedidos restantes
+                  ficaram fora por data de inclusão ausente ou fora do período.
+                </li>
+              )}
+            </ul>
+          </section>
           <p className="small mb-4">
             NF e expedição usam os eventos concluídos do ZenLOG. Entrega usa a
             última entrega confirmada do pedido. Inclusão → Entrega mede o prazo
@@ -196,7 +228,7 @@ export default async function SlaByState({
                 <thead>
                   <tr>
                     <th scope="col">UF</th>
-                    <th scope="col">Pedidos</th>
+                    <th scope="col">Pedidos no SLA</th>
                     {slaColumns.map((label) => (
                       <th scope="col" key={label}>
                         {label}

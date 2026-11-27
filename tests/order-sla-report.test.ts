@@ -315,4 +315,25 @@ it("groups the elapsed times by destination and filters by the ZenLOG inclusion 
     { total: 0, count: 0 },
     { total: 50, count: 1 },
   ]);
+
+  await db.order.create({
+    data: {
+      id: order + "-without-history",
+      number: "TEST-SLA-NO-HISTORY",
+      customerId,
+    },
+  });
+  expect((await orderSlaReport(filters)).excluded).toEqual({
+    withoutHistory: 1,
+    withoutCompletedDelivery: 50,
+    byPeriod: 0,
+  });
+  expect(
+    (await orderSlaReport({ ...allOrders, start: "2026-11-18", end: "" }))
+      .excluded,
+  ).toEqual({
+    withoutHistory: 1,
+    withoutCompletedDelivery: 0,
+    byPeriod: 51,
+  });
 });

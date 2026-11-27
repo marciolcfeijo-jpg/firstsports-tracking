@@ -37,7 +37,11 @@ export default async function Dashboard({
       <p className="small">
         Os indicadores abaixo respeitam os filtros selecionados.
       </p>
-      <DeliverySummary metrics={metrics} filters={p} />
+      <DeliverySummary
+        metrics={metrics}
+        filters={p}
+        uniqueOrders={new Set(base.map(({ orderId }) => orderId)).size}
+      />
       <div className="page-heading spaced">
         <h2>Últimas atualizações</h2>
         <Link
