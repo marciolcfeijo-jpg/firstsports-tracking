@@ -1,3 +1,8 @@
+import {
+  zenlogDate,
+  zenlogInvoiceEventId,
+  zenlogDispatchedEventId,
+} from "@/lib/zenlog-milestones";
 import type { OrderStage, ShipmentStatus } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -58,23 +63,14 @@ function eventCatalog(): Record<string, string> {
   }
 }
 
-const invoiceEventId = 10;
 const expeditionSteps = [
   [5, "Solicitado"],
   [6, "Separado"],
   [7, "Conferido"],
-  [invoiceEventId, "Nota Fiscal"],
+  [zenlogInvoiceEventId, "Nota Fiscal"],
   [8, "Embarcado"],
-  [9, "Expedido"],
+  [zenlogDispatchedEventId, "Expedido"],
 ] as const;
-
-function zenlogDate(value: string | null | undefined) {
-  if (!value) return;
-  const date = new Date(
-    /(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : value + "-03:00",
-  );
-  return Number.isFinite(+date) ? date : undefined;
-}
 
 type DateEvent = {
   occurredAt: Date;
@@ -275,7 +271,7 @@ export async function OrderJourney({
     ),
   ];
   const hasInvoice = shipments.some(({ invoices }) => invoices.length > 0);
-  const invoiceEventAt = completedSteps.get(invoiceEventId);
+  const invoiceEventAt = completedSteps.get(zenlogInvoiceEventId);
   const activeShipments = shipments.filter(
     ({ status }) => status !== "CANCELLED",
   );
