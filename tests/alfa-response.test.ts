@@ -60,6 +60,25 @@ it("preserves in-transit dates while accepting nullable movement fields and miss
   expect(result.estimatedDelivery).toBe("2026-10-29T02:59:59.000Z");
   expect(result.deliveredAt).toBeUndefined();
 });
+it("keeps both Alfa forecast dates and falls back if the preferred date is invalid", async () => {
+  const result = await adapter({
+    ...alfaFixture,
+    dadosCte: { ...alfaFixture.dadosCte, dataPrevista: "2026-11-23" },
+  }).trackShipment(input);
+  expect(result.alfaForecasts).toEqual({
+    dataPrivista: "2026-10-29T02:59:59.000Z",
+    dataPrevista: "2026-11-24T02:59:59.000Z",
+  });
+  const fallback = await adapter({
+    ...alfaFixture,
+    dadosCte: {
+      ...alfaFixture.dadosCte,
+      dataPrivista: "desconhecida",
+      dataPrevista: "2026-11-23",
+    },
+  }).trackShipment(input);
+  expect(fallback.estimatedDelivery).toBe("2026-11-24T02:59:59.000Z");
+});
 it("retains the existing JSON and XML contracts", async () => {
   expect((await adapter(alfaFixture).trackShipment(input)).currentStatus).toBe(
     "IN_TRANSIT",

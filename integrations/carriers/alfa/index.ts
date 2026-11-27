@@ -17,6 +17,16 @@ import {
   ordered,
   proofUrl,
 } from "../normalize";
+function forecastDate(value: string | undefined) {
+  try {
+    return carrierDate(value, true);
+  } catch (error) {
+    if (error instanceof CarrierError && error.code === "INVALID_CARRIER_DATE")
+      return undefined;
+    throw error;
+  }
+}
+
 const scalar = z.union([z.string(), z.number()]).transform(String);
 const statusCode = z
   .union([z.number(), z.string().regex(/^\d+$/)])
@@ -369,14 +379,17 @@ export class AlfaAdapter implements CarrierTrackingAdapter {
     const deliveredAt =
       carrierDate(data.dadosEntrega?.dataEntrega) ||
       (latest?.status === "DELIVERED" ? latest.occurredAt : undefined);
+    const dataPrivista = forecastDate(data.dadosCte!.dataPrivista);
+    const dataPrevista = forecastDate(data.dadosCte!.dataPrevista);
     return {
       carrier: "ALFA",
       trackingNumber: data.dadosCte!.numeroCte,
       currentStatus: deliveredAt ? "DELIVERED" : latest?.status || "UNKNOWN",
-      estimatedDelivery: carrierDate(
-        data.dadosCte!.dataPrivista || data.dadosCte!.dataPrevista,
-        true,
-      ),
+      estimatedDelivery: dataPrivista ?? dataPrevista,
+      alfaForecasts:
+        dataPrivista || dataPrevista
+          ? { dataPrivista, dataPrevista }
+          : undefined,
       deliveredAt,
       proofOfDeliveryUrl: proofUrl(data.dadosEntrega?.urlComprovante, [
         "areadocliente.alfatransportes.com.br",

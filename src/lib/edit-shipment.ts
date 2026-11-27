@@ -1,3 +1,4 @@
+import { resetShipmentForecast } from "./shipment-forecast";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { shipmentSchema, trackingCodeSchema } from "./validation";
@@ -237,8 +238,10 @@ export async function editShipment(id: string, raw: unknown, actorId: string) {
           })),
         });
       }
-      if (resetTracking)
+      if (resetTracking) {
+        await resetShipmentForecast(tx, id, actorId);
         await tx.trackingEvent.deleteMany({ where: { shipmentId: id } });
+      }
       if (resetTracking)
         await tx.trackingEvent.create({
           data: {

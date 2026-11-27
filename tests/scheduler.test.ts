@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 vi.mock("../src/lib/sync", () => ({
+  scheduledTrackingBatches: 10,
   syncDue: vi.fn().mockResolvedValue({ processed: 0, results: [] }),
 }));
 import { syncDue } from "../src/lib/sync";
@@ -31,6 +32,8 @@ it.each([GET, POST])(
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ processed: 0, results: [] });
-    expect(syncDue).toHaveBeenCalledOnce();
+    expect(syncDue).toHaveBeenCalledExactlyOnceWith(undefined, {
+      maxBatches: handler === GET ? 10 : 1,
+    });
   },
 );

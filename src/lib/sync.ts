@@ -1,3 +1,4 @@
+import { recordShipmentForecast } from "./shipment-forecast";
 import { salesShipmentsWhere } from "./sales-portfolio";
 import { recordSyncDiagnostic } from "./sync-diagnostics";
 import type { SyncDiagnostic } from "./sync-diagnostic-data";
@@ -73,6 +74,8 @@ export async function persistTracking(
     })),
     skipDuplicates: true,
   });
+  if (r.estimatedDelivery || r.alfaForecasts)
+    await recordShipmentForecast(tx, id, r.estimatedDelivery, r.alfaForecasts);
   await tx.shipment.update({
     where: { id },
     data: {

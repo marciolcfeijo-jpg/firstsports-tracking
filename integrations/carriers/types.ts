@@ -27,6 +27,12 @@ export const resultSchema = z
     trackingNumber: z.string().optional(),
     currentStatus: statusSchema,
     estimatedDelivery: z.iso.datetime({ offset: true }).optional(),
+    alfaForecasts: z
+      .object({
+        dataPrivista: z.iso.datetime({ offset: true }).optional(),
+        dataPrevista: z.iso.datetime({ offset: true }).optional(),
+      })
+      .optional(),
     deliveredAt: z.iso.datetime({ offset: true }).optional(),
     proofOfDeliveryUrl: z.url().optional(),
     events: z.array(eventSchema).max(2000),

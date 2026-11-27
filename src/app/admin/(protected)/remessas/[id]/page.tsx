@@ -1,3 +1,4 @@
+import { shipmentForecastHistory } from "@/lib/shipment-forecast";
 import {
   TrackingAvailability,
   notFoundLabel,
@@ -32,6 +33,8 @@ export default async function Detail({
     },
   });
   if (!s) notFound();
+  const forecasts = await shipmentForecastHistory(s.id);
+  const latestForecast = forecasts[0];
   const carriers = await db.carrier.findMany({
     select: { code: true, name: true },
     orderBy: { name: "asc" },
@@ -87,6 +90,52 @@ export default async function Detail({
         deliveredAt={s.deliveredAt}
         events={s.events}
       />
+      {forecasts.length > 0 && (
+        <details className="card mt-4">
+          <summary>Histórico de previsões de entrega</summary>
+          <div className="table-wrap mt-3">
+            <table>
+              <thead>
+                <tr>
+                  <th>Consulta</th>
+                  <th>Previsão anterior</th>
+                  <th>Previsão registrada</th>
+                  {s.carrier.code === "ALFA" && (
+                    <>
+                      <th>dataPrivista</th>
+                      <th>dataPrevista</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {forecasts.map(
+                  ({
+                    id,
+                    at,
+                    previous,
+                    current,
+                    dataPrivista,
+                    dataPrevista,
+                  }) => (
+                    <tr key={id}>
+                      <td>{dateTime(at)}</td>
+                      <td>{dateOnly(previous)}</td>
+                      <td>{dateOnly(current)}</td>
+                      {s.carrier.code === "ALFA" && (
+                        <>
+                          <td>{dateOnly(dataPrivista)}</td>
+                          <td>{dateOnly(dataPrevista)}</td>
+                        </>
+                      )}
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
       <div className="detail-grid">
         <div>
           <div className="card">
@@ -101,9 +150,27 @@ export default async function Detail({
                 <dd>{s.carrier.name}</dd>
               </div>
               <div>
-                <dt>Previsão</dt>
+                <dt>Previsão atual</dt>
                 <dd>{dateOnly(s.estimatedDelivery)}</dd>
               </div>
+              <div>
+                <dt>Primeira previsão registrada</dt>
+                <dd>
+                  {dateOnly(latestForecast?.first ?? s.estimatedDelivery)}
+                </dd>
+              </div>
+              {s.carrier.code === "ALFA" && latestForecast?.dataPrivista && (
+                <div>
+                  <dt>Previsão Alfa · dataPrivista</dt>
+                  <dd>{dateOnly(latestForecast.dataPrivista)}</dd>
+                </div>
+              )}
+              {s.carrier.code === "ALFA" && latestForecast?.dataPrevista && (
+                <div>
+                  <dt>Previsão Alfa · dataPrevista</dt>
+                  <dd>{dateOnly(latestForecast.dataPrevista)}</dd>
+                </div>
+              )}
               <div>
                 <dt>Notas fiscais</dt>
                 <dd>

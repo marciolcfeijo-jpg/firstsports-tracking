@@ -1,3 +1,4 @@
+import { shipmentForecastHistory } from "../src/lib/shipment-forecast";
 import { inputDate } from "../src/lib/status";
 import { beforeEach, afterAll, it, expect } from "vitest";
 import { db } from "../src/lib/db";
@@ -20,6 +21,45 @@ beforeEach(async () => {
   });
 });
 afterAll(() => db.$disconnect());
+it("preserves the first and both Alfa forecasts when a later response omits one", async () => {
+  const shipment = await createShipmentTransaction(
+    {
+      ...shipmentFixture,
+      numero_pedido: "FORECAST-HISTORY",
+      numero_nf: "874103",
+    },
+    "fixture",
+  );
+  const before = "2026-11-20T15:00:00.000Z";
+  const revised = "2026-11-23T15:00:00.000Z";
+  await db.shipment.update({
+    where: { id: shipment.id },
+    data: { estimatedDelivery: new Date(before) },
+  });
+  const next = {
+    carrier: "ALFA",
+    currentStatus: "IN_TRANSIT" as const,
+    events: [],
+    estimatedDelivery: revised,
+    alfaForecasts: { dataPrivista: revised, dataPrevista: before },
+  };
+  await db.$transaction((tx) => persistTracking(tx, shipment.id, next));
+  await db.$transaction((tx) =>
+    persistTracking(tx, shipment.id, {
+      ...next,
+      alfaForecasts: { dataPrivista: revised },
+    }),
+  );
+  const history = await shipmentForecastHistory(shipment.id);
+  expect(history).toHaveLength(1);
+  expect(history[0]).toMatchObject({
+    first: before,
+    previous: before,
+    current: revised,
+    dataPrivista: revised,
+    dataPrevista: before,
+  });
+});
 it("corrects the recipient without changing sibling shipments, revokes links and moves lookup access", async () => {
   const first = await createShipmentTransaction(shipmentFixture, "test");
   const sibling = await createShipmentTransaction(

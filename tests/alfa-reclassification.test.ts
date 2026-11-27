@@ -1,5 +1,8 @@
 import { expect, it, vi } from "vitest";
 vi.mock("../src/lib/db", () => ({ db: {} }));
+vi.mock("../src/lib/shipment-forecast", () => ({
+  recordShipmentForecast: vi.fn(),
+}));
 import { persistTracking, fingerprint } from "../src/lib/sync";
 import { mapStatus } from "../integrations/carriers/normalize";
 import { AlfaAdapter } from "../integrations/carriers/alfa";
