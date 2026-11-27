@@ -267,4 +267,37 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
     page: 1,
   });
   expect(shipmentDetail.shipmentDetails).toMatchObject([{ id: shipmentId }]);
+
+  const otherStateIds = ordersWithoutShipments.slice(0, 2).map(({ id }) => id);
+  await db.order.updateMany({
+    where: { id: { in: otherStateIds } },
+    data: { destinationState: "SP" },
+  });
+  await db.auditLog.updateMany({
+    where: { entityId: { in: otherStateIds } },
+    data: {
+      snapshot: {
+        registeredAt: "2026-11-17T23:30:00",
+        events: [{ code: 10, status: "S", end: "2026-11-19T11:30:00" }],
+      },
+    },
+  });
+  const national = await orderSlaReport(allOrders, { state: "SP", page: 1 });
+  expect(national.matchingOrders).toBe(2);
+  expect(national.brazil).toEqual({
+    orders: 51,
+    measures: [
+      { total: 84, count: 3 },
+      { total: 14, count: 1 },
+      { total: 24, count: 1 },
+    ],
+  });
+  expect((await orderSlaReport(filters)).brazil).toEqual({
+    orders: 1,
+    measures: [
+      { total: 12, count: 1 },
+      { total: 14, count: 1 },
+      { total: 24, count: 1 },
+    ],
+  });
 });
