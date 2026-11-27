@@ -175,6 +175,7 @@ export async function zenlogExpeditions(
   skip: number,
   order: string,
   invoiceNumber?: string,
+  sorting?: string,
 ) {
   const operator = digits(formatDocument(process.env.ZENLOG_OPERATOR_DOCUMENT));
   const depositor = digits(
@@ -186,6 +187,7 @@ export async function zenlogExpeditions(
   url.searchParams.set("MaxResultCount", String(zenlogPageSize));
   if (order) url.searchParams.set("Pedido", order);
   if (invoiceNumber) url.searchParams.set("NumeroNf", invoiceNumber);
+  if (sorting) url.searchParams.set("Sorting", sorting);
   const parsed = expeditionList.safeParse(
     await zenlogFetch(url, "listagem de expedições", { headers }),
   );
@@ -195,6 +197,9 @@ export async function zenlogExpeditions(
       "A listagem de expedições do ZenLOG veio fora do formato esperado.",
     );
   const { totalCount, items } = parsed.data.result;
+  if (sorting && items.length < Math.min(zenlogPageSize, totalCount - skip))
+    throw new HttpError(502, "O ZenLOG retornou uma página incompleta.");
+
   return {
     totalCount,
     items: items.filter(

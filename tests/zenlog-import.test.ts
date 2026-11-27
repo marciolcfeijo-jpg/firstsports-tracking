@@ -106,6 +106,15 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
     created: 1,
     linked: 0,
   });
+  expect(
+    await importZenlogPage(0, number, sellerId, { pendingOnly: true }),
+  ).toMatchObject({ alreadyInPortal: 1, linked: 0 });
+  expect(zenlogExpeditions).toHaveBeenLastCalledWith(
+    0,
+    number,
+    undefined,
+    "id asc",
+  );
   const order = await db.order.findFirstOrThrow({
     where: { number, customer: { documentHash: documentHash(recipient) } },
   });
