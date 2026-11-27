@@ -117,6 +117,7 @@ export async function syncShipment(
             nextSyncAt: { lte: dueAt },
             status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] as const },
             carrier: { enabled: true },
+            invoices: { some: {} },
           }
         : {}),
     },
@@ -237,27 +238,41 @@ export async function syncShipment(
       });
   }
 }
-export async function syncDue(run: typeof syncShipment = syncShipment) {
+export const scheduledTrackingBatches = 10;
+
+export async function syncDue(
+  run: typeof syncShipment = syncShipment,
+  { maxBatches = 1 } = {},
+) {
   const cutoff = new Date();
-  const due = await db.shipment.findMany({
-    where: {
-      status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] },
-      nextSyncAt: { lte: cutoff },
-      carrier: { enabled: true },
-    },
-    select: { id: true },
-    take: 10,
-    orderBy: [{ issuedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
-  });
+  const deadline = Date.now() + 240_000;
+  const attempted: string[] = [];
   const results = [];
-  const deadline = Date.now() + 240000;
-  for (const s of due) {
-    if (Date.now() >= deadline) break;
-    try {
-      results.push(await run(s.id, undefined, undefined, cutoff));
-    } catch {
-      results.push({ ok: false, code: "BUSY" });
+  for (let batch = 0; batch < maxBatches && Date.now() < deadline; batch++) {
+    const due = await db.shipment.findMany({
+      where: {
+        status: { notIn: ["DELIVERED", "RETURNED", "CANCELLED"] },
+        nextSyncAt: { lte: cutoff },
+        carrier: { enabled: true },
+        invoices: { some: {} },
+        OR: [{ leaseUntil: null }, { leaseUntil: { lt: cutoff } }],
+        id: { notIn: attempted },
+      },
+      select: { id: true },
+      take: 10,
+      orderBy: [{ nextSyncAt: "asc" }, { issuedAt: "asc" }, { id: "asc" }],
+    });
+    if (!due.length) break;
+    for (const shipment of due) {
+      if (Date.now() >= deadline) break;
+      attempted.push(shipment.id);
+      try {
+        results.push(await run(shipment.id, undefined, undefined, cutoff));
+      } catch {
+        results.push({ ok: false, code: "BUSY" });
+      }
     }
+    if (due.length < 10) break;
   }
   // Expired pre-validation data contains PII; purge on the scheduled worker.
   await db.importRow.updateMany({

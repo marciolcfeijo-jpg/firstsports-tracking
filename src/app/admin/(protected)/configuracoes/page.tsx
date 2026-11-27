@@ -49,7 +49,7 @@ export default async function Settings() {
           Altere os valores no gerenciador seguro de configuração da hospedagem
           e reinicie a aplicação. Fuso de apresentação: America/Sao_Paulo. Links
           públicos: 30 dias. Agendamento Vercel: diário, a partir das 6h de
-          Brasília, em lotes de até 10 remessas elegíveis.
+          Brasília, com até 100 remessas elegíveis em lotes de 10.
         </div>
       </div>
     </>
