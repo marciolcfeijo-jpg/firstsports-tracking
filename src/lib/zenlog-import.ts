@@ -289,6 +289,11 @@ async function importDocument(
       const issuedAt = orderDate.success
         ? new Date(orderDate.data + "T00:00:00Z")
         : undefined;
+      const customerState = shipmentSchema.shape.uf_destino.safeParse(
+        customer.state.trim().toUpperCase(),
+      ).data;
+      const orderCity = city || customer.city.trim() || undefined;
+      const orderState = state || customerState;
       const identity = { number, customerId: customer.id };
       let order = await tx.order.findUnique({
         where: { number_customerId: identity },
@@ -300,16 +305,17 @@ async function importDocument(
           stage: "RECEIVED",
           issuedAt,
           sellerId: seller?.id,
-          destinationCity: city || null,
-          destinationState: state,
+          destinationCity: orderCity,
+          destinationState: orderState,
         },
       });
       const orderFields = {
         sellerId: order.sellerId ? undefined : seller?.id,
         issuedAt: order.issuedAt ? undefined : issuedAt,
-        destinationCity:
-          !order.destinationCity?.trim() && city ? city : undefined,
-        destinationState: order.destinationState?.trim() ? undefined : state,
+        destinationCity: order.destinationCity?.trim() ? undefined : orderCity,
+        destinationState: order.destinationState?.trim()
+          ? undefined
+          : orderState,
       };
       if (Object.values(orderFields).some((value) => value !== undefined))
         order = await tx.order.update({
