@@ -112,6 +112,11 @@ export async function orderSlaReport(
 ) {
   const groups = new Map<string, Group>();
   let missingInclusion = 0;
+  const excluded = {
+    withoutHistory: 0,
+    withoutCompletedDelivery: 0,
+    byPeriod: 0,
+  };
   let missingShipmentStates = 0;
   let matchingShipments = 0;
   let matchingOrders = 0;
@@ -182,7 +187,10 @@ export async function orderSlaReport(
     }
     for (const order of orders) {
       const history = byOrder.get(order.id);
-      if (!history) continue;
+      if (!history) {
+        excluded.withoutHistory++;
+        continue;
+      }
       const deliveries = order.shipments.flatMap(
         ({ status, deliveredAt, events }) =>
           status === "DELIVERED" &&
@@ -197,19 +205,22 @@ export async function orderSlaReport(
         order.shipments.some(({ invoices }) => invoices.length)
           ? new Date(Math.max(...deliveries.map(Number)))
           : undefined;
-      if (!filters.allOrders && !delivered) continue;
-      const { included, invoiced, dispatched } = orderSlaMilestones(history);
-      if (!included) {
-        missingInclusion++;
-        if (filters.start || filters.end) continue;
+      if (!filters.allOrders && !delivered) {
+        excluded.withoutCompletedDelivery++;
+        continue;
       }
-      if (included) {
-        const date = dateInBrazil.format(included);
+      const { included, invoiced, dispatched } = orderSlaMilestones(history);
+      if (!included) missingInclusion++;
+      if (filters.start || filters.end) {
+        const date = included && dateInBrazil.format(included);
         if (
+          !date ||
           (filters.start && date < filters.start) ||
           (filters.end && date > filters.end)
-        )
+        ) {
+          excluded.byPeriod++;
           continue;
+        }
       }
       const orderSeller = order.sellerId ?? order.customer.responsibleId;
       const shipments = order.shipments.filter(
@@ -303,6 +314,7 @@ export async function orderSlaReport(
       a.state.localeCompare(b.state, "pt-BR"),
     ),
     brazil,
+    excluded,
     missingInclusion,
     missingShipmentStates,
     matchingShipments,

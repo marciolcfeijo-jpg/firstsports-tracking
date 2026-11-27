@@ -20,11 +20,13 @@ export function DeliverySummary({
   filters = {},
   listPath = "/admin/remessas",
   timingPath,
+  uniqueOrders,
 }: {
   metrics: DeliveryMetrics;
   filters?: Record<string, string>;
   listPath?: string;
   timingPath?: string;
+  uniqueOrders?: number;
 }) {
   function listHref(attention: keyof typeof deliveryAttentionLabels) {
     const query = new URLSearchParams(filters);
@@ -86,7 +88,7 @@ export function DeliverySummary({
             Icon: PackageCheck,
             note: "Remessas com status de entrega concluída",
           },
-        ].map(({ label, value, Icon, note, href }) => (
+        ].map(({ label, value, Icon, note, href }, index) => (
           <div className="card delivery-kpi" key={label}>
             <div className="delivery-kpi-heading">
               <span>{label}</span>
@@ -94,6 +96,13 @@ export function DeliverySummary({
             </div>
             <strong>{number(value)}</strong>
             <p>{note}</p>
+            {index === 0 && uniqueOrders !== undefined && (
+              <p>
+                <b>{number(uniqueOrders)}</b>{" "}
+                {uniqueOrders === 1 ? "pedido único" : "pedidos únicos"} nessas
+                remessas
+              </p>
+            )}
             {href && (
               <Link className="delivery-details-link" href={href}>
                 Ver remessas em aberto →
