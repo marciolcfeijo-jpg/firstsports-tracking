@@ -183,6 +183,44 @@ describe("editing, resumable imports and scheduled selection", () => {
     ).toEqual({ redacted: true });
     await db.carrier.updateMany({ data: { enabled: false } });
   });
+  it("walks multiple tracking batches without repeating or selecting shipments without NFs", async () => {
+    await db.carrier.updateMany({
+      where: { code: "BRASPRESS" },
+      data: { enabled: true },
+    });
+    const eligible: string[] = [];
+    for (let index = 0; index < 12; index++) {
+      const shipment = await createShipmentTransaction(
+        {
+          ...shipmentFixture,
+          numero_pedido: "TRACKING-BATCH-" + index,
+          numero_nf: String(50200 + index),
+        },
+        "fixture",
+      );
+      eligible.push(shipment.id);
+    }
+    const [withoutInvoice, ...withInvoice] = eligible;
+    await db.shipmentInvoice.deleteMany({
+      where: { shipmentId: withoutInvoice },
+    });
+    await db.shipment.updateMany({
+      where: { id: { in: eligible } },
+      data: { nextSyncAt: new Date(0) },
+    });
+    const seen: string[] = [];
+    await syncDue(
+      async (id) => {
+        seen.push(id);
+        return { ok: true };
+      },
+      { maxBatches: 2 },
+    );
+    expect(seen).toEqual(expect.arrayContaining(withInvoice));
+    expect(seen).not.toContain(withoutInvoice);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(seen.length).toBeLessThanOrEqual(20);
+  });
   it("rejects oversized streaming uploads without relying on Content-Length", async () => {
     const body = new ReadableStream({
       start(c) {
