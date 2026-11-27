@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
+import {
+  automaticOrderUpdate,
+  zenlogSchedulerActor,
+} from "./automatic-updates";
 import { documentHash, hashToken, HttpError } from "./security";
 import { createShipment } from "./shipments";
 import { digits, shipmentSchema, validDocument } from "./validation";
@@ -574,6 +578,15 @@ async function importDocument(
       }
       if (target && pending && !linked && !existing)
         throw new HttpError(422, "NF pendente de revisão.");
+      if (actorId === zenlogSchedulerActor)
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: automaticOrderUpdate,
+            entityId: order.id,
+            snapshot: { created, linked },
+          },
+        });
       return { created, linked, existing, pending, orderId: order.id };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },

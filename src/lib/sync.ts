@@ -17,6 +17,10 @@ import {
   resultSchema,
 } from "../../integrations/carriers/types";
 import { HttpError } from "./security";
+import {
+  automaticShipmentUpdate,
+  trackingSchedulerActor,
+} from "./automatic-updates";
 const adapters: Record<string, CarrierTrackingAdapter> = {
   BRASPRESS: new BraspressAdapter(),
   ALFA: new AlfaAdapter(),
@@ -100,6 +104,7 @@ export async function syncShipment(
   dueAt?: Date,
   requestId = randomUUID(),
   sellerId?: string,
+  source?: "scheduled",
 ): Promise<{
   ok: boolean;
   code?: string;
@@ -189,6 +194,18 @@ export async function syncShipment(
           durationMs: Date.now() - started,
         },
       });
+      if (source === "scheduled")
+        await tx.auditLog.create({
+          data: {
+            actorId: trackingSchedulerActor,
+            action: automaticShipmentUpdate,
+            entityId: id,
+            snapshot: {
+              invoiceNumber: invoice.number,
+              invoiceSeries: invoice.series,
+            },
+          },
+        });
     });
     return { ok: true, diagnostics: result.diagnostics };
   } catch (e) {
@@ -267,7 +284,17 @@ export async function syncDue(
       if (Date.now() >= deadline) break;
       attempted.push(shipment.id);
       try {
-        results.push(await run(shipment.id, undefined, undefined, cutoff));
+        results.push(
+          await run(
+            shipment.id,
+            undefined,
+            undefined,
+            cutoff,
+            undefined,
+            undefined,
+            "scheduled",
+          ),
+        );
       } catch {
         results.push({ ok: false, code: "BUSY" });
       }
