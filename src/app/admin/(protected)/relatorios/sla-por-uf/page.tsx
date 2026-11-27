@@ -163,10 +163,11 @@ export default async function SlaByState({
         <>
           <p className="small mb-4">
             NF e expedição usam os eventos concluídos do ZenLOG. Entrega usa a
-            última entrega confirmada do pedido. Cada média usa apenas pedidos
-            com horários válidos para os dois marcos. Para considerar a entrega
-            concluída, o pedido precisa de pelo menos uma remessa ativa com NF e
-            de entrega confirmada em todas as remessas ativas.
+            última entrega confirmada do pedido. Inclusão → Entrega mede o prazo
+            total desde a primeira inclusão no ZenLOG. Cada média usa apenas
+            pedidos com horários válidos para os dois marcos. Para considerar a
+            entrega concluída, o pedido precisa de pelo menos uma remessa ativa
+            com NF e de entrega confirmada em todas as remessas ativas.
           </p>
           {!!report.missingInclusion && (
             <p className="small mb-4">
@@ -174,7 +175,7 @@ export default async function SlaByState({
               importado(s) ainda sem data de inclusão no ZenLOG.
               {filters.start || filters.end
                 ? " Esses pedidos ficaram fora do período filtrado."
-                : " Eles não entram na média de Inclusão → NF."}
+                : " Eles ficam fora das médias que começam na inclusão."}
             </p>
           )}
           {report.missingShipmentStates > 0 && (

@@ -24,6 +24,7 @@ export const slaColumns = [
   "Inclusão → NF",
   "NF → Expedição",
   "Expedição → Entrega",
+  "Inclusão → Entrega",
 ] as const;
 type Metric = { total: number; count: number };
 type Group = { state: string; orders: number; measures: Metric[] };
@@ -280,6 +281,7 @@ export async function orderSlaReport(
       addDuration(group.measures[0], included, invoiced);
       addDuration(group.measures[1], invoiced, dispatched);
       addDuration(group.measures[2], dispatched, delivered);
+      addDuration(group.measures[3], included, delivered);
       groups.set(state, group);
     }
     after = orders[orders.length - 1].id;

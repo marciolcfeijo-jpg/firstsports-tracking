@@ -30,7 +30,7 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-it("groups the three elapsed times by destination and filters by the ZenLOG inclusion date and portfolio owner", async () => {
+it("groups the elapsed times by destination and filters by the ZenLOG inclusion date and portfolio owner", async () => {
   const deliveredAt = new Date("2026-11-20T04:30:00Z");
   await db.adminUser.create({
     data: { id: sellerId, email: "sla@example.test", role: "SALES" },
@@ -108,6 +108,7 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
         { total: 12, count: 1 },
         { total: 14, count: 1 },
         { total: 24, count: 1 },
+        { total: 50, count: 1 },
       ],
     },
   ]);
@@ -137,6 +138,7 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
   expect((await orderSlaReport(allOrders)).groups[0].measures).toEqual([
     { total: 12, count: 1 },
     { total: 14, count: 1 },
+    { total: 0, count: 0 },
     { total: 0, count: 0 },
   ]);
   await db.shipment.update({
@@ -290,6 +292,7 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
       { total: 84, count: 3 },
       { total: 14, count: 1 },
       { total: 24, count: 1 },
+      { total: 50, count: 1 },
     ],
   });
   expect((await orderSlaReport(filters)).brazil).toEqual({
@@ -298,6 +301,18 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
       { total: 12, count: 1 },
       { total: 14, count: 1 },
       { total: 24, count: 1 },
+      { total: 50, count: 1 },
     ],
   });
+
+  await db.auditLog.updateMany({
+    where: { entityId: order, action: "ZENLOG_STATUS" },
+    data: { snapshot: { registeredAt: "2026-11-17T23:30:00" } },
+  });
+  expect((await orderSlaReport(filters)).brazil.measures).toEqual([
+    { total: 0, count: 0 },
+    { total: 0, count: 0 },
+    { total: 0, count: 0 },
+    { total: 50, count: 1 },
+  ]);
 });
