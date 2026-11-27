@@ -581,10 +581,12 @@ export async function importZenlogPage(
   {
     onlyNew = false,
     pendingOnly = false,
+    readPage = zenlogExpeditions,
     target,
   }: {
     onlyNew?: boolean;
     pendingOnly?: boolean;
+    readPage?: typeof zenlogExpeditions;
     target?: {
       orderId?: string;
       recipientRef?: string;
@@ -605,8 +607,8 @@ export async function importZenlogPage(
     }),
   );
   const { items, totalCount } = pendingOnly
-    ? await zenlogExpeditions(skip, order, target?.invoiceNumber, "id asc")
-    : await zenlogExpeditions(skip, order, target?.invoiceNumber);
+    ? await readPage(skip, order, target?.invoiceNumber, "id asc")
+    : await readPage(skip, order, target?.invoiceNumber);
   const summary = {
     totalCount,
     created: 0,
