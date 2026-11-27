@@ -1,3 +1,4 @@
+import { fillMissingCustomerDestinations } from "../src/lib/customer-destinations";
 import { afterAll, expect, it } from "vitest";
 import { db } from "../src/lib/db";
 import {
@@ -142,4 +143,29 @@ it("groups the three elapsed times by destination and filters by the ZenLOG incl
   expect(missing.shipmentDetails).toMatchObject([
     { id: shipmentId, state: undefined, groupedState: "SP" },
   ]);
+  expect(
+    await db.$transaction((tx) =>
+      fillMissingCustomerDestinations(tx, {
+        id: customerId,
+        city: "Campinas",
+        state: "SP",
+      }),
+    ),
+  ).toEqual({ orders: 1, shipments: 1 });
+  expect(
+    await db.shipment.findUnique({ where: { id: shipmentId } }),
+  ).toMatchObject({
+    destinationCity: "Campinas",
+    destinationState: "SP",
+    status: "DELIVERED",
+  });
+  expect(
+    await db.$transaction((tx) =>
+      fillMissingCustomerDestinations(tx, {
+        id: customerId,
+        city: "Manaus",
+        state: "AM",
+      }),
+    ),
+  ).toEqual({ orders: 0, shipments: 0 });
 });

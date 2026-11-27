@@ -1,11 +1,14 @@
 "use client";
 
 import { useActionState } from "react";
+import { shipmentSchema } from "@/lib/validation";
 import { saveCustomer } from "./actions";
 
 type Customer = {
   id: string;
   name: string;
+  city: string;
+  state: string;
   erpCode: string | null;
   zenlogRecipientId: number | null;
   responsibleId: string | null;
@@ -65,6 +68,32 @@ export function CustomerForm({
           />
         </label>
         <label className="field">
+          Cidade de destino
+          <input
+            name="city"
+            defaultValue={customer?.city ?? ""}
+            maxLength={120}
+          />
+        </label>
+        <label className="field">
+          UF de destino
+          <select name="state" defaultValue={customer?.state ?? ""}>
+            <option value="">Não informada</option>
+            {customer?.state &&
+              !shipmentSchema.shape.uf_destino.safeParse(customer.state)
+                .success && (
+                <option value={customer.state}>
+                  {customer.state} · revisar
+                </option>
+              )}
+            {shipmentSchema.shape.uf_destino.options.map((uf) => (
+              <option key={uf} value={uf}>
+                {uf}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
           Vendedor ou representante
           <select
             name="responsibleId"
@@ -72,7 +101,7 @@ export function CustomerForm({
           >
             <option value="">Sem responsável</option>
             {unavailable && (
-              <option value={customer.responsibleId!} disabled>
+              <option value={customer.responsibleId!}>
                 Responsável indisponível
               </option>
             )}

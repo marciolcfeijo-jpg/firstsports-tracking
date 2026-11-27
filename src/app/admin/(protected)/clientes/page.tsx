@@ -65,6 +65,8 @@ export default async function Customers({
             erpCode: true,
             zenlogRecipientId: true,
             responsibleId: true,
+            city: true,
+            state: true,
           },
         })
       : null,
