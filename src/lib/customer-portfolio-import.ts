@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
-import { documentHash, HttpError } from "./security";
-import { digits, validDocument } from "./validation";
+import { HttpError } from "./security";
+import { customerDocumentHashes } from "./customer-document-import";
 
 export function parsePortfolio(text: string) {
   const [header, ...lines] = text
@@ -29,15 +29,7 @@ export function parsePortfolio(text: string) {
       const [code = "", sellerCode = "", document = ""] = line
         .split("\t")
         .map((field) => field.trim());
-      const number = digits(document);
-      const candidates =
-        /^[\d./-]+$/.test(document) && number.length >= 8 && number.length <= 14
-          ? [
-              number.padStart(14, "0"),
-              ...(number.length <= 11 ? [number.padStart(11, "0")] : []),
-            ]
-          : [];
-      const hashes = candidates.filter(validDocument).map(documentHash);
+      const hashes = customerDocumentHashes(document);
       return { code, sellerCode, hashes };
     });
 }
