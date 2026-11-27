@@ -89,6 +89,7 @@ async function importDocument(
   actorId: string,
   carrierCodes: Record<string, string>,
   onlyNew: boolean,
+  pendingOnly: boolean,
   target?: { orderId?: string; recipientRef?: string; invoiceHash: string },
 ) {
   const number = doc.pedido?.trim();
@@ -187,12 +188,25 @@ async function importDocument(
         });
         if (!expectedOrder) return null;
       }
-      if (onlyNew) {
+      if (onlyNew || pendingOnly) {
         const existing = await tx.order.findFirst({
           where: { number, customer: { documentHash: hash } },
-          select: { id: true },
+          select: { id: true, stage: true },
         });
-        if (existing) return "already-in-portal" as const;
+        if (existing) {
+          if (onlyNew || !invoices.length || existing.stage === "CANCELLED")
+            return "already-in-portal" as const;
+          const keys = [...new Set(invoices.map(({ key }) => key))];
+          if (keys.every((key) => /^\d{44}$/.test(key))) {
+            const count = await tx.shipmentInvoice.count({
+              where: {
+                accessKey: { in: keys },
+                shipment: { orderId: existing.id },
+              },
+            });
+            if (count === keys.length) return "already-in-portal" as const;
+          }
+        }
       }
       const nestedRecipientId = doc.destinatario?.id;
       const directRecipientId = doc.destinatarioId;
@@ -566,9 +580,11 @@ export async function importZenlogPage(
   actorId: string,
   {
     onlyNew = false,
+    pendingOnly = false,
     target,
   }: {
     onlyNew?: boolean;
+    pendingOnly?: boolean;
     target?: {
       orderId?: string;
       recipientRef?: string;
@@ -588,8 +604,11 @@ export async function importZenlogPage(
         : [];
     }),
   );
-  const { items } = await zenlogExpeditions(skip, order, target?.invoiceNumber);
+  const { items, totalCount } = pendingOnly
+    ? await zenlogExpeditions(skip, order, target?.invoiceNumber, "id asc")
+    : await zenlogExpeditions(skip, order, target?.invoiceNumber);
   const summary = {
+    totalCount,
     created: 0,
     reused: 0,
     alreadyInPortal: 0,
@@ -614,6 +633,7 @@ export async function importZenlogPage(
             actorId,
             carrierCodes,
             onlyNew,
+            pendingOnly,
             target,
           );
           break;
