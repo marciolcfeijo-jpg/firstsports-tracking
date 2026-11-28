@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { HttpError, rateLimit } from "@/lib/security";
 import { importZenlogPage } from "@/lib/zenlog-import";
-import { zenlogPageSize } from "@/lib/zenlog";
+import { zenlogPreviewExpeditions, zenlogPreviewPageSize } from "@/lib/zenlog";
 
 export async function importZenlog(
   _previous: { message: string; error?: boolean } | null,
@@ -28,10 +28,10 @@ export async function importZenlog(
     await rateLimit("zenlog:import:" + actor.id, 10, 60);
     const onlyNew = formData.get("filtro") === "novos";
     const result = await importZenlogPage(
-      (page - 1) * zenlogPageSize,
+      (page - 1) * zenlogPreviewPageSize,
       order,
       actor.id,
-      { onlyNew },
+      { onlyNew, readPage: zenlogPreviewExpeditions },
     );
     revalidatePath("/admin/pedidos");
     revalidatePath("/admin/carteira");
