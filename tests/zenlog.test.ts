@@ -1,5 +1,9 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { zenlogExpeditionEvents, zenlogExpeditions } from "../src/lib/zenlog";
+import {
+  zenlogExpeditionEvents,
+  zenlogExpeditions,
+  zenlogPreviewExpeditions,
+} from "../src/lib/zenlog";
 
 vi.mock("../src/lib/db", () => ({ db: {} }));
 
@@ -101,4 +105,53 @@ it("consulta a prévia paginada e restringe os resultados à instalação config
     MaxResultCount: "10",
     Pedido: "001",
   });
+});
+
+it("carrega páginas de 100 em lotes de 10 e para no último registro", async () => {
+  vi.stubEnv("ZENLOG_API_ORIGIN", "https://zenlog.example.test");
+  vi.stubEnv("ZENLOG_TENANCY_NAME", "fixture");
+  vi.stubEnv("ZENLOG_PAT", "synthetic-fixture");
+  vi.stubEnv("ZENLOG_OPERATOR_DOCUMENT", "11222333000181");
+  vi.stubEnv("ZENLOG_DEPOSITOR_DOCUMENT", "04252011000110");
+
+  const offsets: number[] = [];
+  const fetch = vi
+    .fn<typeof globalThis.fetch>()
+    .mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (!url.searchParams.has("SkipCount"))
+        return Response.json({ result: { accessToken: "fixture-token" } });
+
+      const offset = Number(url.searchParams.get("SkipCount"));
+      offsets.push(offset);
+      expect(url.searchParams.get("MaxResultCount")).toBe("10");
+      expect(url.searchParams.get("Pedido")).toBe("001");
+      return Response.json({
+        result: {
+          totalCount: 123,
+          items: Array.from(
+            { length: Math.min(10, 123 - offset) },
+            (_, index) => ({
+              codigo: String(offset + index),
+              operadorLogistico: { cpfCnpj: "11222333000181" },
+              depositante: { cpfCnpj: "04252011000110" },
+            }),
+          ),
+        },
+      });
+    });
+  vi.stubGlobal("fetch", fetch);
+
+  const first = await zenlogPreviewExpeditions(0, "001");
+  expect(offsets).toEqual([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]);
+  expect(first.items).toHaveLength(100);
+  expect(first.items.at(-1)?.codigo).toBe("99");
+
+  const second = await zenlogPreviewExpeditions(100, "001");
+  expect(offsets.slice(10)).toEqual([100, 110, 120]);
+  expect(second.totalCount).toBe(123);
+  expect(second.items.map(({ codigo }) => codigo)).toEqual(
+    Array.from({ length: 23 }, (_, index) => String(100 + index)),
+  );
+  expect(fetch).toHaveBeenCalledTimes(15);
 });

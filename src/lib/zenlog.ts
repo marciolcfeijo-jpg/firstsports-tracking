@@ -224,6 +224,24 @@ export async function zenlogExpeditions(
   return readPage(skip, order, invoiceNumber, sorting);
 }
 
+export const zenlogPreviewPageSize = 100;
+
+export async function zenlogPreviewExpeditions(skip: number, order: string) {
+  const readPage = await zenlogExpeditionReader();
+  const first = await readPage(skip, order);
+  const items = [...first.items];
+  const end = Math.min(first.totalCount, skip + zenlogPreviewPageSize);
+  for (
+    let offset = skip + zenlogPageSize;
+    offset < end;
+    offset += zenlogPageSize
+  ) {
+    const batch = await readPage(offset, order);
+    items.push(...batch.items);
+  }
+  return { items, totalCount: first.totalCount };
+}
+
 async function zenlogFetch(
   url: URL,
   stage: "autenticação" | "consulta de eventos" | "listagem de expedições",

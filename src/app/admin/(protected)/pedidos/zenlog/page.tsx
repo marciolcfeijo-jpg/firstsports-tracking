@@ -6,7 +6,13 @@ import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { documentHash, hashToken, HttpError, rateLimit } from "@/lib/security";
 import { digits, validDocument } from "@/lib/validation";
-import { zenlogExpeditions, zenlogPageSize } from "@/lib/zenlog";
+import {
+  zenlogPageSize,
+  zenlogPreviewExpeditions,
+  zenlogPreviewPageSize,
+} from "@/lib/zenlog";
+
+export const maxDuration = 300;
 
 async function preview(
   skip: number,
@@ -16,72 +22,79 @@ async function preview(
 ) {
   await rateLimit("zenlog:preview:global", 60, 60);
   await rateLimit("zenlog:preview:" + actorId, 20, 60);
-  const { items, totalCount } = await zenlogExpeditions(skip, order);
-  const rows = await Promise.all(
-    items.flatMap((item) =>
-      (item.documentos?.length ? item.documentos : [null]).map(async (doc) => {
-        const number = doc?.pedido?.trim();
-        const recipient = digits(doc?.destinatario?.cpfCnpj ?? "");
-        if (order && number !== order) return null;
-        const validOrder =
-          !!number &&
-          number.length <= 120 &&
-          validDocument(recipient) &&
-          !!doc?.destinatario?.nome?.trim();
-        const matchingOrder =
-          number && validDocument(recipient)
-            ? await db.order.findFirst({
-                where: {
-                  number,
-                  customer: { documentHash: documentHash(recipient) },
-                },
-                select: { id: true },
+  const { items, totalCount } = await zenlogPreviewExpeditions(skip, order);
+  const documents = items.flatMap((item) =>
+    (item.documentos?.length ? item.documentos : [null]).map((doc) => ({
+      item,
+      doc,
+    })),
+  );
+  async function previewDocument({ item, doc }: (typeof documents)[number]) {
+    const number = doc?.pedido?.trim();
+    const recipient = digits(doc?.destinatario?.cpfCnpj ?? "");
+    if (order && number !== order) return null;
+    const validOrder =
+      !!number &&
+      number.length <= 120 &&
+      validDocument(recipient) &&
+      !!doc?.destinatario?.nome?.trim();
+    const matchingOrder =
+      number && validDocument(recipient)
+        ? await db.order.findFirst({
+            where: {
+              number,
+              customer: { documentHash: documentHash(recipient) },
+            },
+            select: { id: true },
+          })
+        : null;
+    if (onlyNew && (matchingOrder || !validOrder)) return null;
+    const invoices = await Promise.all(
+      (doc ? invoiceReferences(doc) : []).map(async (invoice) => {
+        const key = invoice.key;
+        const existing =
+          key.length === 44
+            ? await db.shipmentInvoice.findUnique({
+                where: { accessKey: key },
+                select: { shipment: { select: { orderId: true } } },
               })
             : null;
-        if (onlyNew && (matchingOrder || !validOrder)) return null;
-        const invoices = await Promise.all(
-          (doc ? invoiceReferences(doc) : []).map(async (invoice) => {
-            const key = invoice.key;
-            const existing =
-              key.length === 44
-                ? await db.shipmentInvoice.findUnique({
-                    where: { accessKey: key },
-                    select: { shipment: { select: { orderId: true } } },
-                  })
-                : null;
-            const status = existing
-              ? existing.shipment.orderId === matchingOrder?.id
-                ? "Já vinculada neste pedido"
-                : "Revisar vínculo existente"
-              : key.length === 44 && number && validDocument(recipient)
-                ? "Vínculo pendente no portal"
-                : "Revisar dados da NF";
-            return {
-              number: invoice.number || "—",
-              reference: key.length === 44 ? hashToken(key) : undefined,
-              series: invoice.series,
-              status,
-            };
-          }),
-        );
+        const status = existing
+          ? existing.shipment.orderId === matchingOrder?.id
+            ? "Já vinculada neste pedido"
+            : "Revisar vínculo existente"
+          : key.length === 44 && number && validDocument(recipient)
+            ? "Vínculo pendente no portal"
+            : "Revisar dados da NF";
         return {
-          code: item.codigo,
-          number,
-          orderId: matchingOrder?.id,
-          recipientRef: validOrder
-            ? hashToken(documentHash(recipient))
-            : undefined,
-          status: matchingOrder
-            ? "Pedido já cadastrado"
-            : validOrder
-              ? "Novo no portal"
-              : "Revisar dados do pedido",
-          invoices,
+          number: invoice.number || "—",
+          reference: key.length === 44 ? hashToken(key) : undefined,
+          series: invoice.series,
+          status,
         };
       }),
-    ),
-  );
-  return { rows: rows.filter((row) => row !== null), totalCount };
+    );
+    return {
+      code: item.codigo,
+      number,
+      orderId: matchingOrder?.id,
+      recipientRef: validOrder ? hashToken(documentHash(recipient)) : undefined,
+      status: matchingOrder
+        ? "Pedido já cadastrado"
+        : validOrder
+          ? "Novo no portal"
+          : "Revisar dados do pedido",
+      invoices,
+    };
+  }
+
+  const rows = [];
+  for (let index = 0; index < documents.length; index += zenlogPageSize) {
+    const batch = documents.slice(index, index + zenlogPageSize);
+    const results = await Promise.all(batch.map(previewDocument));
+    rows.push(...results.filter((row) => row !== null));
+  }
+  return { rows, totalCount };
 }
 
 export default async function ZenlogPreviewPage({
@@ -104,7 +117,7 @@ export default async function ZenlogPreviewPage({
     Number.isSafeInteger(requestedPage) && requestedPage >= 1
       ? Math.min(requestedPage, 100_000)
       : 1;
-  const skip = (page - 1) * zenlogPageSize;
+  const skip = (page - 1) * zenlogPreviewPageSize;
   let result: Awaited<ReturnType<typeof preview>> | undefined;
   let error: string | undefined;
   if (query.consultar === "1") {
@@ -130,7 +143,7 @@ export default async function ZenlogPreviewPage({
 
   const totalPages = Math.min(
     100_000,
-    Math.ceil((result?.totalCount ?? 0) / zenlogPageSize),
+    Math.ceil((result?.totalCount ?? 0) / zenlogPreviewPageSize),
   );
   const orderIds = [
     ...new Set(result?.rows.flatMap((row) => row.orderId ?? []) ?? []),
@@ -180,7 +193,7 @@ export default async function ZenlogPreviewPage({
           <p>
             Consulte um pedido pelo número ou deixe o campo em branco para
             consultar a primeira página. Use Próxima página para ver as demais
-            expedições, em grupos de até 10.
+            expedições, em páginas de até 100.
           </p>
         </div>
         <Link href="/admin/pedidos">Voltar aos pedidos</Link>
