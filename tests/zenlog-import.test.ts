@@ -369,6 +369,65 @@ it("imports an order before invoicing, links its later invoice and keeps reimpor
       ({ entityId }) => entityId === order.id,
     )?.snapshot,
   ).toMatchObject({ created: false, linked: 1 });
+
+  const inlineKey = key.replace("000064321", "000064324");
+  const invoiceWithoutDate = { chave: inlineKey };
+  const source = { ...payload, dataEmissao: null };
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      { ...source, documentos: [{ ...document, notas: [invoiceWithoutDate] }] },
+    ],
+  });
+  expect(
+    await importZenlogPage(0, number, sellerId, {
+      target: { orderId: order.id },
+    }),
+  ).toMatchObject({
+    linked: 0,
+    pending: 1,
+    issues: ["O ZenLOG não retornou uma data de emissão válida para a NF."],
+  });
+  vi.mocked(zenlogExpeditions).mockResolvedValue({
+    totalCount: 1,
+    items: [
+      {
+        ...source,
+        documentos: [
+          {
+            ...document,
+            notas: [
+              { ...invoiceWithoutDate, dataEmissao: "2026-11-26T15:00:00" },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  expect(
+    await importZenlogPage(0, number, sellerId, {
+      target: { orderId: "other-order" },
+    }),
+  ).toMatchObject({ linked: 0 });
+  expect(
+    await importZenlogPage(0, number, sellerId, {
+      target: { orderId: order.id },
+    }),
+  ).toMatchObject({ linked: 1, linkedOrderId: order.id });
+  const inlineInvoice = await db.shipmentInvoice.findUniqueOrThrow({
+    where: { accessKey: inlineKey },
+    include: { shipment: true },
+  });
+  expect(inlineInvoice).toMatchObject({
+    number: "64324",
+    series: "1",
+    shipment: { orderId: order.id },
+  });
+  expect(
+    await importZenlogPage(0, number, sellerId, {
+      target: { orderId: order.id },
+    }),
+  ).toMatchObject({ linked: 0, existing: 1 });
 });
 
 it("separates a pre-existing order from a ZenLOG-created order after import", async () => {
